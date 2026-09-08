@@ -44,7 +44,7 @@ export default function RegistroEmpresaPage() {
 
     setCargando(true);
     try {
-      const resp = await fetch(${API_BASE}/api/auth/registro/empresa, {
+      const resp = await fetch(`${API_BASE}/api/auth/registro/empresa`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
