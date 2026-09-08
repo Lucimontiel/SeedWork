@@ -4,7 +4,7 @@ from sqlalchemy.orm import sessionmaker
 
 # --- CAMBIA ESTOS DATOS POR LOS TUYOS ---
 # IMPORTANTE: El "*" se reemplaza por %2A para que la URL no se rompa
-SQLALCHEMY_DATABASE_URL = "mysql+pymysql://root:3217361186Vila@localhost/seedwork"
+SQLALCHEMY_DATABASE_URL = "mysql+pymysql://root:Oliver10246.@localhost/seedwork"
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
