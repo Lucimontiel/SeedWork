@@ -1,0 +1,188 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: "Inter", sans-serif;
+  background-color: #0d6efd;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  margin: 0;
+  padding: 20px;
+}
+
+/* Contenedor principal del login */
+.login-wrapper {
+  width: 100%;
+  max-width: 400px;
+  text-align: center;
+}
+
+.login-wrapper h2 {
+  color: #fff;
+  font-size: 28px;
+  margin-bottom: 8px;
+  font-weight: 700;
+}
+
+.login-wrapper .intro {
+  color: #e0e8ff;
+  font-size: 15px;
+  margin-bottom: 25px;
+  line-height: 1.4;
+}
+
+/* Tarjeta del login */
+.container {
+  background: #fff;
+  color: #000;
+  padding: 35px 30px 30px;
+  border-radius: 16px;
+  width: 100%;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  text-align: center;
+}
+
+/* Tabs */
+.tabs {
+  display: flex;
+  justify-content: space-around;
+  margin-bottom: 25px;
+  border-bottom: 2px solid #e9ecef;
+  gap: 10px;
+}
+
+.tabs button {
+  background: transparent;
+  border: none;
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+  padding: 10px 15px;
+  border-bottom: 3px solid transparent;
+  color: #6c757d;
+  transition: all 0.3s ease;
+  flex: 1;
+}
+
+.tabs button:hover {
+  color: #0d6efd;
+}
+
+.tabs .active {
+  color: #0d6efd;
+  border-bottom: 3px solid #0d6efd;
+}
+
+/* Formulario */
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+form input,
+form select {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1.5px solid #e0e0e0;
+  font-size: 15px;
+  transition: border-color 0.3s ease;
+  background: #f8f9fa;
+}
+
+form input:focus,
+form select:focus {
+  outline: none;
+  border-color: #0d6efd;
+  background: #fff;
+}
+
+form .forgot-password {
+  display: block;
+  text-align: right;
+  font-size: 13px;
+  color: #0d6efd;
+  text-decoration: none;
+  margin: -4px 0 2px;
+}
+
+form .forgot-password:hover {
+  text-decoration: underline;
+}
+
+form button {
+  background: #0d6efd;
+  color: #fff;
+  border: none;
+  padding: 14px;
+  border-radius: 50px;
+  width: 100%;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 16px;
+  transition: background 0.3s ease;
+  margin-top: 8px;
+}
+
+form button:hover {
+  background: #0b5ed7;
+}
+
+/* Checkbox */
+.checkbox-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: #555;
+  text-align: left;
+  margin: 4px 0;
+}
+
+.checkbox-group input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #0d6efd;
+}
+
+/* Links */
+p {
+  font-size: 14px;
+  margin-top: 18px;
+  color: #555;
+}
+
+p a {
+  color: #0d6efd;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+p a:hover {
+  text-decoration: underline;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+  .container {
+    padding: 25px 18px 20px;
+  }
+
+  .login-wrapper h2 {
+    font-size: 24px;
+  }
+
+  .tabs button {
+    font-size: 14px;
+    padding: 8px 10px;
+  }
+}
