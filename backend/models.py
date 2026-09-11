@@ -4,6 +4,7 @@ from datetime import datetime
 from sqlalchemy import Column, Integer, String, Text, DateTime, Date, Numeric, ForeignKey, Boolean, func
 from sqlalchemy.orm import relationship
 from database import Base
+from sqlalchemy.dialects.mysql import LONGTEXT
 
 class Rol(Base):
     __tablename__ = "Rol"
@@ -103,7 +104,7 @@ class Candidato(Base):
     Telefono = Column(String(20))
     AcercaDe = Column(Text)
     TituloProfesional = Column(String(150))
-    FotoUrl = Column(Text)
+    FotoUrl = Column(LONGTEXT)
     PlantillaCV = Column(String(20), default="clasico")
     FechaNacimiento = Column(Date)
     AreaInteres = Column(String(255))

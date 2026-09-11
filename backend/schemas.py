@@ -42,6 +42,7 @@ class CandidatoOut(BaseModel):
     correo: str
     ciudad: Optional[str] = None
     telefono: Optional[str] = None
+    fotoUrl: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -130,7 +131,8 @@ class SeccionCVIn(BaseModel):
 
 
 class SeccionCVUpdateIn(BaseModel):
-    contenido: str
+    titulo: Optional[str] = None
+    contenido: Optional[str] = None
 
 
 # --- Actualizaciones del CV ---
@@ -270,5 +272,14 @@ class PerfilOut(BaseModel):
     educacion: List[EducacionOut] = []
     experiencia: List[ProyectoOut] = []
     idiomas: List[IdiomaOut] = []
+    # --- Campos extra para que esta misma respuesta también sirva a Mi CV ---
+    # (usePerfil.ts y useCV.ts comparten las rutas /cv/foto, /cv/sobre-mi,
+    # /cv/habilidades, /cv/educacion, /cv/idiomas, /cv/proyectos porque son
+    # literalmente los mismos datos del candidato; esta respuesta trae todo
+    # lo que ambos hooks necesitan para no chocar entre sí)
+    plantilla: str = "clasico"
+    proyectos: List[ProyectoOut] = []      # mismo contenido que "experiencia"
+    referencias: List[ReferenciaOut] = []
+    secciones: List[SeccionCVOut] = []
 
     model_config = ConfigDict(from_attributes=True)

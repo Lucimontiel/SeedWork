@@ -1,4 +1,13 @@
+"""
+Backend de SeedWork (FastAPI).
 
+Incluye:
+  - Registro de candidato / empresa (con contraseña hasheada de verdad)
+  - Login
+  - Obtener los datos de un candidato / empresa (para pintar el dashboard)
+  - Moderación de vacantes del panel Administrador
+  - Gestión completa del perfil y CV del candidato
+"""
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
@@ -12,6 +21,7 @@ from models import (
     Postulacion, EstadoPostulacion,
     TipoContrato, JornadaLaboral, Disponibilidad,
     CandidatoHabilidad, CandidatoEducacion, CandidatoProyecto, CandidatoIdioma,
+    CandidatoReferencia, CandidatoSeccionCV,
     TipoNotificacion, Notificacion
 )
 from schemas import (
@@ -21,7 +31,10 @@ from schemas import (
     PerfilOut, PerfilDatosIn, PreferenciasIn,
     HabilidadOut, EducacionOut, ProyectoOut, IdiomaOut,
     HabilidadesIn, EducacionIn, ProyectoIn, IdiomaIn,
-    SobreMiIn, FotoIn
+    SobreMiIn, FotoIn,
+    DatosPersonalesIn, PlantillaIn,
+    ReferenciaOut, ReferenciaIn,
+    SeccionCVOut, SeccionCVIn, SeccionCVUpdateIn
 )
 from security import hash_password, verify_password
 
@@ -79,6 +92,8 @@ def _obtener_candidato_completo(id_candidato: int, db: Session) -> Candidato:
             joinedload(Candidato.educacion),
             joinedload(Candidato.proyectos),
             joinedload(Candidato.idiomas),
+            joinedload(Candidato.referencias),
+            joinedload(Candidato.secciones_cv),
         )
         .filter(Candidato.IdCandidato == id_candidato)
         .first()
@@ -125,6 +140,19 @@ def _armar_perfil(candidato: Candidato) -> PerfilOut:
         idiomas=[
             IdiomaOut(idIdioma=i.IdIdioma, descripcion=i.Descripcion)
             for i in (candidato.idiomas or [])
+        ],
+        plantilla=candidato.PlantillaCV or "clasico",
+        proyectos=[
+            ProyectoOut(idProyecto=p.IdProyecto, titulo=p.Titulo, descripcion=p.Descripcion, meta=p.Meta)
+            for p in (candidato.proyectos or [])
+        ],
+        referencias=[
+            ReferenciaOut(idReferencia=r.IdReferencia, nombre=r.Nombre, cargo=r.Cargo, contacto=r.Contacto)
+            for r in (candidato.referencias or [])
+        ],
+        secciones=[
+            SeccionCVOut(idSeccion=s.IdSeccion, titulo=s.Titulo, contenido=s.Contenido)
+            for s in sorted(candidato.secciones_cv or [], key=lambda s: s.Orden)
         ],
     )
 
@@ -279,6 +307,7 @@ def obtener_candidato(id_candidato: int, db: Session = Depends(get_db)):
         correo=candidato.usuario.Correo,
         ciudad=candidato.municipio.Nombre if candidato.municipio else None,
         telefono=candidato.Telefono,
+        fotoUrl=candidato.FotoUrl,
     )
 
 
@@ -838,6 +867,22 @@ def eliminar_educacion(id_candidato: int, id_educacion: int, db: Session = Depen
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
 
 
+@app.put("/api/candidato/{id_candidato}/cv/educacion/{id_educacion}", response_model=PerfilOut)
+def actualizar_educacion(id_candidato: int, id_educacion: int, body: EducacionIn, db: Session = Depends(get_db)):
+    _obtener_candidato_completo(id_candidato, db)
+    educacion = db.query(CandidatoEducacion).filter(
+        CandidatoEducacion.IdEducacion == id_educacion,
+        CandidatoEducacion.IdCandidato == id_candidato
+    ).first()
+    if not educacion:
+        raise HTTPException(404, "Educación no encontrada")
+    educacion.Titulo = body.titulo
+    educacion.Institucion = body.institucion
+    educacion.Anio = body.anio
+    db.commit()
+    return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
+
+
 @app.post("/api/candidato/{id_candidato}/cv/proyectos", response_model=PerfilOut)
 def crear_proyecto(id_candidato: int, body: ProyectoIn, db: Session = Depends(get_db)):
     _obtener_candidato_completo(id_candidato, db)
@@ -861,6 +906,22 @@ def eliminar_proyecto(id_candidato: int, id_proyecto: int, db: Session = Depends
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
 
 
+@app.put("/api/candidato/{id_candidato}/cv/proyectos/{id_proyecto}", response_model=PerfilOut)
+def actualizar_proyecto(id_candidato: int, id_proyecto: int, body: ProyectoIn, db: Session = Depends(get_db)):
+    _obtener_candidato_completo(id_candidato, db)
+    proyecto = db.query(CandidatoProyecto).filter(
+        CandidatoProyecto.IdProyecto == id_proyecto,
+        CandidatoProyecto.IdCandidato == id_candidato
+    ).first()
+    if not proyecto:
+        raise HTTPException(404, "Proyecto no encontrado")
+    proyecto.Titulo = body.titulo
+    proyecto.Descripcion = body.descripcion
+    proyecto.Meta = body.meta
+    db.commit()
+    return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
+
+
 @app.post("/api/candidato/{id_candidato}/cv/idiomas", response_model=PerfilOut)
 def crear_idioma(id_candidato: int, body: IdiomaIn, db: Session = Depends(get_db)):
     _obtener_candidato_completo(id_candidato, db)
@@ -878,6 +939,137 @@ def eliminar_idioma(id_candidato: int, id_idioma: int, db: Session = Depends(get
     if not idioma:
         raise HTTPException(404, "Idioma no encontrado")
     db.delete(idioma)
+    db.commit()
+    return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
+
+
+@app.put("/api/candidato/{id_candidato}/cv/idiomas/{id_idioma}", response_model=PerfilOut)
+def actualizar_idioma(id_candidato: int, id_idioma: int, body: IdiomaIn, db: Session = Depends(get_db)):
+    _obtener_candidato_completo(id_candidato, db)
+    idioma = db.query(CandidatoIdioma).filter(
+        CandidatoIdioma.IdIdioma == id_idioma,
+        CandidatoIdioma.IdCandidato == id_candidato
+    ).first()
+    if not idioma:
+        raise HTTPException(404, "Idioma no encontrado")
+    idioma.Descripcion = body.descripcion
+    db.commit()
+    return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
+
+
+# ============================================================
+# MI CV — rutas exclusivas (las de foto, sobre-mi, habilidades,
+# educación, idiomas y proyectos ya existen arriba y son compartidas
+# con Perfil, porque son los mismos datos del candidato)
+# ============================================================
+
+@app.get("/api/candidato/{id_candidato}/cv", response_model=PerfilOut)
+def obtener_cv(id_candidato: int, db: Session = Depends(get_db)):
+    candidato = _obtener_candidato_completo(id_candidato, db)
+    return _armar_perfil(candidato)
+
+
+@app.put("/api/candidato/{id_candidato}/cv/datos-personales", response_model=PerfilOut)
+def actualizar_datos_personales_cv(id_candidato: int, body: DatosPersonalesIn, db: Session = Depends(get_db)):
+    candidato = _obtener_candidato_completo(id_candidato, db)
+    candidato.Nombres = body.nombres
+    candidato.Apellidos = body.apellidos
+    candidato.TituloProfesional = body.tituloProfesional
+    candidato.Telefono = body.telefono
+    if body.correo and body.correo != candidato.usuario.Correo:
+        if db.query(Usuario).filter(Usuario.Correo == body.correo, Usuario.IdUsuario != candidato.IdUsuario).first():
+            raise HTTPException(400, "Ese correo ya está en uso por otra cuenta")
+        candidato.usuario.Correo = body.correo
+    if body.ciudad:
+        candidato.IdMunicipio = _buscar_municipio(db, body.ciudad).IdMunicipio
+    db.commit()
+    return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
+
+
+@app.put("/api/candidato/{id_candidato}/cv/plantilla", response_model=PerfilOut)
+def actualizar_plantilla(id_candidato: int, body: PlantillaIn, db: Session = Depends(get_db)):
+    candidato = _obtener_candidato_completo(id_candidato, db)
+    candidato.PlantillaCV = body.plantilla
+    db.commit()
+    return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
+
+
+@app.post("/api/candidato/{id_candidato}/cv/referencias", response_model=PerfilOut)
+def crear_referencia(id_candidato: int, body: ReferenciaIn, db: Session = Depends(get_db)):
+    _obtener_candidato_completo(id_candidato, db)
+    db.add(CandidatoReferencia(
+        IdCandidato=id_candidato,
+        Nombre=body.nombre,
+        Cargo=body.cargo,
+        Contacto=body.contacto,
+    ))
+    db.commit()
+    return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
+
+
+@app.delete("/api/candidato/{id_candidato}/cv/referencias/{id_referencia}", response_model=PerfilOut)
+def eliminar_referencia(id_candidato: int, id_referencia: int, db: Session = Depends(get_db)):
+    referencia = db.query(CandidatoReferencia).filter(CandidatoReferencia.IdReferencia == id_referencia).first()
+    if not referencia:
+        raise HTTPException(404, "Referencia no encontrada")
+    db.delete(referencia)
+    db.commit()
+    return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
+
+
+@app.put("/api/candidato/{id_candidato}/cv/referencias/{id_referencia}", response_model=PerfilOut)
+def actualizar_referencia(id_candidato: int, id_referencia: int, body: ReferenciaIn, db: Session = Depends(get_db)):
+    _obtener_candidato_completo(id_candidato, db)
+    referencia = db.query(CandidatoReferencia).filter(
+        CandidatoReferencia.IdReferencia == id_referencia,
+        CandidatoReferencia.IdCandidato == id_candidato
+    ).first()
+    if not referencia:
+        raise HTTPException(404, "Referencia no encontrada")
+    referencia.Nombre = body.nombre
+    referencia.Cargo = body.cargo
+    referencia.Contacto = body.contacto
+    db.commit()
+    return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
+
+
+@app.post("/api/candidato/{id_candidato}/cv/secciones", response_model=PerfilOut)
+def crear_seccion(id_candidato: int, body: SeccionCVIn, db: Session = Depends(get_db)):
+    candidato = _obtener_candidato_completo(id_candidato, db)
+    siguiente_orden = len(candidato.secciones_cv or []) + 1
+    db.add(CandidatoSeccionCV(
+        IdCandidato=id_candidato,
+        Titulo=body.titulo,
+        Contenido=body.contenido,
+        Orden=siguiente_orden,
+    ))
+    db.commit()
+    return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
+
+
+@app.put("/api/candidato/{id_candidato}/cv/secciones/{id_seccion}", response_model=PerfilOut)
+def actualizar_seccion(id_candidato: int, id_seccion: int, body: SeccionCVUpdateIn, db: Session = Depends(get_db)):
+    _obtener_candidato_completo(id_candidato, db)
+    seccion = db.query(CandidatoSeccionCV).filter(
+        CandidatoSeccionCV.IdSeccion == id_seccion,
+        CandidatoSeccionCV.IdCandidato == id_candidato
+    ).first()
+    if not seccion:
+        raise HTTPException(404, "Sección no encontrada")
+    if body.titulo is not None:
+        seccion.Titulo = body.titulo
+    if body.contenido is not None:
+        seccion.Contenido = body.contenido
+    db.commit()
+    return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
+
+
+@app.delete("/api/candidato/{id_candidato}/cv/secciones/{id_seccion}", response_model=PerfilOut)
+def eliminar_seccion(id_candidato: int, id_seccion: int, db: Session = Depends(get_db)):
+    seccion = db.query(CandidatoSeccionCV).filter(CandidatoSeccionCV.IdSeccion == id_seccion).first()
+    if not seccion:
+        raise HTTPException(404, "Sección no encontrada")
+    db.delete(seccion)
     db.commit()
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
 
