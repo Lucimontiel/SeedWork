@@ -109,6 +109,7 @@ export default function PostulacionesPage() {
   return (
     <CandidatoShell
       nombre={candidato ? `${candidato.nombres} ${candidato.apellidos}` : undefined}
+      fotoUrl={candidato?.fotoUrl}
       pageTitle="Mis Postulaciones"
       pageSubtitle="Consulta el estado de las ofertas a las que te has postulado"
     >

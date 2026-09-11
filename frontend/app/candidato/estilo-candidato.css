@@ -101,7 +101,11 @@ textarea {
 
     display: flex;
 
+    height: 100vh;
+
     min-height: 100vh;
+
+    overflow: hidden;
 
 }
 
@@ -124,6 +128,10 @@ textarea {
     display: flex;
 
     flex-direction: column;
+
+    height: 100vh;
+
+    overflow-y: auto;
 
 }
 
@@ -226,6 +234,10 @@ textarea {
     display: flex;
 
     flex-direction: column;
+
+    height: 100vh;
+
+    overflow: hidden;
 
 }
 
@@ -382,6 +394,7 @@ textarea {
 
 .content-wrap {
     padding: 32px 36px 50px;
+    overflow-y: auto;
 }
 
 .content-grid {
@@ -3231,6 +3244,13 @@ textarea#answerInput::placeholder {
     margin-bottom: 8px;
 }
 
+.cv-preview-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
 .cv-tip-title svg {
     width: 16px;
     height: 16px;
@@ -3354,15 +3374,17 @@ textarea#answerInput::placeholder {
 }
 
 .cv-preview-photo {
-    width: 88px;
-    height: 88px;
-    border-radius: 50%;
+    width: 160px;
+    height: 200px;
+    border-radius: 14px;
     background: rgba(255,255,255,0.16);
     display: flex;
     align-items: center;
     justify-content: center;
     margin-bottom: 14px;
     flex-shrink: 0;
+    overflow: hidden;
+    position: relative;
 }
 
 .cv-preview-photo svg {
@@ -4144,25 +4166,28 @@ textarea#answerInput::placeholder {
 
 .cv-camera-btn {
     position: absolute;
-    bottom: 12px;
-    right: calc(50% - 44px);
-    width: 26px;
-    height: 26px;
+    bottom: 8px;
+    right: 8px;
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
-    background: #fff;
-    border: 2px solid var(--blue);
-    color: var(--blue);
+    background: var(--white);
+    border: none;
+    display: flex;
     align-items: center;
     justify-content: center;
+    box-shadow: 0 2px 8px rgba(16, 24, 40, 0.18);
     cursor: pointer;
 }
 
 .cv-camera-btn svg {
-    width: 13px;
-    height: 13px;
-    stroke: var(--blue);
+    width: 16px;
+    height: 16px;
+    stroke: var(--ink);
     fill: none;
-    stroke-width: 1.8;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
 }
 
 #cvPhoto {
@@ -4243,6 +4268,13 @@ textarea#answerInput::placeholder {
 
 .cv-preview-item-row {
     margin-bottom: 14px;
+}
+
+.cv-preview-item-row strong,
+.cv-preview-item-row a,
+.cv-preview-item-row .cv-preview-year,
+.cv-preview-item-row span {
+    display: block;
 }
 
 .cv-preview-item-row:last-child {
@@ -4507,30 +4539,89 @@ textarea#answerInput::placeholder {
 
 /* ================= PLANTILLA: MODERNO ================= */
 
+.cv-preview[data-template="moderno"] .cv-preview-photo svg {
+    width: 34px;
+    height: 34px;
+}
+
+.cv-preview[data-template="moderno"] .cv-camera-btn {
+    position: absolute;
+    bottom: 4px;
+    right: 4px;
+    width: 32px;
+    height: 32px;
+}
+
+.cv-preview[data-template="moderno"] .cv-camera-btn svg {
+    width: 16px;
+    height: 16px;
+    stroke: var(--ink);
+    fill: none;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
 .cv-preview[data-template="moderno"] {
     flex-direction: column;
 }
 
 .cv-preview[data-template="moderno"] .cv-preview-sidebar {
     width: 100%;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
+    display: grid;
+    grid-template-columns: 160px 1fr;     /* ← 160px por la foto */
+    grid-template-rows: auto auto auto;    /* ← 3 filas que no se estiran */
+    align-content: start;                  /* ← todo arriba, sin estirar */
+    column-gap: 24px;
+    row-gap: 0;
     text-align: left;
     background: #1F2937;
     background-image: none;
     padding: 24px 32px;
-    gap: 22px 34px;
 }
 
 .cv-preview[data-template="moderno"] .cv-preview-photo {
+    grid-column: 1;
+    grid-row: 1 / span 3;
+    width: 160px;
+    height: 200px;
     margin-bottom: 0;
-    width: 66px;
-    height: 66px;
-    flex-shrink: 0;
+    align-self: start;
+    transform: translateY(8px);
 }
 
-.cv-preview[data-template="moderno"] .cv-preview-photo svg {
+.cv-preview[data-template="moderno"] .cv-preview-name {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: start;
+    margin: 0;
+    padding: 0;
+    line-height: 1.2;
+    transform: translateY(16px)
+}
+
+.cv-preview[data-template="moderno"] .cv-preview-role {
+    grid-column: 2;
+    grid-row: 2;
+    align-self: start;
+    margin: 0;
+    padding: 0;
+    line-height: 1.3;
+    transform: translateY(-20px)
+}
+
+.cv-preview[data-template="moderno"] .cv-preview-location {
+    grid-column: 2;
+    grid-row: 3;
+    align-self: start;
+    margin: 0;
+    padding: 0;
+    border-bottom: none;
+    line-height: 1.3;
+    transform: translateY(-50px)
+}
+
+.cv-preview[data-template="moderno"] .cv-preview-photo > svg {
     width: 34px;
     height: 34px;
 }
@@ -4541,25 +4632,37 @@ textarea#answerInput::placeholder {
 }
 
 .cv-preview[data-template="moderno"] .cv-preview-name {
-    font-size: 18px;
+    grid-column: 2;
+    grid-row: 1;
+    align-self: start;
+    margin: 0;
+    padding: 0;
+    line-height: 1.2;
 }
 
 .cv-preview[data-template="moderno"] .cv-preview-role {
-    margin-bottom: 4px;
+    grid-column: 2;
+    grid-row: 2;
+    align-self: start;
+    margin: 0;
+    padding: 0;
+    line-height: 1.3;
 }
 
 .cv-preview[data-template="moderno"] .cv-preview-location {
+    grid-column: 2;
+    grid-row: 3;
+    align-self: start;
+    margin: 0;
+    padding: 0;
     border-bottom: none;
-    padding-bottom: 0;
-    margin-bottom: 0;
-    width: auto;
-    justify-content: flex-start;
+    line-height: 1.3;
 }
 
 .cv-preview[data-template="moderno"] .cv-preview-block {
-    width: auto;
-    margin-bottom: 0;
-    min-width: 190px;
+    grid-column: 1 / -1;
+    margin-top: 20px;
+    width: 100%;
 }
 
 .cv-preview[data-template="moderno"] .cv-preview-block span {
@@ -4601,7 +4704,7 @@ textarea#answerInput::placeholder {
     width: 100%;
     background: #FAF7F0;
     color: #2B2B2B;
-    padding: 40px 24px 30px;
+    padding: 40px 56px 30px;
     border-bottom: 2px solid #C9A227;
 }
 
@@ -6773,4 +6876,201 @@ textarea#answerInput::placeholder {
     font-weight: 600;
     padding: 6px 13px;
     border-radius: 20px;
+}
+
+/* ---------------- MI CV ---------------- */
+
+/* Botón de eliminar en items del CV (educación, proyectos, referencias) */
+.cv-preview-item-row {
+    position: relative;
+    padding-right: 32px;
+}
+
+.cv-delete-btn {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: none;
+    background: #FCE9E7;
+    color: #D0402F;
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    opacity: 0.5;
+    transition: opacity 0.15s ease, background 0.15s ease;
+    z-index: 2;
+}
+
+.cv-preview-item-row:hover .cv-delete-btn,
+.cv-delete-btn:hover {
+    opacity: 1;
+    background: #F8C6C0;
+}
+
+/* Botón de eliminar en idiomas (inline) */
+.cv-preview-lang {
+    position: relative;
+    padding-right: 32px;
+}
+
+.cv-delete-inline {
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+/* Botón × sobre chips de habilidades */
+.cv-skill-chip {
+    position: relative;
+    padding-right: 24px;
+}
+
+.cv-skill-remove {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255,255,255,0.35);
+    color: #fff;
+    font-size: 11px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cv-skill-remove:hover {
+    background: rgba(255,255,255,0.7);
+    color: #D0402F;
+}
+
+/* Wrapper de secciones personalizadas en el sidebar */
+.cv-section-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.cv-section-wrapper .cv-section-item {
+    flex: 1;
+    padding-right: 32px;
+}
+
+.cv-section-delete {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+.cv-section-wrapper:hover .cv-section-delete {
+    opacity: 1;
+}
+
+.cv-section-delete:hover {
+    background: #FCE9E7;
+    color: #D0402F;
+}
+
+/* Ajustes para plantilla Elegante */
+.cv-preview[data-template="elegante"] .cv-delete-btn,
+.cv-preview[data-template="elegante"] .cv-section-delete {
+    background: rgba(201, 162, 39, 0.15);
+    color: #8A7346;
+}
+
+.cv-preview[data-template="elegante"] .cv-delete-btn:hover,
+.cv-preview[data-template="elegante"] .cv-section-delete:hover {
+    background: rgba(201, 162, 39, 0.3);
+}
+
+/* Ocultar botones de eliminar al imprimir */
+@media print {
+    .cv-delete-btn,
+    .cv-skill-remove,
+    .cv-section-delete {
+        display: none !important;
+    }
+}
+
+/* Botón × para eliminar secciones personalizadas */
+.cv-section-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.cv-section-wrapper .cv-section-item {
+    flex: 1;
+    padding-right: 32px;
+}
+
+.cv-section-delete {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: none;
+    background: #FCE9E7;
+    color: #D0402F;
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 1;   /* ← siempre visible (antes era 0) */
+}
+
+.cv-section-delete:hover {
+    background: #F8C6C0;
+}
+
+/* ---- Proyectos en Mi CV (estilos exclusivos para no afectar Perfil ni otras secciones del CV) ---- */
+
+.cv-preview-item-row .cv-project-desc {
+    display: block;
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.5;
+    margin-top: 4px;
+}
+
+.cv-preview-item-row .cv-project-meta {
+    display: block;
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.4;
+    margin-top: 3px;
 }

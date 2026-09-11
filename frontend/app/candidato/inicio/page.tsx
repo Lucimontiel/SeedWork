@@ -14,6 +14,7 @@ type Candidato = {
   correo: string;
   ciudad?: string;
   telefono?: string;
+  fotoUrl?: string | null;
 };
 
 type Oferta = {
@@ -72,7 +73,12 @@ export default function InicioCandidatoPage() {
   }, []);
 
   return (
-    <CandidatoShell pageTitle="Inicio" pageSubtitle="Cada vez más cerca de tu próxima gran oportunidad">
+    <CandidatoShell
+      nombre={candidato ? `${candidato.nombres} ${candidato.apellidos}` : undefined}
+      fotoUrl={candidato?.fotoUrl}
+      pageTitle="Inicio"
+      pageSubtitle="Cada vez más cerca de tu próxima gran oportunidad"
+    >
       {/* Tarjetas de acción */}
       <div className="quick-actions" style={{ marginBottom: 30 }}>
         <button className="action-card" onClick={() => (window.location.href = "/candidato/perfil")}>

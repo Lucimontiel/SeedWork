@@ -40,6 +40,7 @@ export default function ConfiguracionPage() {
   return (
     <CandidatoShell
       nombre={candidato ? `${candidato.nombres} ${candidato.apellidos}` : undefined}
+      fotoUrl={candidato?.fotoUrl}
       pageTitle="Configuración"
       pageSubtitle="Administra tus preferencias, seguridad y cuenta"
     >

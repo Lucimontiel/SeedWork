@@ -213,6 +213,7 @@ export default function VacantesPage() {
   return (
     <CandidatoShell
       nombre={candidato ? `${candidato.nombres} ${candidato.apellidos}` : undefined}
+      fotoUrl={candidato?.fotoUrl}
       pageTitle="Vacantes"
       pageSubtitle="Oportunidades pensadas para ti"
     >
