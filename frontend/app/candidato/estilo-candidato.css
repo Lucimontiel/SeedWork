@@ -2372,6 +2372,7 @@ textarea#answerInput::placeholder {
 }
 
 /* Filtros */
+<<<<<<< HEAD
 /* Buscador y filtros en la misma línea */
 .search-filters-row {
   display: flex;
@@ -2439,6 +2440,9 @@ textarea#answerInput::placeholder {
   justify-content: flex-end;
   margin-bottom: 0;
 }
+=======
+
+>>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
 .vacantes-filters {
     display: flex;
     align-items: center;
@@ -6839,6 +6843,7 @@ textarea#answerInput::placeholder {
     font-weight: 600;
     padding: 6px 13px;
     border-radius: 20px;
+<<<<<<< HEAD
 }
 
 /* Botón Agregar seccion*/
@@ -6971,4 +6976,6 @@ textarea#answerInput::placeholder {
     opacity: 1;
     transform: translateY(0);
   }
+=======
+>>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
 }

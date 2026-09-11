@@ -38,6 +38,7 @@ export default function LoginPage() {
       }
 
       const data = await resp.json();
+<<<<<<< HEAD
 
       // El backend decide el tipo real de la cuenta. Si es una cuenta de
       // administrador, entra como administrador sin importar si en el
@@ -46,12 +47,19 @@ export default function LoginPage() {
         saveSession({ tipo: "administrador", id: data.idAdministrador });
         router.push("/administrador/inicio");
       } else if (data.tipo === "candidato") {
+=======
+      if (tipo === "candidato") {
+>>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
         saveSession({ tipo: "candidato", id: data.idCandidato });
         router.push("/candidato/inicio");
       } else {
         saveSession({ tipo: "empresa", id: data.idEmpresa });
         router.push("/empresa/inicio");
       }
+<<<<<<< HEAD
+=======
+      
+>>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
     } catch (err: any) {
       setError(err.message);
     } finally {

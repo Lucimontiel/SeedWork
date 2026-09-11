@@ -23,6 +23,7 @@ const TEMPLATES: { id: string; label: string }[] = [
   { id: "elegante", label: "Elegante" },
 ];
 
+<<<<<<< HEAD
 // Componente para el modal de agregar sección
 function AgregarSeccionModal({ 
   isOpen, 
@@ -82,6 +83,8 @@ function AgregarSeccionModal({
   );
 }
 
+=======
+>>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
 export default function MiCVPage() {
   const { candidato } = useCandidato();
   const idCandidato = candidato?.idCandidato ?? null;
@@ -91,9 +94,13 @@ export default function MiCVPage() {
   const [seccionActiva, setSeccionActiva] = useState<SeccionActiva | null>(null);
   const [previewVisible, setPreviewVisible] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
+<<<<<<< HEAD
   const [mostrarFormSeccion, setMostrarFormSeccion] = useState(false);
   const [nombreSeccion, setNombreSeccion] = useState("");
   const [guardandoSeccion, setGuardandoSeccion] = useState(false);
+=======
+  const fileInputRef = useRef<HTMLInputElement>(null);
+>>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
 
   function mostrarToast(msg: string) {
     setToast(msg);
@@ -105,6 +112,7 @@ export default function MiCVPage() {
   }
 
   async function agregarSeccionPersonalizada() {
+<<<<<<< HEAD
     if (!nombreSeccion.trim()) {
       mostrarToast("Escribe un nombre para la sección");
       return;
@@ -124,6 +132,16 @@ export default function MiCVPage() {
       mostrarToast(err.message || "No se pudo crear la sección");
     } finally {
       setGuardandoSeccion(false);
+=======
+    const nombre = window.prompt("Nombre de la nueva sección:");
+    if (!nombre || !nombre.trim()) return;
+    try {
+      const nuevo = await cvApi.agregarSeccion({ titulo: nombre.trim(), contenido: "Escribe aquí el contenido de esta sección..." });
+      const seccionCreada = nuevo.secciones[nuevo.secciones.length - 1];
+      setSeccionActiva({ tipo: "custom", idSeccion: seccionCreada.idSeccion });
+    } catch (err: any) {
+      mostrarToast(err.message || "No se pudo crear la sección");
+>>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
     }
   }
 
@@ -193,7 +211,11 @@ export default function MiCVPage() {
             ))}
           </nav>
 
+<<<<<<< HEAD
           <button className="cv-add-section" type="button" onClick={() => setMostrarFormSeccion(true)}>
+=======
+          <button className="cv-add-section" type="button" onClick={agregarSeccionPersonalizada}>
+>>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
             <svg viewBox="0 0 20 20"><path d="M10 4v12M4 10h12" /></svg>Agregar sección
           </button>
 
@@ -261,6 +283,13 @@ export default function MiCVPage() {
                   ) : (
                     <svg viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.6" /><path d="M4.5 20c0-4.2 3.4-7 7.5-7s7.5 2.8 7.5 7" /></svg>
                   )}
+<<<<<<< HEAD
+=======
+                  <button className="cv-camera-btn" type="button" aria-label="Cambiar foto" onClick={() => fileInputRef.current?.click()}>
+                    <svg viewBox="0 0 20 20"><path d="M3 7.5h2.5L7 5h6l1.5 2.5H17a1 1 0 011 1v7a1 1 0 01-1 1H3a1 1 0 01-1-1v-7a1 1 0 011-1z" /><circle cx="10" cy="11.5" r="2.8" /></svg>
+                  </button>
+                  <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleFotoChange} />
+>>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
                 </div>
 
                 <h3 className="cv-preview-name">{cv.nombres} {cv.apellidos}</h3>
@@ -349,6 +378,7 @@ export default function MiCVPage() {
         </div>
       </div>
 
+<<<<<<< HEAD
       {/* Modal para agregar sección */}
       <AgregarSeccionModal
         isOpen={mostrarFormSeccion}
@@ -362,6 +392,8 @@ export default function MiCVPage() {
         guardando={guardandoSeccion}
       />
 
+=======
+>>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
       {toast && <div className="sw-toast show">{toast}</div>}
     </CandidatoShell>
   );
