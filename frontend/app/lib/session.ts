@@ -2,7 +2,11 @@
 const SESSION_KEY = 'seedwork_session';
 
 export interface SessionData {
+<<<<<<< HEAD
   tipo: 'candidato' | 'empresa' | 'administrador';
+=======
+  tipo: 'candidato' | 'empresa';
+>>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
   id: number;
   idUsuario?: number;
 }
@@ -40,7 +44,11 @@ export function isAuthenticated(): boolean {
 export function getRedirectPath(): string {
   const session = getSession();
   if (!session) return '/login';
+<<<<<<< HEAD
   if (session.tipo === 'candidato') return '/candidato/inicio';
   if (session.tipo === 'administrador') return '/administrador/inicio';
   return '/empresa/inicio';
+=======
+  return session.tipo === 'candidato' ? '/candidato/inicio' : '/empresa/inicio';
+>>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
 }

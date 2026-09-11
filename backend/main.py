@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 """
 Backend de SeedWork (FastAPI).
 
@@ -10,6 +11,12 @@ Incluye:
 """
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
+=======
+
+from sqlalchemy import func, or_
+from sqlalchemy.orm import Session, joinedload
+
+>>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -20,8 +27,12 @@ from models import (
     Postulacion, EstadoPostulacion,
     TipoContrato, JornadaLaboral, Disponibilidad,
     CandidatoHabilidad, CandidatoEducacion, CandidatoProyecto, CandidatoIdioma,
+<<<<<<< HEAD
     TipoNotificacion, Notificacion, Administrador,
     CandidatoReferencia, CandidatoSeccionCV,
+=======
+    TipoNotificacion, Notificacion
+>>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
 )
 from schemas import (
     RegistroCandidatoIn, RegistroEmpresaIn, LoginIn,
@@ -29,7 +40,12 @@ from schemas import (
     OfertaOut, PostulacionIn, PostulacionOut,
     PerfilOut, PerfilDatosIn, PreferenciasIn,
     HabilidadOut, EducacionOut, ProyectoOut, IdiomaOut,
+<<<<<<< HEAD
     HabilidadesIn, EducacionIn, ProyectoIn, IdiomaIn
+=======
+    HabilidadesIn, EducacionIn, ProyectoIn, IdiomaIn,
+    SobreMiIn, FotoIn
+>>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
 )
 from security import hash_password, verify_password
 
@@ -107,6 +123,7 @@ def _armar_perfil(candidato: Candidato) -> PerfilOut:
         correo=candidato.usuario.Correo,
         ciudad=candidato.municipio.Nombre if candidato.municipio else None,
         telefono=candidato.Telefono,
+<<<<<<< HEAD
         fechaNacimiento=candidato.FechaNacimiento,
         about=candidato.AcercaDe,
         fotoUrl=candidato.FotoUrl,
@@ -119,6 +136,21 @@ def _armar_perfil(candidato: Candidato) -> PerfilOut:
         disponibilidad=candidato.disponibilidad.Nombre if candidato.disponibilidad else None,
         habilidades=[
             HabilidadOut(idHabilidad=h.IdHabilidad, nombre=h.Nombre)
+=======
+        fechaNacimiento=candidato.FechaNacimiento if candidato.FechaNacimiento else None,
+        about=candidato.AcercaDe,
+        fotoUrl=candidato.FotoUrl,
+        areaInteres=candidato.AreaInteres,
+        salarioEsperado=candidato.SalarioEsperado,
+        tipoContratoPreferido=candidato.tipo_contrato_preferido.Nombre if candidato.tipo_contrato_preferido else None,
+        jornadaPreferida=candidato.jornada_preferida.Nombre if candidato.jornada_preferida else None,
+        movilidad=candidato.Movilidad,
+        modalidad=candidato.modalidad_preferida.Nombre if candidato.modalidad_preferida else None,
+        modalidadPreferida=candidato.modalidad_preferida.Nombre if candidato.modalidad_preferida else None,
+        disponibilidad=candidato.disponibilidad.Nombre if candidato.disponibilidad else None,
+        habilidades=[
+            HabilidadOut(idHabilidad=h.IdHabilidad, nombre=h.Nombre) 
+>>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
             for h in (candidato.habilidades or [])
         ],
         educacion=[
@@ -146,12 +178,20 @@ def registrar_candidato(body: RegistroCandidatoIn, db: Session = Depends(get_db)
         raise HTTPException(400, "Ya existe una cuenta con ese correo")
 
     municipio = _buscar_municipio(db, body.ciudad)
+<<<<<<< HEAD
  
+=======
+    
+>>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
     # VERIFICACIÓN CRÍTICA: Si no existen estos datos en la BD, lanzar error claro
     rol_candidato = db.query(Rol).filter(Rol.Nombre == "Candidato").first()
     if not rol_candidato:
         raise HTTPException(400, "El Rol 'Candidato' no está registrado en la base de datos")
+<<<<<<< HEAD
  
+=======
+    
+>>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
     estado_activo = db.query(EstadoUsuario).filter(EstadoUsuario.Nombre == "Activo").first()
     if not estado_activo:
         raise HTTPException(400, "El estado 'Activo' no está registrado en la base de datos")
@@ -204,7 +244,11 @@ def registrar_empresa(body: RegistroEmpresaIn, db: Session = Depends(get_db)):
     rol_empresa = db.query(Rol).filter(Rol.Nombre == "Empresa").first()
     if not rol_empresa:
         raise HTTPException(400, "El Rol 'Empresa' no está registrado en la base de datos")
+<<<<<<< HEAD
  
+=======
+    
+>>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
     estado_activo = db.query(EstadoUsuario).filter(EstadoUsuario.Nombre == "Activo").first()
     if not estado_activo:
         raise HTTPException(400, "El estado 'Activo' no está registrado en la base de datos")
@@ -249,6 +293,7 @@ def login(body: LoginIn, db: Session = Depends(get_db)):
     if not usuario or not verify_password(body.contrasena, usuario.Contrasena):
         raise HTTPException(401, "Correo o contraseña incorrectos")
 
+<<<<<<< HEAD
     # Si la cuenta es de un administrador, entra como administrador sin
     # importar si en el formulario se seleccionó "candidato" o "empresa".
     administrador = db.query(Administrador).filter(Administrador.IdUsuario == usuario.IdUsuario).first()
@@ -259,6 +304,8 @@ def login(body: LoginIn, db: Session = Depends(get_db)):
             "tipo": "administrador",
         }
 
+=======
+>>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
     if body.tipo == "candidato":
         candidato = db.query(Candidato).filter(Candidato.IdUsuario == usuario.IdUsuario).first()
         if not candidato:
@@ -275,6 +322,7 @@ def login(body: LoginIn, db: Session = Depends(get_db)):
 
 
 # ============================================================
+<<<<<<< HEAD
 # ADMINISTRADOR
 # ============================================================
 
@@ -299,6 +347,8 @@ def obtener_administrador(id_administrador: int, db: Session = Depends(get_db)):
 
 
 # ============================================================
+=======
+>>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
 # DASHBOARDS (traer los datos del usuario ya creado)
 # ============================================================
 
@@ -448,7 +498,11 @@ def obtener_candidatos_de_oferta(id_oferta: int, db: Session = Depends(get_db)):
         .filter(Postulacion.IdOferta == id_oferta)
         .all()
     )
+<<<<<<< HEAD
  
+=======
+    
+>>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
     # Armar los datos
     return [
         {
@@ -588,7 +642,11 @@ def listar_ofertas_de_empresa(id_empresa: int, db: Session = Depends(get_db)):
         .order_by(Oferta.FechaPublicacion.desc())
         .all()
     )
+<<<<<<< HEAD
  
+=======
+    
+>>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
     return [
         {
             "idOferta": o.IdOferta,
@@ -618,17 +676,28 @@ def crear_oferta(body: dict, db: Session = Depends(get_db)):
     modalidad = db.query(Modalidad).filter(func.lower(Modalidad.Nombre) == body.get("modalidad", "").strip().lower()).first()
     if not modalidad:
         raise HTTPException(400, f"Modalidad '{body.get('modalidad')}' no encontrada")
+<<<<<<< HEAD
  
+=======
+    
+>>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
     municipio = _buscar_municipio(db, body.get("ciudad", "Medellín"))
     categoria = db.query(CategoriaOferta).filter(CategoriaOferta.Nombre == "Desarrollo de Software").first()
     tipo_contrato = db.query(TipoContrato).filter(TipoContrato.Nombre == "Término Indefinido").first()
     jornada = db.query(JornadaLaboral).filter(JornadaLaboral.Nombre == "Tiempo Completo").first()
     estado = db.query(EstadoOferta).filter(EstadoOferta.Nombre == "Publicada").first()
 
+<<<<<<< HEAD
     if not all([categoria, tipo_contrato, jornada, estado]):
         raise HTTPException(500, "Faltan catálogos obligatorios en la base de datos")
 
     # crear la oferta
+=======
+    if not (categoria, tipo_contrato, jornada, estado):
+        raise HTTPException(500, "Faltan catálogos obligatorios en la base de dados")
+
+    # Create the offer
+>>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
     oferta = Oferta(
         IdEmpresa=empresa.IdEmpresa,
         IdCategoria=categoria.IdCategoria,
@@ -671,9 +740,15 @@ def listar_vacantes(
         .join(EstadoOferta)
         .join(Empresa)
         .options(
+<<<<<<< HEAD
             joinedload(Oferta.empresa),
             joinedload(Oferta.modalidad),
             joinedload(Oferta.municipio),
+=======
+            joinedload(Oferta.empresa), 
+            joinedload(Oferta.modalidad),
+            joinedload(Oferta.municipio), 
+>>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
             joinedload(Oferta.categoria),
             joinedload(Oferta.tipo_contrato),
         )
@@ -714,6 +789,7 @@ def listar_vacantes(
 # POSTULACIONES
 # ============================================================
 
+<<<<<<< HEAD
 @app.post("/api/postulaciones", response_model=PostulacionOut)
 def crear_postulacion(body: PostulacionIn, db: Session = Depends(get_db)):
     candidato = db.query(Candidato).filter(Candidato.IdCandidato == body.idCandidato).first()
@@ -762,6 +838,20 @@ def crear_postulacion(body: PostulacionIn, db: Session = Depends(get_db)):
         vista=postulacion.Vista,
         fechaPostulacion=postulacion.FechaPostulacion,
     )
+=======
+@app.post("/api/postulaciones")
+def crear_postulacion(body: dict, db: Session = Depends(get_db)):
+    print("BODY RECIBIDO:", body) # 👈 VE ESTO EN LA TERMINAL
+    candidato = db.query(Candidato).first()
+    if not candidato:
+        raise HTTPException(400, "No hay candidatos en la base de datos")
+    
+    print("CANDIDATO ENCONTRADO:", candidato.IdCandidato, candidato.Nombres) # 👈 VE ESTO
+    oferta = db.query(Oferta).first()
+    if not oferta:
+        raise HTTPException(400, "No hay ofertas en la base de datos")
+    print("OFERTA ENCONTRADA:", oferta.IdOferta, oferta.Titulo) # 👈 VE ESTO
+>>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
 
 @app.get("/api/candidato/{id_candidato}/postulaciones", response_model=list[PostulacionOut])
 def listar_postulaciones_candidato(id_candidato: int, db: Session = Depends(get_db)):
@@ -781,7 +871,11 @@ def listar_postulaciones_candidato(id_candidato: int, db: Session = Depends(get_
         PostulacionOut(
             idPostulacion=p.IdPostulacion,
             idOferta=p.oferta.IdOferta,
+<<<<<<< HEAD
             idCandidato=p.IdCandidato,
+=======
+            idCandidato=id_candidato,
+>>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
             titulo=p.oferta.Titulo,
             empresa=p.oferta.empresa.NombreEmpresa,
             ciudad=p.oferta.municipio.Nombre,
@@ -830,9 +924,18 @@ def actualizar_datos_perfil(id_candidato: int, body: PerfilDatosIn, db: Session 
 @app.put("/api/candidato/{id_candidato}/perfil/preferencias", response_model=PerfilOut)
 def actualizar_preferencias(id_candidato: int, body: PreferenciasIn, db: Session = Depends(get_db)):
     candidato = _obtener_candidato_completo(id_candidato, db)
+<<<<<<< HEAD
     candidato.AreaInteres = body.areaInteres
     candidato.SalarioEsperado = body.salarioEsperado
     candidato.Movilidad = body.movilidad
+=======
+    if body.areaInteres is not None:
+        candidato.AreaInteres = body.areaInteres
+    if body.salarioEsperado is not None:
+        candidato.SalarioEsperado = body.salarioEsperado
+    if body.movilidad is not None:
+        candidato.Movilidad = body.movilidad
+>>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
     if body.tipoContratoPreferido:
         tipo = _buscar_en_catalogo(db, TipoContrato, "Nombre", body.tipoContratoPreferido, "Tipo de contrato")
         candidato.IdTipoContratoPreferido = tipo.IdTipoContrato
@@ -842,15 +945,42 @@ def actualizar_preferencias(id_candidato: int, body: PreferenciasIn, db: Session
     if body.modalidadPreferida:
         modalidad = _buscar_en_catalogo(db, Modalidad, "Nombre", body.modalidadPreferida, "Modalidad")
         candidato.IdModalidad = modalidad.IdModalidad
+<<<<<<< HEAD
     if body.disponibilidad:
         disponibilidad = _buscar_en_catalogo(db, Disponibilidad, "Nombre", body.disponibilidad, "Disponibilidad")
         candidato.IdDisponibilidad = disponibilidad.IdDisponibilidad
+=======
+    elif body.idModalidad is not None:
+        candidato.IdModalidad = body.idModalidad
+    if body.disponibilidad:
+        disponibilidad = _buscar_en_catalogo(db, Disponibilidad, "Nombre", body.disponibilidad, "Disponibilidad")
+        candidato.IdDisponibilidad = disponibilidad.IdDisponibilidad
+    elif body.idDisponibilidad is not None:
+        candidato.IdDisponibilidad = body.idDisponibilidad
+    db.commit()
+    return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
+
+
+@app.put("/api/candidato/{id_candidato}/cv/sobre-mi", response_model=PerfilOut)
+def actualizar_sobre_mi(id_candidato: int, body: SobreMiIn, db: Session = Depends(get_db)):
+    candidato = _obtener_candidato_completo(id_candidato, db)
+    candidato.AcercaDe = body.about
+    db.commit()
+    return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
+
+
+@app.put("/api/candidato/{id_candidato}/cv/foto", response_model=PerfilOut)
+def actualizar_foto(id_candidato: int, body: FotoIn, db: Session = Depends(get_db)):
+    candidato = _obtener_candidato_completo(id_candidato, db)
+    candidato.FotoUrl = body.fotoUrl
+>>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
     db.commit()
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
 
 
 # ============================================================
 # SECCIONES DEL CV (Habilidades, Educación, Proyectos, Idiomas)
+<<<<<<< HEAD
 # ============================================================
 
 # ============================================================
@@ -1028,6 +1158,91 @@ def guardar_foto_cv(id_candidato: int, body: dict, db: Session = Depends(get_db)
     candidato.FotoUrl = body.get("fotoUrl", candidato.FotoUrl)
     db.commit()
     return _armar_cv(_obtener_candidato_completo(id_candidato, db))
+=======
+# Rutas bajo /cv/ para que coincidan con usePerfil.ts
+# ============================================================
+
+@app.get("/api/candidato/{id_candidato}/cv/habilidades", response_model=list[HabilidadOut])
+def obtener_habilidades(id_candidato: int, db: Session = Depends(get_db)):
+    return db.query(CandidatoHabilidad).filter(CandidatoHabilidad.IdCandidato == id_candidato).all()
+
+
+@app.put("/api/candidato/{id_candidato}/cv/habilidades", response_model=PerfilOut)
+def actualizar_habilidades(id_candidato: int, body: HabilidadesIn, db: Session = Depends(get_db)):
+    _obtener_candidato_completo(id_candidato, db)  # valida que exista
+    db.query(CandidatoHabilidad).filter(CandidatoHabilidad.IdCandidato == id_candidato).delete()
+    for nombre in body.habilidades:
+        db.add(CandidatoHabilidad(IdCandidato=id_candidato, Nombre=nombre.strip()))
+    db.commit()
+    return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
+
+
+@app.post("/api/candidato/{id_candidato}/cv/educacion", response_model=PerfilOut)
+def crear_educacion(id_candidato: int, body: EducacionIn, db: Session = Depends(get_db)):
+    _obtener_candidato_completo(id_candidato, db)
+    db.add(CandidatoEducacion(
+        IdCandidato=id_candidato,
+        Titulo=body.titulo,
+        Institucion=body.institucion,
+        Anio=body.anio,
+    ))
+    db.commit()
+    return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
+
+
+@app.delete("/api/candidato/{id_candidato}/cv/educacion/{id_educacion}", response_model=PerfilOut)
+def eliminar_educacion(id_candidato: int, id_educacion: int, db: Session = Depends(get_db)):
+    educacion = db.query(CandidatoEducacion).filter(CandidatoEducacion.IdEducacion == id_educacion).first()
+    if not educacion:
+        raise HTTPException(404, "Educación no encontrada")
+    db.delete(educacion)
+    db.commit()
+    return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
+
+
+@app.post("/api/candidato/{id_candidato}/cv/proyectos", response_model=PerfilOut)
+def crear_proyecto(id_candidato: int, body: ProyectoIn, db: Session = Depends(get_db)):
+    _obtener_candidato_completo(id_candidato, db)
+    db.add(CandidatoProyecto(
+        IdCandidato=id_candidato,
+        Titulo=body.titulo,
+        Descripcion=body.descripcion,
+        Meta=body.meta,
+    ))
+    db.commit()
+    return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
+
+
+@app.delete("/api/candidato/{id_candidato}/cv/proyectos/{id_proyecto}", response_model=PerfilOut)
+def eliminar_proyecto(id_candidato: int, id_proyecto: int, db: Session = Depends(get_db)):
+    proyecto = db.query(CandidatoProyecto).filter(CandidatoProyecto.IdProyecto == id_proyecto).first()
+    if not proyecto:
+        raise HTTPException(404, "Proyecto no encontrado")
+    db.delete(proyecto)
+    db.commit()
+    return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
+
+
+@app.post("/api/candidato/{id_candidato}/cv/idiomas", response_model=PerfilOut)
+def crear_idioma(id_candidato: int, body: IdiomaIn, db: Session = Depends(get_db)):
+    _obtener_candidato_completo(id_candidato, db)
+    db.add(CandidatoIdioma(
+        IdCandidato=id_candidato,
+        Descripcion=body.descripcion,
+    ))
+    db.commit()
+    return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
+
+
+@app.delete("/api/candidato/{id_candidato}/cv/idiomas/{id_idioma}", response_model=PerfilOut)
+def eliminar_idioma(id_candidato: int, id_idioma: int, db: Session = Depends(get_db)):
+    idioma = db.query(CandidatoIdioma).filter(CandidatoIdioma.IdIdioma == id_idioma).first()
+    if not idioma:
+        raise HTTPException(404, "Idioma no encontrado")
+    db.delete(idioma)
+    db.commit()
+    return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
+>>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
 
 
 # ============================================================
@@ -1048,12 +1263,21 @@ def listar_vacantes_admin(db: Session = Depends(get_db)):
     )
     return [
         {
+<<<<<<< HEAD
             "idOferta": o.IdOferta,
             "titulo": o.Titulo,
             "empresa": o.empresa.NombreEmpresa,
             "ciudad": o.municipio.Nombre,
             "modalidad": o.modalidad.Nombre,
             "estado": o.estado.Nombre,
+=======
+            "idOferta": o.IdOferta, 
+            "titulo": o.Titulo, 
+            "empresa": o.empresa.NombreEmpresa,
+            "ciudad": o.municipio.Nombre, 
+            "modalidad": o.modalidad.Nombre,
+            "estado": o.estado.Nombre, 
+>>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
             "fechaPublicacion": o.FechaPublicacion,
         }
         for o in ofertas
@@ -1087,7 +1311,11 @@ def obtener_notificaciones_empresa(id_empresa: int, db: Session = Depends(get_db
         .order_by(Notificacion.Fecha.desc())
         .all()
     )
+<<<<<<< HEAD
  
+=======
+    
+>>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
     return [
         {
             "idNotificacion": n.IdNotificacion,
@@ -1111,7 +1339,11 @@ def obtener_resumen_empresa(id_empresa: int, db: Session = Depends(get_db)):
 
     # 3. Buscar todos los candidatos que se han postulado (sin duplicar)
     candidatos_postulados = db.query(Postulacion.IdCandidato).filter(Postulacion.IdOferta.in_(oferta_ids)).distinct().all()
+<<<<<<< HEAD
  
+=======
+    
+>>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
     # 4. Buscar todos los estados de las postulaciones
     estados = db.query(EstadoPostulacion).all()
     estado_nombres = {e.IdEstadoPostulacion: e.Nombre for e in estados}
@@ -1119,6 +1351,7 @@ def obtener_resumen_empresa(id_empresa: int, db: Session = Depends(get_db)):
     # 5. Calcular los números
     # Nuevos candidatos (postulaciones en estado "Postulado")
     nuevos_candidatos = len([p for p in postulaciones if estado_nombres.get(p.IdEstadoPostulacion) == "Postulado"])
+<<<<<<< HEAD
  
     # Candidatos recomendados (postulaciones en estado "En revisión" o "Preseleccionado")
     candidatos_recomendados = len([p for p in postulaciones if estado_nombres.get(p.IdEstadoPostulacion) in ["En revisión", "Preseleccionado"]])
@@ -1139,6 +1372,20 @@ def obtener_resumen_empresa(id_empresa: int, db: Session = Depends(get_db)):
     rendimiento = (
         len([o for o in ofertas if estado_publicada and o.IdEstadoOferta == estado_publicada.IdEstadoOferta])
     )
+=======
+    
+    # Candidatos recomendados (postulaciones en estado "En revisión" o "Preseleccionado")
+    candidatos_recomendados = len([p for p in postulaciones if estado_nombres.get(p.IdEstadoPostulacion) in ["En revisión", "Preseleccionado"]])
+    
+    # Entrevistas (postulaciones en estado "Entrevista")
+    entrevistas = len([p for p in postulaciones if estado_nombres.get(p.IdEstadoPostulacion) == "Entrevista"])
+    
+    # Vacantes por vencer (ofertas con fecha de cierre o que están "Pausadas")
+    vacantes_por_vencer = len([o for o in ofertas if o.FechaCierre is not None])
+    
+    # Rendimiento (ofertas que están activas)
+    rendimiento = len([o for o in ofertas if o.IdEstadoOferta == 1])  # Suponiendo que 1 = Publicada
+>>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
 
     return {
         "nuevosCandidatos": nuevos_candidatos,
@@ -1156,6 +1403,7 @@ def eliminar_postulacion(id_postulacion: int, db: Session = Depends(get_db)):
     db.delete(postulacion)
     db.commit()
     return {"message": "Postulación eliminada"}
+<<<<<<< HEAD
 
 @app.get("/api/busquedas-guardadas")
 def obtener_busquedas_guardadas(db: Session = Depends(get_db)):
@@ -1180,6 +1428,8 @@ def obtener_busquedas_guardadas(db: Session = Depends(get_db)):
     
     return busquedas
 
+=======
+>>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
 # ============================================================
 # Endpoints extras para manejo interno (si no los tienes)
 # ============================================================
