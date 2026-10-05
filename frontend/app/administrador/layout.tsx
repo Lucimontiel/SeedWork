@@ -1,5 +1,5 @@
 import "./estilo-admin.css";
 
 export default function AdministradorLayout({ children }: { children: React.ReactNode }) {
-  return <>{children}</>;
+  return <div className="scope-admin">{children}</div>;
 }
