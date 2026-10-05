@@ -1,9 +1,14 @@
 # pylint: disable=not-callable
 """Modelos SQLAlchemy para el flujo de autenticación y los dashboards."""
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Text, DateTime, Date, Numeric, ForeignKey, Boolean, func
+from sqlalchemy import (
+    Column, Integer, String, Text, DateTime, Date, Numeric,
+    ForeignKey, Boolean, func
+)
 from sqlalchemy.orm import relationship
 from database import Base
+from sqlalchemy.dialects.mysql import LONGTEXT
+
 
 class Rol(Base):
     __tablename__ = "Rol"
@@ -61,6 +66,9 @@ class Disponibilidad(Base):
     Nombre = Column(String(50), unique=True, nullable=False)
 
 
+# ============================================================
+# USUARIO (con columnas de seguridad)
+# ============================================================
 class Usuario(Base):
     __tablename__ = "Usuario"
     IdUsuario = Column(Integer, primary_key=True)
@@ -70,13 +78,86 @@ class Usuario(Base):
     Contrasena = Column(String(255), nullable=False)
     FechaCreacion: datetime = Column(DateTime, server_default=func.now())
 
+    # ⬅️ NUEVO: columnas de seguridad
+    IntentosFallidos = Column(Integer, nullable=False, default=0)
+    BloqueadoHasta = Column(DateTime, nullable=True)
+    TotpSecret = Column(String(64), nullable=True)
+    TotpHabilitado = Column(Boolean, nullable=False, default=False)
+    UltimoLogin = Column(DateTime, nullable=True)
+    UltimoLoginIP = Column(String(45), nullable=True)
+
     rol = relationship("Rol", lazy="joined")
     estado = relationship("EstadoUsuario", lazy="joined")
     candidato = relationship("Candidato", back_populates="usuario", uselist=False, lazy="selectin")
     empresa = relationship("Empresa", back_populates="usuario", uselist=False, lazy="selectin")
     administrador = relationship("Administrador", back_populates="usuario", uselist=False, lazy="selectin")
 
+    # ⬅️ NUEVO: relaciones con tokens y códigos
+    refresh_tokens = relationship(
+        "RefreshToken",
+        back_populates="usuario",
+        cascade="all, delete-orphan",
+        foreign_keys="RefreshToken.IdUsuario",
+    )
+    codigos_respaldo = relationship(
+        "CodigoRespaldo",
+        back_populates="usuario",
+        cascade="all, delete-orphan",
+    )
 
+
+# ============================================================
+# NUEVO: RefreshToken
+# ============================================================
+class RefreshToken(Base):
+    __tablename__ = "RefreshToken"
+    IdRefreshToken = Column(Integer, primary_key=True)
+    IdUsuario = Column(Integer, ForeignKey("Usuario.IdUsuario", ondelete="CASCADE"), nullable=False)
+    TokenHash = Column(String(255), unique=True, nullable=False)
+    UserAgent = Column(String(255), nullable=True)
+    IP = Column(String(45), nullable=True)
+    ExpiraEn = Column(DateTime, nullable=False)
+    Revocado = Column(Boolean, nullable=False, default=False)
+    RevocadoEn = Column(DateTime, nullable=True)
+    ReemplazadoPor = Column(Integer, ForeignKey("RefreshToken.IdRefreshToken"), nullable=True)
+    FechaCreacion = Column(DateTime, server_default=func.now())
+
+    usuario = relationship("Usuario", back_populates="refresh_tokens", foreign_keys=[IdUsuario])
+
+
+# ============================================================
+# NUEVO: CodigoRespaldo (para 2FA)
+# ============================================================
+class CodigoRespaldo(Base):
+    __tablename__ = "CodigoRespaldo"
+    IdCodigo = Column(Integer, primary_key=True)
+    IdUsuario = Column(Integer, ForeignKey("Usuario.IdUsuario", ondelete="CASCADE"), nullable=False)
+    CodigoHash = Column(String(255), nullable=False)
+    Usado = Column(Boolean, nullable=False, default=False)
+    UsadoEn = Column(DateTime, nullable=True)
+
+    usuario = relationship("Usuario", back_populates="codigos_respaldo")
+
+
+# ============================================================
+# NUEVO: AuditLog
+# ============================================================
+class AuditLog(Base):
+    __tablename__ = "AuditLog"
+    IdAudit = Column(Integer, primary_key=True)
+    IdUsuario = Column(Integer, ForeignKey("Usuario.IdUsuario", ondelete="SET NULL"), nullable=True)
+    CorreoIntentado = Column(String(150), nullable=True)
+    Evento = Column(String(50), nullable=False)
+    Exito = Column(Boolean, nullable=False)
+    IP = Column(String(45), nullable=True)
+    UserAgent = Column(String(255), nullable=True)
+    Detalles = Column(Text, nullable=True)
+    Fecha = Column(DateTime, server_default=func.now())
+
+
+# ============================================================
+# ADMINISTRADOR / EMPRESA / CANDIDATO (sin cambios)
+# ============================================================
 class Administrador(Base):
     __tablename__ = "Administrador"
     IdAdministrador = Column(Integer, primary_key=True)
@@ -103,11 +184,11 @@ class Candidato(Base):
     Telefono = Column(String(20))
     AcercaDe = Column(Text)
     TituloProfesional = Column(String(150))
-    FotoUrl = Column(Text)
+    FotoUrl = Column(LONGTEXT)
     PlantillaCV = Column(String(20), default="clasico")
     FechaNacimiento = Column(Date)
     AreaInteres = Column(String(255))
-    SalarioEsperado = Column(String(100))
+    SalarioEsperado = Column(String(100))  # ⬅️ CAMBIO: era Numeric en el SQL viejo
     Movilidad = Column(String(100))
     FechaCreacion: datetime = Column(DateTime, server_default=func.now())
 
@@ -135,8 +216,6 @@ class Empresa(Base):
     NombreEmpresa = Column(String(150), nullable=False)
     NIT = Column(String(20), unique=True, nullable=False)
     Descripcion = Column(Text)
-    
-    # Columnas nuevas
     SitioWeb = Column(String(255))
     CorreoCorporativo = Column(String(150))
     Especialidades = Column(String(255))
@@ -144,7 +223,6 @@ class Empresa(Base):
     Mision = Column(Text)
     Vision = Column(Text)
     LogoUrl = Column(Text)
-    
     Direccion = Column(String(150))
     Telefono = Column(String(20))
     FechaRegistro: datetime = Column(DateTime, server_default=func.now())
@@ -220,10 +298,10 @@ class Postulacion(Base):
     Vista = Column(Boolean, default=False)
     FechaPostulacion: datetime = Column(DateTime, server_default=func.now())
 
-    # Relaciones nuevas
     oferta = relationship("Oferta", lazy="selectin")
     candidato = relationship("Candidato", lazy="selectin")
     estado = relationship("EstadoPostulacion", lazy="selectin")
+
 
 class TipoNotificacion(Base):
     __tablename__ = "TipoNotificacion"

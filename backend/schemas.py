@@ -1,8 +1,8 @@
 """Schemas Pydantic: la 'forma' del JSON que entra y sale de la API."""
 from pydantic import BaseModel, EmailStr, ConfigDict
-from typing import Optional, List
+#from typing import Optional, List
+from typing import Optional, List, Literal
 from datetime import datetime, date
-
 
 # --- Autenticación y Registro ---
 class RegistroCandidatoIn(BaseModel):
@@ -42,6 +42,7 @@ class CandidatoOut(BaseModel):
     correo: str
     ciudad: Optional[str] = None
     telefono: Optional[str] = None
+    fotoUrl: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -130,7 +131,8 @@ class SeccionCVIn(BaseModel):
 
 
 class SeccionCVUpdateIn(BaseModel):
-    contenido: str
+    titulo: Optional[str] = None
+    contenido: Optional[str] = None
 
 
 # --- Actualizaciones del CV ---
@@ -270,5 +272,61 @@ class PerfilOut(BaseModel):
     educacion: List[EducacionOut] = []
     experiencia: List[ProyectoOut] = []
     idiomas: List[IdiomaOut] = []
+    # --- Campos extra para que esta misma respuesta también sirva a Mi CV ---
+    # (usePerfil.ts y useCV.ts comparten las rutas /cv/foto, /cv/sobre-mi,
+    # /cv/habilidades, /cv/educacion, /cv/idiomas, /cv/proyectos porque son
+    # literalmente los mismos datos del candidato; esta respuesta trae todo
+    # lo que ambos hooks necesitan para no chocar entre sí)
+    plantilla: str = "clasico"
+    proyectos: List[ProyectoOut] = []      # mismo contenido que "experiencia"
+    referencias: List[ReferenciaOut] = []
+    secciones: List[SeccionCVOut] = []
 
     model_config = ConfigDict(from_attributes=True)
+
+# ============================================================
+# NUEVOS SCHEMAS DE AUTENTICACIÓN (con tokens)
+# ============================================================
+
+class LoginTokenIn(BaseModel):
+    """Login que devuelve tokens."""
+    correo: EmailStr
+    contrasena: str
+    tipo: Literal["candidato", "empresa"]
+
+
+class AdminLoginIn(BaseModel):
+    """Login de administrador (paso 1: correo + contraseña)."""
+    correo: EmailStr
+    contrasena: str
+
+
+class AdminLogin2FAIn(BaseModel):
+    """Login de administrador (paso 2: código TOTP o de respaldo)."""
+    correo: EmailStr
+    codigo: str
+
+
+class TokenOut(BaseModel):
+    """Respuesta con el access token."""
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int  # segundos
+
+
+class MeOut(BaseModel):
+    """Datos del usuario autenticado actual."""
+    idUsuario: int
+    correo: str
+    rol: str
+    tipo: str  # "candidato" | "empresa" | "administrador"
+    idCandidato: Optional[int] = None
+    idEmpresa: Optional[int] = None
+    idAdministrador: Optional[int] = None
+    totpHabilitado: bool = False
+
+
+class Setup2FAOut(BaseModel):
+    """Respuesta al iniciar la configuración de 2FA."""
+    secreto: str
+    qr_uri: str
