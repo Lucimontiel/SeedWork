@@ -43,15 +43,13 @@ body {
 }
 
 body {
-
     background: var(--app-bg);
-
     color: var(--ink);
-
     font-family: 'Inter', sans-serif;
-
     -webkit-font-smoothing: antialiased;
-
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
 }
 
 button,

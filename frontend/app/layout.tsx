@@ -1,7 +1,5 @@
 import "./globals.css";
-import "./(auth)/estilo-auth.css"; // CSS del Login y Registro
-import "./empresa/estilo-empresa.css"; // CSS del Dashboard
-import "./candidato/estilo-candidato.css"; // CSS del Dashboard del Candidato
+import "./(auth)/estilo-auth.css";
 import { AuthProvider } from "./lib/auth-context";
 
 export const metadata = {

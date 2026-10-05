@@ -1,7 +1,28 @@
-* {
-  box-sizing: border-box;
+/* ============================================================
+   Aislamiento de estilos por sección.
+   Cada scope sobreescribe el body de auth para su ruta.
+   ============================================================ */
+
+.scope-empresa,
+.scope-candidato,
+.scope-admin {
+  /* Reset de lo que hace estilo-auth.css sobre el body */
+  background: #F4F6F9;   /* var(--app-bg) de los dashboards */
+  display: block;         /* auth pone display: flex */
+  min-height: 100vh;
+  align-items: initial;
+  justify-content: initial;
+  padding: 0;             /* auth pone padding: 20px */
 }
-html, body {
-  margin: 0;
+
+/* El body sigue azul SOLO en auth/landing,
+   porque su contenido se pinta encima del scope */
+body:has(.scope-empresa),
+body:has(.scope-candidato),
+body:has(.scope-admin) {
+  background: #F4F6F9;
+  display: block;
   padding: 0;
+  align-items: initial;
+  justify-content: initial;
 }

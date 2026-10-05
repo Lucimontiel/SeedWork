@@ -1,3 +1,5 @@
+import "./estilo-candidato.css";
+
 export default function CandidatoLayout({ children }: { children: React.ReactNode }) {
-  return <>{children}</>;
+  return <div className="scope-candidato">{children}</div>;
 }
