@@ -1,18 +1,34 @@
+"""
+Lee DATABASE_URL desde el archivo .env.
+"""
+
+import os
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import declarative_base, sessionmaker
+from dotenv import load_dotenv
+from pathlib import Path
 
-<<<<<<< HEAD
-=======
-# --- CAMBIA ESTOS DATOS POR LOS TUYOS ---
-# IMPORTANTE: El "*" se reemplaza por %2A para que la URL no se rompa
->>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
-SQLALCHEMY_DATABASE_URL = "mysql+pymysql://root:3217361186Vila@localhost/seedwork"
+# Carga las variables del archivo .env
+env_path = Path(__file__).parent / ".env"
+load_dotenv()
 
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise RuntimeError(
+        "Falta DATABASE_URL en el archivo .env. "
+        "Copia .env.example a .env y configura la conexión."
+    )
+
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,
+    pool_recycle=3600,
+)
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
+
 
 def get_db():
     db = SessionLocal()
