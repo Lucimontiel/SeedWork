@@ -1,19 +1,41 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { saveSession } from "../../lib/session";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { useAuth } from "../../lib/auth-context";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
-
-export default function LoginPage() {
+function LoginContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { user, cargando: cargandoAuth, login } = useAuth();
+
   const [tipo, setTipo] = useState<"candidato" | "empresa">("candidato");
   const [correo, setCorreo] = useState("");
   const [contrasena, setContrasena] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [cargando, setCargando] = useState(false);
+
+  // Mensaje de registro exitoso (viene con ?registro=ok&tipo=...)
+  const registroOk = searchParams.get("registro") === "ok";
+
+  // Si viene del registro, auto-seleccionar el tab correcto
+  useEffect(() => {
+    const tipoParam = searchParams.get("tipo");
+    if (tipoParam === "candidato" || tipoParam === "empresa") {
+      setTipo(tipoParam);
+    }
+  }, [searchParams]);
+
+  // Si ya hay sesión, redirigir al dashboard correspondiente
+  useEffect(() => {
+    if (cargandoAuth || !user) return;
+
+    if (user.tipo === "candidato") router.replace("/candidato/inicio");
+    else if (user.tipo === "empresa") router.replace("/empresa/inicio");
+    else if (user.tipo === "administrador")
+      router.replace("/administrador/inicio");
+  }, [user, cargandoAuth, router]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -26,42 +48,14 @@ export default function LoginPage() {
 
     setCargando(true);
     try {
-      const resp = await fetch(`${API_BASE}/api/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ correo, contrasena, tipo }),
-      });
+      const me = await login(correo, contrasena, tipo);
 
-      if (!resp.ok) {
-        const data = await resp.json().catch(() => null);
-        throw new Error(data?.detail || "Correo o contraseña incorrectos");
-      }
-
-      const data = await resp.json();
-<<<<<<< HEAD
-
-      // El backend decide el tipo real de la cuenta. Si es una cuenta de
-      // administrador, entra como administrador sin importar si en el
-      // formulario se eligió "Soy Candidato" o "Soy Empresa".
-      if (data.tipo === "administrador") {
-        saveSession({ tipo: "administrador", id: data.idAdministrador });
+      if (me.tipo === "candidato") router.push("/candidato/inicio");
+      else if (me.tipo === "empresa") router.push("/empresa/inicio");
+      else if (me.tipo === "administrador")
         router.push("/administrador/inicio");
-      } else if (data.tipo === "candidato") {
-=======
-      if (tipo === "candidato") {
->>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
-        saveSession({ tipo: "candidato", id: data.idCandidato });
-        router.push("/candidato/inicio");
-      } else {
-        saveSession({ tipo: "empresa", id: data.idEmpresa });
-        router.push("/empresa/inicio");
-      }
-<<<<<<< HEAD
-=======
-      
->>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
     } catch (err: any) {
-      setError(err.message);
+      setError(err?.message || "Correo o contraseña incorrectos.");
     } finally {
       setCargando(false);
     }
@@ -94,12 +88,33 @@ export default function LoginPage() {
           </button>
         </div>
 
+        {registroOk && (
+          <div
+            style={{
+              background: "#d4edda",
+              color: "#155724",
+              padding: "10px 14px",
+              borderRadius: 8,
+              marginBottom: 12,
+              fontSize: 14,
+              textAlign: "center",
+            }}
+          >
+            ✅ Cuenta creada con éxito. Ahora inicia sesión.
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} noValidate>
           <input
             type="email"
-            placeholder={tipo === "candidato" ? "ejemplo@gmail.com" : "empresa@correo.com"}
+            placeholder={
+              tipo === "candidato"
+                ? "ejemplo@gmail.com"
+                : "empresa@correo.com"
+            }
             value={correo}
             onChange={(e) => setCorreo(e.target.value)}
+            autoComplete="email"
             required
           />
           <input
@@ -107,11 +122,24 @@ export default function LoginPage() {
             placeholder="Contraseña"
             value={contrasena}
             onChange={(e) => setContrasena(e.target.value)}
+            autoComplete="current-password"
             required
           />
-          <a href="#" className="forgot-password">¿Olvidaste tu contraseña?</a>
+          <a href="#" className="forgot-password">
+            ¿Olvidaste tu contraseña?
+          </a>
 
-          {error && <p style={{ color: "#dc3545", fontSize: 13, margin: "4px 0" }}>{error}</p>}
+          {error && (
+            <p
+              style={{
+                color: "#dc3545",
+                fontSize: 13,
+                margin: "4px 0",
+              }}
+            >
+              {error}
+            </p>
+          )}
 
           <button type="submit" disabled={cargando}>
             {cargando ? "Ingresando..." : "Iniciar sesión"}
@@ -119,12 +147,35 @@ export default function LoginPage() {
 
           <p>
             ¿Eres nuevo/a?{" "}
-            <Link href={tipo === "candidato" ? "/registro/candidato" : "/registro/empresa"}>
+            <Link
+              href={
+                tipo === "candidato"
+                  ? "/registro/candidato"
+                  : "/registro/empresa"
+              }
+            >
               Crea tu cuenta
             </Link>
           </p>
         </form>
       </div>
     </div>
+  );
+}
+
+// Next.js 14+ requiere <Suspense> para useSearchParams
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="login-wrapper">
+          <div className="container" style={{ padding: 40, textAlign: "center" }}>
+            Cargando...
+          </div>
+        </div>
+      }
+    >
+      <LoginContent />
+    </Suspense>
   );
 }

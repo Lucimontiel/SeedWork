@@ -13,6 +13,7 @@ export interface CandidatoData {
   correo: string;
   ciudad?: string;
   telefono?: string;
+  fotoUrl?: string | null;
 }
 
 export function useCandidato() {

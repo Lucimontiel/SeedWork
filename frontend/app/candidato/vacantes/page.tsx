@@ -42,10 +42,7 @@ export default function VacantesPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
-<<<<<<< HEAD
   const [ciudad, setCiudad] = useState("");
-=======
->>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
   const [tab, setTab] = useState<"todas" | "guardadas">("todas");
 
   const [estado, setEstado] = useState("");
@@ -63,15 +60,12 @@ export default function VacantesPage() {
   // Lista de postulaciones con su ID (para poder eliminarlas)
   const [postulaciones, setPostulaciones] = useState<Postulacion[]>([]);
 
-<<<<<<< HEAD
   // Estado para la modal de ver detalle
   const [ofertaDetalle, setOfertaDetalle] = useState<Oferta | null>(null);
 
   // Estado para el panel de búsquedas guardadas
   const [busquedasGuardadas, setBusquedasGuardadas] = useState<{ titulo: string; total: number }[]>([]);
 
-=======
->>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
   function mostrarToast(msg: string) {
     setToast(msg);
     setTimeout(() => setToast(null), 2500);
@@ -92,7 +86,6 @@ export default function VacantesPage() {
       .catch(() => {});
   }, []);
 
-<<<<<<< HEAD
   // TRAER BÚSQUEDAS GUARDADAS (datos reales)
   useEffect(() => {
     fetch(`${API_BASE}/api/candidato/busquedas-guardadas`)
@@ -101,16 +94,11 @@ export default function VacantesPage() {
       .catch(() => {});
   }, []);
 
-=======
->>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
   const cargarOfertas = useCallback((q: string) => {
     setLoadingOfertas(true);
     const params = new URLSearchParams();
     if (q) params.set("q", q);
-<<<<<<< HEAD
     if (ciudad) params.set("ciudad", ciudad);
-=======
->>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
     if (modalidad) params.set("modalidad", modalidad);
     if (area) params.set("categoria", area);
     fetch(`${API_BASE}/api/vacantes?${params.toString()}`)
@@ -121,11 +109,7 @@ export default function VacantesPage() {
       .then((data: Oferta[]) => setOfertas(data))
       .catch((err) => setError(err.message))
       .finally(() => setLoadingOfertas(false));
-<<<<<<< HEAD
   }, [ciudad, modalidad, area]);
-=======
-  }, [modalidad, area]);
->>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
 
   useEffect(() => {
     cargarOfertas("");
@@ -148,26 +132,19 @@ export default function VacantesPage() {
   }, [candidato]);
 
   async function aplicar(idOferta: number) {
-<<<<<<< HEAD
     if (!candidato) {
       mostrarToast("Debes iniciar sesión como candidato para postularte");
       return;
     }
-=======
->>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
     setEnviando(idOferta);
     try {
       const resp = await fetch(`${API_BASE}/api/postulaciones`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-<<<<<<< HEAD
         body: JSON.stringify({
           idCandidato: candidato.idCandidato,
           idOferta,
         }),
-=======
-        body: JSON.stringify({}), // 👈 YA NO MANDAMOS NADA
->>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
       });
       if (!resp.ok) {
         const data = await resp.json().catch(() => null);
@@ -180,11 +157,7 @@ export default function VacantesPage() {
     } finally {
       setEnviando(null);
     }
-<<<<<<< HEAD
   }
-=======
-}
->>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
 
   // Función para salir de la oferta (eliminar postulación)
   async function salirDeOferta(idOferta: number) {
@@ -276,7 +249,6 @@ export default function VacantesPage() {
         </button>
       </div>
 
-<<<<<<< HEAD
       {/* BUSCADOR + FILTROS EN UNA SOLA LÍNEA */}
       <div className="search-filters-row">
         <div className="buscador-dividido">
@@ -324,47 +296,6 @@ export default function VacantesPage() {
             <option value="Híbrido">Híbrido</option>
           </select>
         </div>
-=======
-      {/* Filtros */}
-      <div className="vacantes-filters">
-        <div className="search-input-wrap">
-          <input
-            type="text"
-            placeholder="Buscar oferta o empresa..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          <svg viewBox="0 0 20 20"><circle cx="9" cy="9" r="6" /><path d="M17 17l-4-4" /></svg>
-        </div>
-
-        <select className="filter-select" value={estado} onChange={(e) => setEstado(e.target.value)}>
-          <option value="">Estado</option>
-          <option value="Publicada">Publicada</option>
-          <option value="Pausada">Pausada</option>
-          <option value="Cerrada">Cerrada</option>
-        </select>
-
-        <select className="filter-select" value={area} onChange={(e) => setArea(e.target.value)}>
-          <option value="">Área</option>
-          <option value="Tecnología">Tecnología</option>
-          <option value="Administración">Administración</option>
-          <option value="Marketing">Marketing</option>
-          <option value="Ventas">Ventas</option>
-          <option value="Recursos Humanos">Recursos Humanos</option>
-        </select>
-
-        <select className="filter-select" value={modalidad} onChange={(e) => setModalidad(e.target.value)}>
-          <option value="">Modalidad</option>
-          <option value="Presencial">Presencial</option>
-          <option value="Remoto">Remoto</option>
-          <option value="Híbrido">Híbrido</option>
-        </select>
-
-        <button className="btn-filters" onClick={() => mostrarToast("Filtros avanzados: disponible próximamente")}>
-          <svg viewBox="0 0 20 20"><path d="M3 5h14M6 10h8M8.5 15h3" /></svg>
-          Filtros
-        </button>
->>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
       </div>
 
       {/* Layout con panel lateral */}
@@ -384,12 +315,6 @@ export default function VacantesPage() {
                   <h4>{oferta.titulo}</h4>
                   <p>{oferta.empresa} - {oferta.ciudad}</p>
                   <span className="opportunity-desc">{oferta.descripcion}</span>
-<<<<<<< HEAD
-
-                  {/* Esta linea es para que no aparezca la descripcion de la oferta ⬇️*/}
-                  {/*<span className="opportunity-desc" style={{ display: "none" }}>{oferta.descripcion}</span>*/}
-=======
->>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
                   <div className="tag-row">
                     <span className="tag">{oferta.experienciaMinima === 0 ? "Sin experiencia" : `${oferta.experienciaMinima}+ años`}</span>
                     <span className="tag">{oferta.tipoContrato}</span>
@@ -415,16 +340,12 @@ export default function VacantesPage() {
                     </button>
                   </div>
 
-<<<<<<< HEAD
                   {/* Botón Ver detalle */}
                   <button className="btn-outline-sm" onClick={() => setOfertaDetalle(oferta)}>
                     Ver más
                   </button>
 
                   {/* Menú de tres puntos (solo Reportar y Salir) */}
-=======
-                  {/* Menú de tres puntos */}
->>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
                   <div style={{ position: "relative" }}>
                     <button
                       style={{ background: "none", border: "none", fontSize: 18, color: "#667085", cursor: "pointer", padding: "0 8px" }}
@@ -451,27 +372,6 @@ export default function VacantesPage() {
                         >
                           Salir de la oferta
                         </button>
-<<<<<<< HEAD
-=======
-                        <button
-                          onClick={() => {
-                            toggleGuardada(oferta.idOferta);
-                            setMenuAbierto(null);
-                          }}
-                          style={{ display: "block", width: "100%", background: "none", border: "none", padding: "8px 12px", fontSize: 13, fontWeight: 600, color: "#101828", cursor: "pointer" }}
-                        >
-                          {guardada ? "Quitar de guardadas" : "Guardar oferta"}
-                        </button>
-                        <button
-                          onClick={() => {
-                            mostrarToast("Vista detallada de la oferta: disponible próximamente");
-                            setMenuAbierto(null);
-                          }}
-                          style={{ display: "block", width: "100%", background: "none", border: "none", padding: "8px 12px", fontSize: 13, fontWeight: 600, color: "#101828", cursor: "pointer" }}
-                        >
-                          Ver detalle
-                        </button>
->>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
                       </div>
                     )}
                   </div>
@@ -484,7 +384,6 @@ export default function VacantesPage() {
         {/* Panel lateral: Búsquedas guardadas */}
         <div className="vacantes-sidebar">
           <h3 className="sidebar-title">Búsquedas guardadas</h3>
-<<<<<<< HEAD
           {busquedasGuardadas.length === 0 ? (
             <p style={{ fontSize: 13, color: "#667085" }}>No hay búsquedas guardadas.</p>
           ) : (
@@ -502,49 +401,10 @@ export default function VacantesPage() {
               ))}
             </>
           )}
-=======
-          <div className="saved-search-item">
-            <div className="saved-search-icon">
-              <svg viewBox="0 0 20 20"><path d="M10 2.5a5 5 0 00-3 9c.5.4.8 1 .8 1.6v1h4.4v-1c0-.6.3-1.2.8-1.6a5 5 0 00-3-9z" /></svg>
-            </div>
-            <div className="saved-search-info">
-              <strong>Asistente Administrativo</strong>
-              <span>12 nuevas ofertas</span>
-            </div>
-          </div>
-          <div className="saved-search-item">
-            <div className="saved-search-icon">
-              <svg viewBox="0 0 20 20"><path d="M10 2.5a5 5 0 00-3 9c.5.4.8 1 .8 1.6v1h4.4v-1c0-.6.3-1.2.8-1.6a5 5 0 00-3-9z" /></svg>
-            </div>
-            <div className="saved-search-info">
-              <strong>Practicante Marketing</strong>
-              <span>9 nuevas ofertas</span>
-            </div>
-          </div>
-          <div className="saved-search-item">
-            <div className="saved-search-icon">
-              <svg viewBox="0 0 20 20"><path d="M10 2.5a5 5 0 00-3 9c.5.4.8 1 .8 1.6v1h4.4v-1c0-.6.3-1.2.8-1.6a5 5 0 00-3-9z" /></svg>
-            </div>
-            <div className="saved-search-info">
-              <strong>Desarrollo de software</strong>
-              <span>5 nuevas ofertas</span>
-            </div>
-          </div>
-          <div className="saved-search-item">
-            <div className="saved-search-icon">
-              <svg viewBox="0 0 20 20"><path d="M10 2.5a5 5 0 00-3 9c.5.4.8 1 .8 1.6v1h4.4v-1c0-.6.3-1.2.8-1.6a5 5 0 00-3-9z" /></svg>
-            </div>
-            <div className="saved-search-info">
-              <strong>Trabajo remoto</strong>
-              <span>5 nuevas ofertas</span>
-            </div>
-          </div>
->>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
           <a href="#" className="view-all-saved">Ver todas</a>
         </div>
       </div>
 
-<<<<<<< HEAD
       {/* MODAL DE DETALLE DE LA OFERTA */}
       {ofertaDetalle && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
@@ -571,8 +431,6 @@ export default function VacantesPage() {
         </div>
       )}
 
-=======
->>>>>>> 6f6a91bb30c9855e5691b030e4f3e53caec56ec0
       {toast && <div className="sw-toast">{toast}</div>}
     </CandidatoShell>
   );

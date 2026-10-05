@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import EmpresaShell from "../EmpresaShell";
-import { getSession } from "../../lib/session";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
+import { useAuth } from "../../lib/auth-context";
+import { apiFetch } from "../../lib/api";
 
 type Empresa = {
   idEmpresa: number;
@@ -34,57 +34,88 @@ const OFERTAS_RECIENTES = [
 ];
 
 export default function InicioEmpresaPage() {
+  const router = useRouter();
+  const { user, cargando: cargandoAuth } = useAuth();
+
   const [empresa, setEmpresa] = useState<Empresa | null>(null);
   const [candidatos, setCandidatos] = useState<Candidato[]>([]);
-  const [estadoCandidato, setEstadoCandidato] = useState<number | null>(null);
-  const [ofertaFiltrada, setOfertaFiltrada] = useState<string>("");
 
+  // ============================================================
+  // Protección de la página
+  // Si el AuthProvider ya terminó de cargar y no hay usuario o
+  // no es empresa, redirigir.
+  // ============================================================
   useEffect(() => {
-    const session = getSession();
-    if (!session) return;
+    if (cargandoAuth) return;
 
-    fetch(`${API_BASE}/api/empresa/${session.id}`)
-      .then((r) => (r.ok ? r.json() : null))
+    if (!user) {
+      router.replace("/login");
+      return;
+    }
+
+    if (user.tipo !== "empresa" || !user.idEmpresa) {
+      // Está logueado pero no es empresa: mandarlo a su dashboard
+      if (user.tipo === "candidato") router.replace("/candidato/inicio");
+      else if (user.tipo === "administrador") router.replace("/administrador/inicio");
+      else router.replace("/login");
+    }
+  }, [user, cargandoAuth, router]);
+
+  // ============================================================
+  // Cargar datos de la empresa y candidatos
+  // ============================================================
+  useEffect(() => {
+    if (!user || user.tipo !== "empresa" || !user.idEmpresa) return;
+
+    // Datos de la empresa
+    apiFetch<Empresa>(`/api/empresa/${user.idEmpresa}`)
       .then(setEmpresa)
-      .catch(() => {});
+      .catch((err) => console.error("Error al cargar empresa:", err));
 
-    // Traer candidatos postulados
-    fetch(`${API_BASE}/api/empresa/${session.id}/candidatos`)
-      .then((r) => (r.ok ? r.json() : []))
+    // Candidatos postulados
+    apiFetch<Candidato[]>(`/api/empresa/${user.idEmpresa}/candidatos`)
       .then((data) => {
         if (Array.isArray(data)) setCandidatos(data);
       })
-      .catch(() => {});
-  }, []);
+      .catch((err) => console.error("Error al cargar candidatos:", err));
+  }, [user]);
 
   async function cambiarEstadoOferta(idOferta: number, nuevoEstado: string) {
-    const resp = await fetch(`${API_BASE}/api/empresa/ofertas/${idOferta}/estado`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nuevoEstado }),
-    });
-
-    if (resp.ok) {
+    try {
+      await apiFetch(`/api/empresa/ofertas/${idOferta}/estado`, {
+        method: "PATCH",
+        body: { nuevoEstado },
+      });
       window.location.reload();
-    } else {
-      const data = await resp.json().catch(() => null);
-      alert(data?.detail || "Error al cambiar estado");
+    } catch (err: any) {
+      alert(err?.message || "Error al cambiar estado");
     }
   }
 
   async function cambiarEstadoCandidato(idPostulacion: number, nuevoEstado: string) {
-    const resp = await fetch(`${API_BASE}/api/empresa/postulaciones/${idPostulacion}/estado`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nuevoEstado }),
-    });
-
-    if (resp.ok) {
+    try {
+      await apiFetch(`/api/empresa/postulaciones/${idPostulacion}/estado`, {
+        method: "PATCH",
+        body: { nuevoEstado },
+      });
       window.location.reload();
-    } else {
-      const data = await resp.json().catch(() => null);
-      alert(data?.detail || "Error al cambiar estado");
+    } catch (err: any) {
+      alert(err?.message || "Error al cambiar estado");
     }
+  }
+
+  // Mientras el AuthProvider carga, mostrar un estado neutro
+  if (cargandoAuth) {
+    return (
+      <EmpresaShell variant="busqueda">
+        <p style={{ padding: 40, textAlign: "center" }}>Cargando...</p>
+      </EmpresaShell>
+    );
+  }
+
+  // Si aún no hay user, no renderizamos (el useEffect ya está redirigiendo)
+  if (!user || user.tipo !== "empresa") {
+    return null;
   }
 
   return (
@@ -214,7 +245,7 @@ export default function InicioEmpresaPage() {
                     <option value="">Estado</option>
                     <option value="En revisión">En revisión</option>
                     <option value="Entrevista">Entrevista</option>
-                    <option value="Preseleccionado">Preseleccionado</option>
+                    <option value="Pausada">Pausada</option>
                     <option value="Contratado">Contratado</option>
                     <option value="Rechazado">Rechazado</option>
                   </select>

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import CandidatoShell from "../CandidatoShell";
 import { useCandidato } from "../../lib/useCandidato";
+import "../estilo-candidato.css";
 import { GENERAL_QUESTIONS, ROLE_QUESTIONS, generarFeedback, type Pregunta } from "./questions-data";
 
 declare global {
@@ -157,62 +158,82 @@ export default function SimuladorPage() {
     ? "Siguiente pregunta →"
     : "Finalizar simulación";
 
+  const nombreCompleto = candidato ? `${candidato.nombres} ${candidato.apellidos}` : "Candidato";
+
   return (
     <CandidatoShell
-      nombre={candidato ? `${candidato.nombres} ${candidato.apellidos}` : undefined}
+      nombre={nombreCompleto}
+      fotoUrl={candidato?.fotoUrl}
       pageTitle="Simulador de entrevista"
       pageSubtitle="Practica con preguntas reales de la entrevista"
     >
       <div className="content-grid">
+        {/* Panel principal */}
         <div className="panel panel-white">
           <p className="field-label">¿A qué cargo te quieres postular?</p>
-          <select value={role} onChange={(e) => handleRoleChange(e.target.value)}>
+          <select
+            id="roleSelect"
+            value={role}
+            onChange={(e) => handleRoleChange(e.target.value)}
+          >
             <option value="">Seleccionar</option>
             {ROLES.map((r) => (
               <option key={r} value={r}>{r}</option>
             ))}
+            <option value="Otro / General">Otro / General</option>
           </select>
 
           {!completado && (
             <>
               <div className="progress-row">
-                <span>Pregunta {currentIndex + 1} de {preguntas.length}</span>
-                <div className="dots">
+                <span id="progressLabel">
+                  Pregunta {currentIndex + 1} de {preguntas.length}
+                </span>
+                <div className="dots" id="dots">
                   {preguntas.map((_, i) => (
-                    <span key={i} className={"dot" + (i < answered ? " filled" : "")} />
+                    <span
+                      key={i}
+                      className={`dot ${i < answered ? "filled" : ""}`}
+                    />
                   ))}
                 </div>
               </div>
 
               <div className="question-row">
-                <h2>{preguntaActual.text}</h2>
-                <button className="speak-btn" aria-label="Escuchar pregunta" onClick={speakQuestion} disabled={!speechSupported}>
-                  <svg viewBox="0 0 20 20"><path d="M3 8v4h3l4 3V5L6 8H3z" /><path d="M13 7a4 4 0 010 6" /><path d="M15.3 5a7 7 0 010 10" /></svg>
+                <h2 id="questionText">{preguntaActual.text}</h2>
+                <button
+                  className="speak-btn"
+                  aria-label="Escuchar pregunta"
+                  onClick={speakQuestion}
+                  disabled={!speechSupported}
+                >
+                  <svg viewBox="0 0 20 20"><path d="M3 8v4h3l4 3V5L6 8H3z"/><path d="M13 7a4 4 0 010 6"/><path d="M15.3 5a7 7 0 010 10"/></svg>
                 </button>
               </div>
 
               <div className="answer-wrap">
                 <textarea
+                  id="answerInput"
                   placeholder="Escribe tu respuesta como si estuvieras en la entrevista..."
                   value={respuesta}
                   onChange={(e) => setRespuesta(e.target.value)}
                 />
                 <button
-                  className={"mic-btn" + (isRecording ? " is-recording" : "")}
+                  className={`mic-btn ${isRecording ? "is-recording" : ""}`}
                   aria-label="Grabar respuesta"
                   onClick={toggleRecording}
                   disabled={!recognitionSupported}
                   title={!recognitionSupported ? "Tu navegador no soporta reconocimiento de voz (usa Chrome o Edge)" : undefined}
                 >
-                  <svg viewBox="0 0 20 20"><rect x="7" y="2.5" width="6" height="10" rx="3" /><path d="M5 9.5a5 5 0 0010 0" /><path d="M10 14.5V17M7.5 17h5" /></svg>
+                  <svg viewBox="0 0 20 20"><rect x="7" y="2.5" width="6" height="10" rx="3"/><path d="M5 9.5a5 5 0 0010 0"/><path d="M10 14.5V17M7.5 17h5"/></svg>
                 </button>
               </div>
-              <div className="status-line">{statusLine}</div>
+              <div className="status-line" id="statusLine">{statusLine}</div>
 
               {hasFeedback && (
-                <div className="feedback-box">
-                  <p className="label">Feedback de tu respuesta</p>
-                  <p>{feedback}</p>
+                <div className="feedback-box" id="feedbackBox">
+                  <p className="label" id="feedbackLabel">Feedback de tu respuesta</p>
+                  <p id="feedbackText">{feedback}</p>
                   <p className="feedback-disclaimer">
                     Este feedback se genera con reglas automáticas simples a partir de tu respuesta, no es un análisis de IA real.
                   </p>
@@ -222,24 +243,34 @@ export default function SimuladorPage() {
           )}
 
           {completado && (
-            <div className="completion-box">
+            <div className="completion-box" id="completionBox">
               <h3>¡Completaste la simulación! 🎉</h3>
-              <p>Respondiste las <span>{preguntas.length}</span> preguntas para este cargo. Puedes reiniciar para repetir la práctica o elegir otro cargo arriba.</p>
+              <p>
+                Respondiste las <span id="completionCount">{preguntas.length}</span> preguntas para este cargo.
+                Puedes reiniciar para repetir la práctica o elegir otro cargo arriba.
+              </p>
             </div>
           )}
 
           <div className="actions-row">
-            {!completado && <button className="btn-primary" onClick={handleSubmit}>{btnSubmitLabel}</button>}
-            <button className="btn-secondary" onClick={handleReset}>Reiniciar</button>
+            {!completado && (
+              <button className="btn-primary" id="btnSubmit" onClick={handleSubmit}>
+                {btnSubmitLabel}
+              </button>
+            )}
+            <button className="btn-secondary" id="btnReset" onClick={handleReset}>
+              Reiniciar
+            </button>
           </div>
         </div>
 
-        <div className="panel panel-blue">
+        {/* Panel lateral */}
+        <div className="panel panel-blue" id="tipPanel">
           <h3>Consejo para esta pregunta</h3>
-          <p>{completado ? "" : preguntaActual.tip}</p>
+          <p id="tipText">{completado ? "" : preguntaActual.tip}</p>
           <hr className="panel-divider" />
           <h3>Tu progreso</h3>
-          <p>{progresoPct}% completado</p>
+          <p id="progressPercent">{progresoPct}% completado</p>
         </div>
       </div>
     </CandidatoShell>

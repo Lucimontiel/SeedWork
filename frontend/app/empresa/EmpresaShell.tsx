@@ -3,9 +3,8 @@
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
-import { getSession, clearSession } from "../lib/session";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
+import { useAuth } from "../lib/auth-context";
+import { apiFetch } from "../lib/api";
 
 const NAV_ITEMS = [
   {
@@ -87,19 +86,30 @@ type EmpresaShellProps = {
 
 export default function EmpresaShell({ children, pageTitle, pageSubtitle, variant = "titulo" }: EmpresaShellProps) {
   const router = useRouter();
-  const pathname = usePathname(); // 👈 CAMBIA A usePathname
+  const pathname = usePathname();
+  const { user, cargando: cargandoAuth, logout } = useAuth();
+
   const [notifOpen, setNotifOpen] = useState(false);
   const [nombreEmpresa, setNombreEmpresa] = useState("Empresa");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
+  // Protección + carga de datos de la empresa
   useEffect(() => {
-    const session = getSession();
-    if (!session || session.tipo !== "empresa") {
-      router.push("/login");
+    if (cargandoAuth) return;
+
+    if (!user) {
+      router.replace("/login");
       return;
     }
-    fetch(`${API_BASE}/api/empresa/${session.id}`)
-      .then((r) => (r.ok ? r.json() : null))
+
+    if (user.tipo !== "empresa" || !user.idEmpresa) {
+      if (user.tipo === "candidato") router.replace("/candidato/inicio");
+      else if (user.tipo === "administrador") router.replace("/administrador/inicio");
+      else router.replace("/login");
+      return;
+    }
+
+    apiFetch<{ nombreEmpresa: string; logoUrl?: string }>(`/api/empresa/${user.idEmpresa}`)
       .then((data) => {
         if (data) {
           setNombreEmpresa(data.nombreEmpresa);
@@ -107,15 +117,31 @@ export default function EmpresaShell({ children, pageTitle, pageSubtitle, varian
         }
       })
       .catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [user, cargandoAuth, router]);
 
   function handleLogout() {
-    clearSession();
-    router.push("/login");
+    logout();
   }
 
   const inicial = nombreEmpresa.trim().charAt(0).toUpperCase() || "E";
+
+  // Mientras carga, mostramos un placeholder para no romper el layout
+  if (cargandoAuth) {
+    return (
+      <div className="app-shell">
+        <div className="main-area">
+          <div className="content-wrap" style={{ padding: 40, textAlign: "center" }}>
+            Cargando...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Si no hay sesión, el useEffect ya está redirigiendo
+  if (!user || user.tipo !== "empresa") {
+    return null;
+  }
 
   return (
     <div className="app-shell">
