@@ -43,7 +43,6 @@ const CIUDADES_CO: { label: string; value: string }[] = [
 ];
 
 function formatearTelefonoCO(valorActual: string, nuevo: string): string {
-  // Se queda siempre con el prefijo +57 y solo formatea los 10 dígitos del celular
   const digitos = nuevo.replace(/\D/g, "").replace(/^57/, "").slice(0, 10);
   if (!digitos) return "+57 ";
   const p1 = digitos.slice(0, 3);
@@ -52,7 +51,54 @@ function formatearTelefonoCO(valorActual: string, nuevo: string): string {
   return `+57 ${[p1, p2, p3].filter(Boolean).join(" ")}`.trim();
 }
 
+// --- Funciones para formatear fecha DD/MM/AAAA ---
+function formatearFechaDDMMAAAA(fechaISO: string | null | undefined): string {
+  if (!fechaISO) return "";
+  const [anio, mes, dia] = fechaISO.split("-");
+  return `${dia}/${mes}/${anio}`;
+}
+
+function parsearFechaDDMMAAAA(fechaStr: string): string {
+  // Convierte DD/MM/AAAA a YYYY-MM-DD para el backend
+  const partes = fechaStr.split("/");
+  if (partes.length !== 3) return "";
+  const [dia, mes, anio] = partes;
+  if (dia.length !== 2 || mes.length !== 2 || anio.length !== 4) return "";
+  return `${anio}-${mes}-${dia}`;
+}
+
 const NIVELES_IDIOMA = ["Nativo", "C2", "C1 (Avanzado)", "B2", "B1 (Intermedio)", "A2", "A1 (Básico)"];
+
+// Redimensiona y comprime la imagen antes de convertirla a base64
+function comprimirImagen(file: File, maxLado = 400, calidad = 0.8): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("No se pudo leer la imagen"));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("No se pudo procesar la imagen"));
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > height && width > maxLado) {
+          height = Math.round((height * maxLado) / width);
+          width = maxLado;
+        } else if (height > maxLado) {
+          width = Math.round((width * maxLado) / height);
+          height = maxLado;
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return reject(new Error("No se pudo procesar la imagen"));
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", calidad));
+      };
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
+}
 
 export default function PerfilCandidatoPage() {
   const { candidato } = useCandidato();
@@ -68,20 +114,21 @@ export default function PerfilCandidatoPage() {
     agregarEducacion,
     agregarIdioma,
     agregarExperiencia,
+    eliminarEducacion,
+    eliminarIdioma,
+    eliminarExperiencia,
   } = usePerfil(candidato?.idCandidato ?? null);
 
   const [isEditing, setIsEditing] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
-  // Borrador editable (solo se aplica cuando se confirma "Guardar cambios")
   const [draft, setDraft] = useState<any>(null);
   const [ubicacionSel, setUbicacionSel] = useState("__otra__");
   const [ciudadManual, setCiudadManual] = useState("");
   const [skillsDraft, setSkillsDraft] = useState<string[]>([]);
   const [nuevaSkill, setNuevaSkill] = useState("");
 
-  // Formularios de "agregar" (educación / idioma / experiencia)
   const [showEduForm, setShowEduForm] = useState(false);
   const [eduForm, setEduForm] = useState({ titulo: "", institucion: "", anio: "" });
   const [showLangForm, setShowLangForm] = useState(false);
@@ -142,7 +189,7 @@ export default function PerfilCandidatoPage() {
         correo: draft.correo,
         ciudad: ciudadFinal,
         telefono: draft.telefono,
-        fechaNacimiento: draft.fechaNacimiento,
+        fechaNacimiento: draft.fechaNacimiento, // ya está en YYYY-MM-DD
       });
       await guardarSobreMi(draft.about);
       await guardarPreferencias({
@@ -183,16 +230,26 @@ export default function PerfilCandidatoPage() {
   async function onFotoSeleccionada(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async () => {
-      try {
-        await guardarFoto(reader.result as string);
-        mostrarToast("Foto de perfil actualizada");
-      } catch (err: any) {
-        mostrarToast(err.message || "No se pudo actualizar la foto");
-      }
-    };
-    reader.readAsDataURL(file);
+    const inputEl = e.target;
+    try {
+      const dataUrl = await comprimirImagen(file);
+      await guardarFoto(dataUrl);
+      mostrarToast("Foto de perfil actualizada");
+    } catch (err: any) {
+      console.error("Error al subir foto:", err);
+      mostrarToast(err.message || "No se pudo actualizar la foto");
+    } finally {
+      inputEl.value = "";
+    }
+  }
+
+  async function eliminarFoto() {
+    try {
+      await guardarFoto("");
+      mostrarToast("Foto de perfil eliminada");
+    } catch (err: any) {
+      mostrarToast(err.message || "No se pudo eliminar la foto");
+    }
   }
 
   async function onSubmitEducacion(e: React.FormEvent) {
@@ -225,9 +282,6 @@ export default function PerfilCandidatoPage() {
     e.preventDefault();
     if (!expForm.titulo.trim()) return;
     try {
-      // Nota: se asume meta = etiqueta/categoría y descripcion = año.
-      // Si en tu backend el modelo Experiencia usa estos campos al revés,
-      // solo hay que intercambiar "meta" y "descripcion" aquí abajo.
       await agregarExperiencia({ titulo: expForm.titulo, meta: expForm.categoria, descripcion: expForm.anio });
       setExpForm({ titulo: "", categoria: "", anio: "" });
       setShowExpForm(false);
@@ -238,10 +292,17 @@ export default function PerfilCandidatoPage() {
   }
 
   const nombreCompleto = perfil ? `${perfil.nombres} ${perfil.apellidos}` : "Candidato";
-  const iniciales = nombreCompleto.split(" ").filter(Boolean).slice(0, 2).map((p) => p[0]).join("").toUpperCase();
+
+  useEffect(() => {
+    if (isEditing && perfil) {
+      if (!draft) {
+        iniciarEdicion();
+      }
+    }
+  }, [perfil, isEditing]);
 
   return (
-    <CandidatoShell nombre={nombreCompleto} pageTitle="Perfil" pageSubtitle="Completa tu perfil para aumentar tus posibilidades">
+    <CandidatoShell nombre={perfil ? nombreCompleto : undefined} fotoUrl={perfil?.fotoUrl} pageTitle="Perfil" pageSubtitle="Completa tu perfil para aumentar tus posibilidades">
       {loading && <p>Cargando tu perfil...</p>}
       {error && <p style={{ color: "#dc3545" }}>{error}</p>}
 
@@ -249,14 +310,27 @@ export default function PerfilCandidatoPage() {
         <div className="profile-edit-root">
           {/* Tarjeta principal */}
           <div className="profile-card">
-            <div className="profile-photo">
+            <div className="profile-photo" style={{ overflow: "hidden", position: "relative" }}>
               {perfil.fotoUrl ? (
-                <img src={perfil.fotoUrl} alt="Foto de perfil" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }} />
+                <img src={perfil.fotoUrl} alt="Foto de perfil" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", borderRadius: "inherit" }} />
               ) : (
-                <svg viewBox="0 0 24 24" className="photo-placeholder">
-                  <circle cx="12" cy="8.5" r="3.6" />
-                  <path d="M4.5 20c0-4.2 3.4-7 7.5-7s7.5 2.8 7.5 7" />
-                </svg>
+                <div
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: "#f0f2f5",
+                    color: "#6b7280",
+                    borderRadius: "inherit",
+                  }}
+                >
+                  <svg viewBox="0 0 24 24" width="56" height="56" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                    <circle cx="12" cy="7" r="4" />
+                  </svg>
+                </div>
               )}
               {isEditing && (
                 <>
@@ -267,6 +341,33 @@ export default function PerfilCandidatoPage() {
                     </svg>
                   </label>
                   <input type="file" id="photoInput" accept="image/*" style={{ display: "none" }} onChange={onFotoSeleccionada} />
+                  {perfil.fotoUrl && (
+                    <button
+                      type="button"
+                      onClick={eliminarFoto}
+                      aria-label="Quitar foto de perfil"
+                      title="Quitar foto de perfil"
+                      style={{
+                        position: "absolute",
+                        top: 8,
+                        right: 8,
+                        width: 24,
+                        height: 24,
+                        borderRadius: "50%",
+                        border: "none",
+                        background: "rgba(0,0,0,0.6)",
+                        color: "#fff",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: 14,
+                        lineHeight: 1,
+                      }}
+                    >
+                      ×
+                    </button>
+                  )}
                 </>
               )}
             </div>
@@ -364,13 +465,20 @@ export default function PerfilCandidatoPage() {
                   <svg viewBox="0 0 20 20"><rect x="3.5" y="4" width="13" height="12" rx="1.5" /><path d="M3.5 8h13M7 2.5v3M13 2.5v3" /></svg>
                   {isEditing ? (
                     <input
-                      type="date"
-                      value={draft.fechaNacimiento || ""}
-                      onChange={(e) => setDraft({ ...draft, fechaNacimiento: e.target.value })}
+                      type="text"
+                      value={draft.fechaNacimiento ? formatearFechaDDMMAAAA(draft.fechaNacimiento) : ""}
+                      onChange={(e) => {
+                        let val = e.target.value.replace(/\D/g, "");
+                        if (val.length > 8) val = val.slice(0, 8);
+                        if (val.length >= 3) val = val.slice(0, 2) + "/" + val.slice(2);
+                        if (val.length >= 6) val = val.slice(0, 5) + "/" + val.slice(5);
+                        setDraft({ ...draft, fechaNacimiento: parsearFechaDDMMAAAA(val) });
+                      }}
+                      placeholder="DD/MM/AAAA"
                       style={inputStyle}
                     />
                   ) : (
-                    <span>{perfil.fechaNacimiento || "Sin fecha de nacimiento"}</span>
+                    <span>{perfil.fechaNacimiento ? formatearFechaDDMMAAAA(perfil.fechaNacimiento) : "Sin fecha de nacimiento"}</span>
                   )}
                 </span>
               </div>
@@ -382,10 +490,20 @@ export default function PerfilCandidatoPage() {
                     value={draft.about}
                     onChange={(e) => setDraft({ ...draft, about: e.target.value })}
                     rows={4}
-                    style={{ ...inputStyle, width: "100%", resize: "vertical" }}
+                    style={{
+                      ...inputStyle,
+                      width: "100%",
+                      maxWidth: "100%",
+                      resize: "vertical",
+                      wordWrap: "break-word",
+                      overflowWrap: "break-word",
+                      overflow: "auto",
+                      boxSizing: "border-box",
+                      display: "block",
+                    }}
                   />
                 ) : (
-                  <p>{perfil.about || "Aún no has escrito nada sobre ti."}</p>
+                  <p style={{ overflowWrap: "break-word", wordBreak: "break-word" }}>{perfil.about || "Aún no has escrito nada sobre ti."}</p>
                 )}
               </div>
             </div>
@@ -401,10 +519,24 @@ export default function PerfilCandidatoPage() {
 
               <div className="skills-row">
                 {(isEditing ? skillsDraft : perfil.habilidades.map((h) => h.nombre)).map((nombre) => (
-                  <span className="skill-pill" key={nombre}>
+                  <span className="skill-pill" key={nombre} style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "#e9ecef", padding: "4px 10px", borderRadius: "20px", fontSize: "14px" }}>
                     <span>{nombre}</span>
                     {isEditing && (
-                      <button className="remove-pill" type="button" aria-label="Eliminar habilidad" onClick={() => quitarSkillLocal(nombre)}>
+                      <button
+                        type="button"
+                        aria-label="Eliminar habilidad"
+                        onClick={() => quitarSkillLocal(nombre)}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: "#dc3545",
+                          fontSize: "16px",
+                          cursor: "pointer",
+                          padding: "0 2px",
+                          lineHeight: 1,
+                          fontWeight: "bold",
+                        }}
+                      >
                         ×
                       </button>
                     )}
@@ -441,20 +573,15 @@ export default function PerfilCandidatoPage() {
                 <PrefRow label="Salario esperado" value={perfil.salarioEsperado} draftValue={draft?.salarioEsperado} isEditing={isEditing}
                   onChange={(v) => setDraft({ ...draft, salarioEsperado: v })} placeholder="Ej. A convenir" />
                 <PrefSelect label="Tipo de contrato" value={draft?.tipoContratoPreferido} display={perfil.tipoContratoPreferido} isEditing={isEditing}
-                  onChange={(v) => setDraft({ ...draft, tipoContratoPreferido: v })}
-                  options={["Indiferente", "Término fijo", "Término indefinido", "Prestación de servicios", "Aprendizaje/Práctica"]} />
+                  onChange={(v) => setDraft({ ...draft, tipoContratoPreferido: v })} options={["Indiferente", "Término fijo", "Término indefinido", "Prestación de servicios", "Aprendizaje/Práctica"]} />
                 <PrefSelect label="Jornada" value={draft?.jornadaPreferida} display={perfil.jornadaPreferida} isEditing={isEditing}
-                  onChange={(v) => setDraft({ ...draft, jornadaPreferida: v })}
-                  options={["Tiempo completo", "Medio tiempo", "Por horas"]} />
+                  onChange={(v) => setDraft({ ...draft, jornadaPreferida: v })} options={["Tiempo completo", "Medio tiempo", "Por horas"]} />
                 <PrefSelect label="Movilidad" value={draft?.movilidad} display={perfil.movilidad} isEditing={isEditing}
-                  onChange={(v) => setDraft({ ...draft, movilidad: v })}
-                  options={["Indiferente", "Vehículo propio", "Moto propia", "Transporte público"]} />
+                  onChange={(v) => setDraft({ ...draft, movilidad: v })} options={["Indiferente", "Vehículo propio", "Moto propia", "Transporte público"]} />
                 <PrefSelect label="Modalidad preferida" value={draft?.modalidadPreferida} display={perfil.modalidadPreferida} isEditing={isEditing}
-                  onChange={(v) => setDraft({ ...draft, modalidadPreferida: v })}
-                  options={["Presencial", "Remoto", "Híbrido"]} />
+                  onChange={(v) => setDraft({ ...draft, modalidadPreferida: v })} options={["Presencial", "Remoto", "Híbrido"]} />
                 <PrefSelect label="Disponibilidad" value={draft?.disponibilidad} display={perfil.disponibilidad} isEditing={isEditing}
-                  onChange={(v) => setDraft({ ...draft, disponibilidad: v })}
-                  options={["Inmediata", "1 semana", "2 semanas", "1 mes"]} />
+                  onChange={(v) => setDraft({ ...draft, disponibilidad: v })} options={["Inmediata", "1 semana", "2 semanas", "1 mes"]} />
               </div>
             </div>
           </div>
@@ -477,6 +604,30 @@ export default function PerfilCandidatoPage() {
                     {edu.institucion && <a href="#">{edu.institucion}</a>}
                     {edu.anio && <div className="year">{edu.anio}</div>}
                   </div>
+                  {isEditing && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await eliminarEducacion(edu.idEducacion);
+                          mostrarToast("Educación eliminada");
+                        } catch (err: any) {
+                          mostrarToast(err.message || "No se pudo eliminar");
+                        }
+                      }}
+                      style={{
+                        marginLeft: "auto",
+                        background: "none",
+                        border: "none",
+                        color: "#dc3545",
+                        fontSize: 18,
+                        cursor: "pointer",
+                        padding: "0 4px",
+                      }}
+                    >
+                      ×
+                    </button>
+                  )}
                 </div>
               ))}
               {perfil.educacion.length === 0 && <p>Aún no has agregado tu educación.</p>}
@@ -515,9 +666,37 @@ export default function PerfilCandidatoPage() {
                   const nombre = idi.descripcion.split(" - ")[0];
                   return (
                     <div className="lang-row" key={idi.idIdioma}>
-                      <div className="lang-row-top"><span>{nombre}</span><span>{porcentaje}%</span></div>
+                      <div className="lang-row-top">
+                        <span>{nombre}</span>
+                        <span>{porcentaje}%</span>
+                      </div>
                       <div className="lang-bar-bg"><div className="lang-bar-fill" style={{ width: `${porcentaje}%` }} /></div>
-                      <div className="lang-level">{nivel}</div>
+                      <div className="lang-level" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span>{nivel}</span>
+                        {isEditing && (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                await eliminarIdioma(idi.idIdioma);
+                                mostrarToast("Idioma eliminado");
+                              } catch (err: any) {
+                                mostrarToast(err.message || "No se pudo eliminar");
+                              }
+                            }}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              color: "#dc3545",
+                              fontSize: 16,
+                              cursor: "pointer",
+                              padding: "0 4px",
+                            }}
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -559,6 +738,30 @@ export default function PerfilCandidatoPage() {
                       {exp.meta && <a href="#">{exp.meta}</a>}
                       {exp.descripcion && <div className="year">{exp.descripcion}</div>}
                     </div>
+                    {isEditing && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            await eliminarExperiencia(exp.idProyecto);
+                            mostrarToast("Experiencia eliminada");
+                          } catch (err: any) {
+                            mostrarToast(err.message || "No se pudo eliminar");
+                          }
+                        }}
+                        style={{
+                          marginLeft: "auto",
+                          background: "none",
+                          border: "none",
+                          color: "#dc3545",
+                          fontSize: 18,
+                          cursor: "pointer",
+                          padding: "0 4px",
+                        }}
+                      >
+                        ×
+                      </button>
+                    )}
                   </div>
                 ))}
                 {perfil.experiencia.length === 0 && <p>Aún no has agregado experiencia o proyectos.</p>}

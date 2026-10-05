@@ -35,13 +35,18 @@ export function usePerfil(idCandidato: number | null) {
   const cargar = useCallback(() => {
     if (!idCandidato) return;
     setLoading(true);
-    fetch(`${API_BASE}/api/candidato/${idCandidato}/perfil`)
+    const url = `${API_BASE}/api/candidato/${idCandidato}/perfil`;
+    console.log("Cargando perfil desde:", url);
+    fetch(url)
       .then((r) => {
         if (!r.ok) throw new Error("No se pudo cargar tu perfil");
         return r.json();
       })
       .then(setPerfil)
-      .catch((err: Error) => setError(err.message))
+      .catch((err: Error) => {
+        console.error("Error cargando perfil:", err);
+        setError(err.message);
+      })
       .finally(() => setLoading(false));
   }, [idCandidato]);
 
@@ -51,7 +56,10 @@ export function usePerfil(idCandidato: number | null) {
 
   const mutar = useCallback(
     async (path: string, method: string, body?: unknown): Promise<Perfil> => {
-      const resp = await fetch(`${API_BASE}/api/candidato/${idCandidato}${path}`, {
+      if (!idCandidato) throw new Error("ID de candidato no disponible");
+      const url = `${API_BASE}/api/candidato/${idCandidato}${path}`;
+      console.log(`Mutando: ${method} ${url}`, body);
+      const resp = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -67,6 +75,15 @@ export function usePerfil(idCandidato: number | null) {
     [idCandidato]
   );
 
+  const mutarYRecargar = useCallback(
+    async (path: string, method: string, body?: unknown): Promise<Perfil> => {
+      await mutar(path, method, body);
+      await cargar();
+      return perfil!;
+    },
+    [mutar, cargar, perfil]
+  );
+
   return {
     perfil,
     loading,
@@ -75,16 +92,16 @@ export function usePerfil(idCandidato: number | null) {
     guardarPreferencias: (body: any) => mutar("/perfil/preferencias", "PUT", body),
     guardarSobreMi: (about: string) => mutar("/cv/sobre-mi", "PUT", { about }),
     guardarHabilidades: (habilidades: string[]) => mutar("/cv/habilidades", "PUT", { habilidades }),
-    guardarFoto: (fotoUrl: string) => mutar("/cv/foto", "PUT", { fotoUrl }),
+    guardarFoto: (fotoUrl: string) => mutarYRecargar("/cv/foto", "PUT", { fotoUrl }),
     agregarEducacion: (body: any) => mutar("/cv/educacion", "POST", body),
     agregarIdioma: (descripcion: string) => mutar("/cv/idiomas", "POST", { descripcion }),
     agregarExperiencia: (body: any) => mutar("/cv/proyectos", "POST", body),
+    eliminarEducacion: (id: number) => mutar(`/cv/educacion/${id}`, "DELETE"),
+    eliminarIdioma: (id: number) => mutar(`/cv/idiomas/${id}`, "DELETE"),
+    eliminarExperiencia: (id: number) => mutar(`/cv/proyectos/${id}`, "DELETE"),
   };
 }
 
-// El HTML original mostraba una barra de progreso por idioma (ej: 100%, Nativo).
-// El backend solo guarda "Inglés - B2" como texto libre, así que el nivel/porcentaje
-// se infiere aquí por palabras clave — es una aproximación visual, no un dato real.
 export function inferirNivelIdioma(descripcion: string): { nivel: string; porcentaje: number } {
   const d = descripcion.toLowerCase();
   const partes = descripcion.split(" - ");

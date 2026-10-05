@@ -1,11 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
-import { getSession, clearSession } from "../lib/session";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
+import { usePathname } from "next/navigation";
+import { useState, type ReactNode } from "react";
+import { useAuth } from "../lib/auth-context";
+import { avatarColorFromName } from "../lib/avatarColor";
 
 const NAV_ITEMS = [
   { href: "/candidato/inicio", label: "Inicio", icon: <><path d="M3 8.5L10 3l7 5.5"/><path d="M5 8v8h10V8"/></> },
@@ -27,47 +26,24 @@ const NOTIFICACIONES = [
 
 export default function CandidatoShell({
   children,
-  nombre = "Candidato",
+  nombre,
+  fotoUrl,
   pageTitle,
   pageSubtitle,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
   nombre?: string;
+  fotoUrl?: string | null;
   pageTitle: string;
   pageSubtitle: string;
 }) {
   const pathname = usePathname();
-  const router = useRouter();
+  const { logout } = useAuth();
   const [notifOpen, setNotifOpen] = useState(false);
-  const [nombreCandidato, setNombreCandidato] = useState(nombre);
 
-  useEffect(() => {
-    // Si hay sesión, trae el candidato. Si no, trae el candidato de prueba (ID 1 = Viviana)
-    const session = getSession();
-    if (session && session.tipo === "candidato") {
-      fetch(`${API_BASE}/api/candidato/${session.id}`)
-        .then((r) => (r.ok ? r.json() : null))
-        .then((data) => {
-          if (data) setNombreCandidato(data.nombres + " " + data.apellidos);
-        })
-        .catch(() => {});
-    } else {
-      fetch(`${API_BASE}/api/candidato/1`)
-        .then((r) => (r.ok ? r.json() : null))
-        .then((data) => {
-          if (data) setNombreCandidato(data.nombres + " " + data.apellidos);
-        })
-        .catch(() => {});
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  function handleLogout() {
-    clearSession();
-    router.push("/login");
-  }
-
-  const iniciales = nombreCandidato.split(" ").filter(Boolean).slice(0, 2).map((p) => p[0]).join("").toUpperCase();
+  const iniciales = nombre
+    ? nombre.split(" ").filter(Boolean).slice(0, 2).map((p) => p[0]).join("").toUpperCase()
+    : "";
 
   return (
     <div className="app-shell">
@@ -90,7 +66,12 @@ export default function CandidatoShell({
           ))}
         </nav>
         <div className="nav-footer">
-          <button type="button" onClick={handleLogout} className="nav-item" style={{ background: "transparent", border: "none", cursor: "pointer", width: "100%" }}>
+          <button
+            type="button"
+            onClick={() => logout()}
+            className="nav-item"
+            style={{ width: "100%", textAlign: "left", background: "transparent", border: "none", cursor: "pointer" }}
+          >
             <svg viewBox="0 0 20 20"><path d="M8 4H4.5A1.5 1.5 0 003 5.5v9A1.5 1.5 0 004.5 16H8"/><path d="M12 10h5.5M15 7l3 3-3 3"/></svg>
             <span className="label">Cerrar sesión</span>
           </button>
@@ -129,8 +110,23 @@ export default function CandidatoShell({
             </div>
 
             <div className="user-chip">
-              <div className="avatar">{iniciales || "CA"}</div>
-              <div className="user-meta"><strong>{nombreCandidato}</strong></div>
+              <div
+                className="avatar"
+                style={
+                  fotoUrl
+                    ? { padding: 0, overflow: "hidden" }
+                    : nombre
+                    ? { backgroundColor: avatarColorFromName(nombre), color: "#fff" }
+                    : { background: "#e5e7eb" }
+                }
+              >
+                {fotoUrl ? (
+                  <img src={fotoUrl} alt={nombre || ""} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%", display: "block" }} />
+                ) : (
+                  iniciales
+                )}
+              </div>
+              <div className="user-meta"><strong>{nombre || ""}</strong></div>
             </div>
           </div>
         </header>

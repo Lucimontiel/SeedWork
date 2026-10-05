@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import CandidatoShell from "../CandidatoShell";
-import { getSession } from "../../lib/session";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
+import { useAuth } from "../../lib/auth-context";
+import { apiFetch } from "../../lib/api";
 
 type Candidato = {
   idCandidato: number;
@@ -14,6 +14,7 @@ type Candidato = {
   correo: string;
   ciudad?: string;
   telefono?: string;
+  fotoUrl?: string | null;
 };
 
 type Oferta = {
@@ -40,39 +41,80 @@ type Postulacion = {
 };
 
 export default function InicioCandidatoPage() {
+  const router = useRouter();
+  const { user, cargando: cargandoAuth } = useAuth();
+
   const [candidato, setCandidato] = useState<Candidato | null>(null);
   const [ofertas, setOfertas] = useState<Oferta[]>([]);
   const [postulaciones, setPostulaciones] = useState<Postulacion[]>([]);
 
+  // ============================================================
+  // Protección de la página
+  // ============================================================
   useEffect(() => {
-    const session = getSession();
-    if (!session) return;
+    if (cargandoAuth) return;
 
-    // Traer datos del candidato
-    fetch(`${API_BASE}/api/candidato/${session.id}`)
-      .then((r) => (r.ok ? r.json() : null))
+    if (!user) {
+      router.replace("/login");
+      return;
+    }
+
+    if (user.tipo !== "candidato" || !user.idCandidato) {
+      if (user.tipo === "empresa") router.replace("/empresa/inicio");
+      else if (user.tipo === "administrador") router.replace("/administrador/inicio");
+      else router.replace("/login");
+    }
+  }, [user, cargandoAuth, router]);
+
+  // ============================================================
+  // Carga de datos
+  // ============================================================
+  useEffect(() => {
+    if (!user || user.tipo !== "candidato" || !user.idCandidato) return;
+
+    // Datos del candidato
+    apiFetch<Candidato>(`/api/candidato/${user.idCandidato}`)
       .then(setCandidato)
-      .catch(() => {});
+      .catch((err) => console.error("Error al cargar candidato:", err));
 
-    // Traer todas las vacantes publicadas
-    fetch(`${API_BASE}/api/vacantes`)
-      .then((r) => (r.ok ? r.json() : []))
+    // Vacantes publicadas (público, pero usamos apiFetch por consistencia)
+    apiFetch<Oferta[]>("/api/vacantes")
       .then((data) => {
         if (Array.isArray(data)) setOfertas(data);
       })
-      .catch(() => {});
+      .catch((err) => console.error("Error al cargar vacantes:", err));
 
-    // Traer postulaciones del candidato
-    fetch(`${API_BASE}/api/candidato/${session.id}/postulaciones`)
-      .then((r) => (r.ok ? r.json() : []))
+    // Postulaciones del candidato
+    apiFetch<Postulacion[]>(`/api/candidato/${user.idCandidato}/postulaciones`)
       .then((data) => {
         if (Array.isArray(data)) setPostulaciones(data);
       })
-      .catch(() => {});
-  }, []);
+      .catch((err) => console.error("Error al cargar postulaciones:", err));
+  }, [user]);
+
+  if (cargandoAuth) {
+    return (
+      <CandidatoShell pageTitle="Inicio" pageSubtitle="Cargando...">
+        <p style={{ padding: 40, textAlign: "center" }}>Cargando...</p>
+      </CandidatoShell>
+    );
+  }
+
+  if (!user || user.tipo !== "candidato") {
+    return null;
+  }
+
+  const nombreCompleto = candidato
+    ? `${candidato.nombres} ${candidato.apellidos}`.trim()
+    : "";
 
   return (
-    <CandidatoShell pageTitle="Inicio" pageSubtitle="Cada vez más cerca de tu próxima gran oportunidad">
+    <CandidatoShell
+      pageTitle="Inicio"
+      pageSubtitle="Cada vez más cerca de tu próxima gran oportunidad"
+      nombre={nombreCompleto}
+      fotoUrl={candidato?.fotoUrl || null}
+    >
       {/* Tarjetas de acción */}
       <div className="quick-actions" style={{ marginBottom: 30 }}>
         <button className="action-card" onClick={() => (window.location.href = "/candidato/perfil")}>

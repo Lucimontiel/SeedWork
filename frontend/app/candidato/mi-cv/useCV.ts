@@ -44,7 +44,7 @@ export function useCV(idCandidato: number | null) {
     [idCandidato]
   );
 
-  return {
+    return {
     cv,
     loading,
     error,
@@ -61,5 +61,11 @@ export function useCV(idCandidato: number | null) {
     actualizarSeccion: (idSeccion: number, contenido: string) => mutar(`/cv/secciones/${idSeccion}`, "PUT", { contenido }),
     guardarPlantilla: (plantilla: string) => mutar("/cv/plantilla", "PUT", { plantilla }),
     guardarFoto: (fotoUrl: string) => mutar("/cv/foto", "PUT", { fotoUrl }),
+    // Nuevos métodos de eliminación
+    eliminarEducacion: (id: number) => mutar(`/cv/educacion/${id}`, "DELETE"),
+    eliminarProyecto: (id: number) => mutar(`/cv/proyectos/${id}`, "DELETE"),
+    eliminarIdioma: (id: number) => mutar(`/cv/idiomas/${id}`, "DELETE"),
+    eliminarReferencia: (id: number) => mutar(`/cv/referencias/${id}`, "DELETE"),
+    eliminarSeccion: (id: number) => mutar(`/cv/secciones/${id}`, "DELETE"),
   };
 }
