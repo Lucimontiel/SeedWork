@@ -36,7 +36,7 @@ export default function AdminLoginPage() {
       return;
     }
 
-    setCargando(true);cls
+    setCargando(true);
     try {
       const { requiere2FA } = await adminLoginStep1(correo, contrasena);
 
