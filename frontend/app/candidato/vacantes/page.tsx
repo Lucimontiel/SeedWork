@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import CandidatoShell from "../CandidatoShell";
-import { getSession } from "../../lib/session";
-import { API_BASE } from "../../lib/api";
+import { useAuth } from "../../lib/auth-context";
+import { apiFetch } from "../../lib/api";
 
 interface Oferta {
   idOferta: number;
@@ -36,7 +36,8 @@ function tiempoDesde(fechaISO: string) {
 }
 
 export default function VacantesPage() {
-  const [candidato, setCandidato] = useState<any>(null);
+  const { user, cargando: cargandoAuth } = useAuth();
+
   const [ofertas, setOfertas] = useState<Oferta[]>([]);
   const [loadingOfertas, setLoadingOfertas] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -54,16 +55,9 @@ export default function VacantesPage() {
   const [enviando, setEnviando] = useState<number | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
-  // Estado para el menú de tres puntos
   const [menuAbierto, setMenuAbierto] = useState<number | null>(null);
-
-  // Lista de postulaciones con su ID (para poder eliminarlas)
   const [postulaciones, setPostulaciones] = useState<Postulacion[]>([]);
-
-  // Estado para la modal de ver detalle
   const [ofertaDetalle, setOfertaDetalle] = useState<Oferta | null>(null);
-
-  // Estado para el panel de búsquedas guardadas
   const [busquedasGuardadas, setBusquedasGuardadas] = useState<{ titulo: string; total: number }[]>([]);
 
   function mostrarToast(msg: string) {
@@ -71,29 +65,18 @@ export default function VacantesPage() {
     setTimeout(() => setToast(null), 2500);
   }
 
-  // TRAER EL CANDIDATO DESDE LA SESIÓN
-  useEffect(() => {
-    const session = getSession();
-    if (!session) return;
+  const idCandidato = user?.tipo === "candidato" ? user.idCandidato : null;
 
-    fetch(`${API_BASE}/api/candidato/${session.id}`)
-      .then((r) => (r.ok ? r.json() : null))
+  // BÚSQUEDAS GUARDADAS (público o protegido, no importa)
+  useEffect(() => {
+    apiFetch<{ titulo: string; total: number }[]>("/api/candidato/busquedas-guardadas")
       .then((data) => {
-        if (data) {
-          setCandidato(data);
-        }
+        if (Array.isArray(data)) setBusquedasGuardadas(data);
       })
       .catch(() => {});
   }, []);
 
-  // TRAER BÚSQUEDAS GUARDADAS (datos reales)
-  useEffect(() => {
-    fetch(`${API_BASE}/api/candidato/busquedas-guardadas`)
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data) => setBusquedasGuardadas(data))
-      .catch(() => {});
-  }, []);
-
+  // CARGAR OFERTAS
   const cargarOfertas = useCallback((q: string) => {
     setLoadingOfertas(true);
     const params = new URLSearchParams();
@@ -101,12 +84,9 @@ export default function VacantesPage() {
     if (ciudad) params.set("ciudad", ciudad);
     if (modalidad) params.set("modalidad", modalidad);
     if (area) params.set("categoria", area);
-    fetch(`${API_BASE}/api/vacantes?${params.toString()}`)
-      .then((r) => {
-        if (!r.ok) throw new Error("No se pudieron cargar las vacantes");
-        return r.json();
-      })
-      .then((data: Oferta[]) => setOfertas(data))
+
+    apiFetch<Oferta[]>(`/api/vacantes?${params.toString()}`)
+      .then((data) => setOfertas(data))
       .catch((err) => setError(err.message))
       .finally(() => setLoadingOfertas(false));
   }, [ciudad, modalidad, area]);
@@ -120,48 +100,43 @@ export default function VacantesPage() {
     return () => clearTimeout(t);
   }, [search, cargarOfertas]);
 
+  // CARGAR POSTULACIONES DEL CANDIDATO
   useEffect(() => {
-    if (!candidato) return;
-    fetch(`${API_BASE}/api/candidato/${candidato.idCandidato}/postulaciones`)
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data: Postulacion[]) => {
-        setPostulaciones(data);
-        setAplicadas(new Set(data.map((p) => p.idOferta)));
+    if (cargandoAuth) return;
+    if (!idCandidato) return;
+
+    apiFetch<Postulacion[]>(`/api/candidato/${idCandidato}/postulaciones`)
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setPostulaciones(data);
+          setAplicadas(new Set(data.map((p) => p.idOferta)));
+        }
       })
       .catch(() => {});
-  }, [candidato]);
+  }, [idCandidato, cargandoAuth]);
 
   async function aplicar(idOferta: number) {
-    if (!candidato) {
+    if (!idCandidato) {
       mostrarToast("Debes iniciar sesión como candidato para postularte");
       return;
     }
     setEnviando(idOferta);
     try {
-      const resp = await fetch(`${API_BASE}/api/postulaciones`, {
+      await apiFetch("/api/postulaciones", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          idCandidato: candidato.idCandidato,
-          idOferta,
-        }),
+        body: { idOferta },
       });
-      if (!resp.ok) {
-        const data = await resp.json().catch(() => null);
-        throw new Error(data?.detail || "No se pudo enviar la postulación");
-      }
       setAplicadas((prev) => new Set(prev).add(idOferta));
       mostrarToast("Tu postulación fue enviada");
     } catch (err: any) {
-      mostrarToast(err.message);
+      mostrarToast(err?.message || "No se pudo enviar la postulación");
     } finally {
       setEnviando(null);
     }
   }
 
-  // Función para salir de la oferta (eliminar postulación)
   async function salirDeOferta(idOferta: number) {
-    if (!candidato) return;
+    if (!idCandidato) return;
     const postulacion = postulaciones.find((p) => p.idOferta === idOferta);
     if (!postulacion) {
       mostrarToast("No estás postulado a esta oferta");
@@ -170,14 +145,9 @@ export default function VacantesPage() {
     }
 
     try {
-      const resp = await fetch(`${API_BASE}/api/postulaciones/${postulacion.idPostulacion}`, {
+      await apiFetch(`/api/postulaciones/${postulacion.idPostulacion}`, {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
       });
-      if (!resp.ok) {
-        const data = await resp.json().catch(() => null);
-        throw new Error(data?.detail || "No se pudo eliminar la postulación");
-      }
       setAplicadas((prev) => {
         const next = new Set(prev);
         next.delete(idOferta);
@@ -186,32 +156,7 @@ export default function VacantesPage() {
       setPostulaciones((prev) => prev.filter((p) => p.idOferta !== idOferta));
       mostrarToast("Has salido de la oferta");
     } catch (err: any) {
-      mostrarToast(err.message);
-    } finally {
-      setMenuAbierto(null);
-    }
-  }
-
-  // Función para reportar oferta
-  async function reportarOferta(idOferta: number) {
-    if (!candidato) return;
-    try {
-      const resp = await fetch(`${API_BASE}/api/reportes`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          idUsuario: candidato.idUsuario,
-          idOferta,
-          motivo: "Oferta sospechosa o inapropiada",
-        }),
-      });
-      if (!resp.ok) {
-        const data = await resp.json().catch(() => null);
-        throw new Error(data?.detail || "No se pudo reportar la oferta");
-      }
-      mostrarToast("Oferta reportada correctamente");
-    } catch (err: any) {
-      mostrarToast(err.message);
+      mostrarToast(err?.message || "No se pudo eliminar la postulación");
     } finally {
       setMenuAbierto(null);
     }
@@ -235,7 +180,6 @@ export default function VacantesPage() {
 
   return (
     <CandidatoShell
-      nombre={candidato ? `${candidato.nombres} ${candidato.apellidos}` : undefined}
       pageTitle="Vacantes"
       pageSubtitle="Oportunidades pensadas para ti"
     >
@@ -249,7 +193,7 @@ export default function VacantesPage() {
         </button>
       </div>
 
-      {/* BUSCADOR + FILTROS EN UNA SOLA LÍNEA */}
+      {/* Buscador + filtros */}
       <div className="search-filters-row">
         <div className="buscador-dividido">
           <div className="buscador-seccion">
@@ -340,12 +284,10 @@ export default function VacantesPage() {
                     </button>
                   </div>
 
-                  {/* Botón Ver detalle */}
                   <button className="btn-outline-sm" onClick={() => setOfertaDetalle(oferta)}>
                     Ver más
                   </button>
 
-                  {/* Menú de tres puntos (solo Reportar y Salir) */}
                   <div style={{ position: "relative" }}>
                     <button
                       style={{ background: "none", border: "none", fontSize: 18, color: "#667085", cursor: "pointer", padding: "0 8px" }}
@@ -355,20 +297,10 @@ export default function VacantesPage() {
                       ...
                     </button>
                     {menuAbierto === oferta.idOferta && (
-                      <div style={{ position: "absolute", right: 0, bottom: "100%", marginBottom: 8, background: "#fff", border: "1px solid #E6E9EF", borderRadius: 8, boxShadow: "0 4px 12px rgba(0,0,0,0.1)", padding: 8, zIndex: 10, width: 180 }}>
+                      <div style={{ position: "absolute", right: 0, bottom: "100%", marginBottom: 8, background: "#fff", border: "1px solid #E6E9EF", borderRadius: 8, boxShadow: "0 4px 12px rgba(0,0,0,0.1)", padding: 8, zIndex: 1000, width: 180 }}>
                         <button
-                          onClick={() => {
-                            reportarOferta(oferta.idOferta);
-                          }}
-                          style={{ display: "block", width: "100%", background: "none", border: "none", padding: "8px 12px", fontSize: 13, fontWeight: 600, color: "#D0402F", cursor: "pointer" }}
-                        >
-                          Reportar oferta
-                        </button>
-                        <button
-                          onClick={() => {
-                            salirDeOferta(oferta.idOferta);
-                          }}
-                          style={{ display: "block", width: "100%", background: "none", border: "none", padding: "8px 12px", fontSize: 13, fontWeight: 600, color: "#101828", cursor: "pointer" }}
+                          onClick={() => salirDeOferta(oferta.idOferta)}
+                          style={{ display: "block", width: "100%", background: "none", border: "none", padding: "8px 12px", fontSize: 13, fontWeight: 600, color: "#101828", cursor: "pointer", textAlign: "left" }}
                         >
                           Salir de la oferta
                         </button>
@@ -381,7 +313,7 @@ export default function VacantesPage() {
           })}
         </div>
 
-        {/* Panel lateral: Búsquedas guardadas */}
+        {/* Panel lateral */}
         <div className="vacantes-sidebar">
           <h3 className="sidebar-title">Búsquedas guardadas</h3>
           {busquedasGuardadas.length === 0 ? (
@@ -401,11 +333,10 @@ export default function VacantesPage() {
               ))}
             </>
           )}
-          <a href="#" className="view-all-saved">Ver todas</a>
         </div>
       </div>
 
-      {/* MODAL DE DETALLE DE LA OFERTA */}
+      {/* Modal de detalle */}
       {ofertaDetalle && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
           <div style={{ background: "#fff", borderRadius: 16, padding: 24, width: "90%", maxWidth: 600, maxHeight: "90vh", overflowY: "auto" }}>
@@ -431,7 +362,7 @@ export default function VacantesPage() {
         </div>
       )}
 
-      {toast && <div className="sw-toast">{toast}</div>}
+      {toast && <div className="sw-toast show">{toast}</div>}
     </CandidatoShell>
   );
 }

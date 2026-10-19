@@ -8,7 +8,7 @@ import {
   useEffect,
   useState,
 } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { AUTH_LOGOUT_EVENT, authApi, MeResponse } from "./api";
 import { clearSession, saveSession } from "./session";
 
@@ -25,9 +25,9 @@ interface AuthContextValue {
   adminLoginStep1: (
     correo: string,
     contrasena: string
-  ) => Promise<{ requiere2FA: boolean }>;
+  ) => Promise<{ requiere2FA: boolean; challengeToken: string | null }>;
 
-  adminLoginStep2: (correo: string, codigo: string) => Promise<MeResponse>;
+  adminLoginStep2: (challengeToken: string, codigo: string) => Promise<MeResponse>;
 
   logout: () => Promise<void>;
   refrescar: () => Promise<void>;
@@ -37,26 +37,25 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [user, setUser] = useState<MeResponse | null>(null);
   const [cargando, setCargando] = useState(true);
 
-  // Al montar: consultar /me para saber si hay sesión activa.
-  // Si falla, NO redirigimos. El usuario puede seguir navegando
-  // por páginas públicas (landing, login, registro, vacantes).
+  const actualizarSesion = useCallback((me: MeResponse) => {
+    setUser(me);
+    saveSession({
+      tipo: me.tipo,
+      id: me.idCandidato ?? me.idEmpresa ?? me.idAdministrador ?? 0,
+      idUsuario: me.idUsuario,
+    });
+  }, []);
+
   useEffect(() => {
     let activo = true;
-
     (async () => {
       try {
-        const me = await authApi.me(true); // silencioso: no redirige al montar
-        if (activo) {
-          setUser(me);
-          saveSession({
-            tipo: me.tipo,
-            id: me.idCandidato ?? me.idEmpresa ?? me.idAdministrador ?? 0,
-            idUsuario: me.idUsuario,
-          });
-        }
+        const me = await authApi.me(true);
+        if (activo) actualizarSesion(me);
       } catch {
         if (activo) {
           setUser(null);
@@ -66,115 +65,78 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (activo) setCargando(false);
       }
     })();
+    return () => { activo = false; };
+  }, [actualizarSesion]);
 
-    return () => {
-      activo = false;
-    };
-  }, []);
-
-  // Escuchar el evento de logout disparado por apiFetch cuando el
-  // refresh falla en una petición a un recurso PROTEGIDO.
   useEffect(() => {
     const handler = () => {
       setUser(null);
       clearSession();
-      router.push("/login");
+      if (!pathname.startsWith("/login") && !pathname.startsWith("/registro")) {
+        router.push("/login");
+      }
     };
     window.addEventListener(AUTH_LOGOUT_EVENT, handler);
     return () => window.removeEventListener(AUTH_LOGOUT_EVENT, handler);
-  }, [router]);
+  }, [router, pathname]);
 
-  // ============================================================
-  // LOGIN candidato / empresa
-  // ============================================================
   const login = useCallback(
-    async (
-      correo: string,
-      contrasena: string,
-      tipo: "candidato" | "empresa"
-    ) => {
+    async (correo: string, contrasena: string, tipo: "candidato" | "empresa") => {
       await authApi.login({ correo, contrasena, tipo });
       const me = await authApi.me();
-      setUser(me);
-      saveSession({
-        tipo: me.tipo,
-        id: me.idCandidato ?? me.idEmpresa ?? me.idAdministrador ?? 0,
-        idUsuario: me.idUsuario,
-      });
+      actualizarSesion(me);
       return me;
     },
-    []
+    [actualizarSesion]
   );
 
-  // ============================================================
-  // LOGIN admin — paso 1 (correo + contraseña)
-  // ============================================================
+  // ⬅️ ACTUALIZADO: Devuelve el token
   const adminLoginStep1 = useCallback(
     async (correo: string, contrasena: string) => {
       const resp = await authApi.adminLogin({ correo, contrasena });
 
-      // Si el backend ya devolvió token (sin 2FA), hacemos login directo
       if ("access_token" in resp) {
         const me = await authApi.me();
-        setUser(me);
-        saveSession({
-          tipo: me.tipo,
-          id: me.idCandidato ?? me.idEmpresa ?? me.idAdministrador ?? 0,
-          idUsuario: me.idUsuario,
-        });
-        return { requiere2FA: false };
+        actualizarSesion(me);
+        return { requiere2FA: false, challengeToken: null };
       }
 
-      // Si requiere 2FA, no hacemos nada todavía
-      return { requiere2FA: true };
+      return { requiere2FA: true, challengeToken: resp.challenge_token };
     },
-    []
+    [actualizarSesion]
   );
 
-  // ============================================================
-  // LOGIN admin — paso 2 (código TOTP)
-  // ============================================================
+  // ⬅️ ACTUALIZADO: Recibe el token
   const adminLoginStep2 = useCallback(
-    async (correo: string, codigo: string) => {
-      await authApi.adminLogin2FA({ correo, codigo });
+    async (challengeToken: string, codigo: string) => {
+      await authApi.adminLogin2FA({ challenge_token: challengeToken, codigo });
       const me = await authApi.me();
-      setUser(me);
-      saveSession({
-        tipo: me.tipo,
-        id: me.idCandidato ?? me.idEmpresa ?? me.idAdministrador ?? 0,
-        idUsuario: me.idUsuario,
-      });
+      actualizarSesion(me);
       return me;
     },
-    []
+    [actualizarSesion]
   );
 
-  // ============================================================
-  // LOGOUT
-  // ============================================================
   const logout = useCallback(async () => {
     try {
       await authApi.logout();
-    } catch {
-      // ignorar
-    }
+    } catch {}
     setUser(null);
     clearSession();
-    router.push("/login");
-  }, [router]);
+    if (!pathname.startsWith("/login")) {
+      router.replace("/login");
+    }
+  }, [router, pathname]);
 
-  // ============================================================
-  // REFRESCAR (re-consultar /me)
-  // ============================================================
   const refrescar = useCallback(async () => {
     try {
       const me = await authApi.me();
-      setUser(me);
+      actualizarSesion(me);
     } catch {
       setUser(null);
       clearSession();
     }
-  }, []);
+  }, [actualizarSesion]);
 
   return (
     <AuthContext.Provider

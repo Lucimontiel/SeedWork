@@ -1,5 +1,4 @@
 import "./globals.css";
-import "./(auth)/estilo-auth.css";
 import { AuthProvider } from "./lib/auth-context";
 
 export const metadata = {

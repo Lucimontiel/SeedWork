@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { API_BASE } from "../../lib/api";
+import { apiFetch } from "../../lib/api";
 
 export interface Perfil {
   idCandidato: number;
@@ -33,15 +33,13 @@ export function usePerfil(idCandidato: number | null) {
   const [error, setError] = useState<string | null>(null);
 
   const cargar = useCallback(() => {
-    if (!idCandidato) return;
+    if (!idCandidato) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
-    const url = `${API_BASE}/api/candidato/${idCandidato}/perfil`;
-    console.log("Cargando perfil desde:", url);
-    fetch(url)
-      .then((r) => {
-        if (!r.ok) throw new Error("No se pudo cargar tu perfil");
-        return r.json();
-      })
+    setError(null);
+    apiFetch<Perfil>(`/api/candidato/${idCandidato}/perfil`)
       .then(setPerfil)
       .catch((err: Error) => {
         console.error("Error cargando perfil:", err);
@@ -57,18 +55,10 @@ export function usePerfil(idCandidato: number | null) {
   const mutar = useCallback(
     async (path: string, method: string, body?: unknown): Promise<Perfil> => {
       if (!idCandidato) throw new Error("ID de candidato no disponible");
-      const url = `${API_BASE}/api/candidato/${idCandidato}${path}`;
-      console.log(`Mutando: ${method} ${url}`, body);
-      const resp = await fetch(url, {
+      const nuevo = await apiFetch<Perfil>(`/api/candidato/${idCandidato}${path}`, {
         method,
-        headers: { "Content-Type": "application/json" },
-        body: body !== undefined ? JSON.stringify(body) : undefined,
+        body,
       });
-      if (!resp.ok) {
-        const data = await resp.json().catch(() => null);
-        throw new Error(data?.detail || "No se pudo guardar el cambio");
-      }
-      const nuevo = await resp.json();
       setPerfil(nuevo);
       return nuevo;
     },
@@ -77,11 +67,11 @@ export function usePerfil(idCandidato: number | null) {
 
   const mutarYRecargar = useCallback(
     async (path: string, method: string, body?: unknown): Promise<Perfil> => {
-      await mutar(path, method, body);
+      const nuevo = await mutar(path, method, body);
       await cargar();
-      return perfil!;
+      return nuevo;
     },
-    [mutar, cargar, perfil]
+    [mutar, cargar]
   );
 
   return {

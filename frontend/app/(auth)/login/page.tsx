@@ -16,10 +16,8 @@ function LoginContent() {
   const [error, setError] = useState<string | null>(null);
   const [cargando, setCargando] = useState(false);
 
-  // Mensaje de registro exitoso (viene con ?registro=ok&tipo=...)
   const registroOk = searchParams.get("registro") === "ok";
 
-  // Si viene del registro, auto-seleccionar el tab correcto
   useEffect(() => {
     const tipoParam = searchParams.get("tipo");
     if (tipoParam === "candidato" || tipoParam === "empresa") {
@@ -27,14 +25,11 @@ function LoginContent() {
     }
   }, [searchParams]);
 
-  // Si ya hay sesión, redirigir al dashboard correspondiente
   useEffect(() => {
     if (cargandoAuth || !user) return;
-
     if (user.tipo === "candidato") router.replace("/candidato/inicio");
     else if (user.tipo === "empresa") router.replace("/empresa/inicio");
-    else if (user.tipo === "administrador")
-      router.replace("/administrador/inicio");
+    else if (user.tipo === "administrador") router.replace("/administrador/inicio");
   }, [user, cargandoAuth, router]);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -49,11 +44,8 @@ function LoginContent() {
     setCargando(true);
     try {
       const me = await login(correo, contrasena, tipo);
-
       if (me.tipo === "candidato") router.push("/candidato/inicio");
       else if (me.tipo === "empresa") router.push("/empresa/inicio");
-      else if (me.tipo === "administrador")
-        router.push("/administrador/inicio");
     } catch (err: any) {
       setError(err?.message || "Correo o contraseña incorrectos.");
     } finally {
@@ -63,11 +55,21 @@ function LoginContent() {
 
   return (
     <div className="login-wrapper">
+            <div className="sw-brand-header">
+        {/* Logo Blanco para Auth */}
+        <img 
+          src="/logo_blanco.png" 
+          alt="SeedWork Logo" 
+          className="sw-logo-icon" 
+        />
+        <h1 className="sw-brand-name">SEEDWORK</h1>
+      </div>
+
       <h2>¡Bienvenido/a!</h2>
       <p className="intro">
         {tipo === "candidato"
-          ? "Nos alegra tenerte aquí. Conéctate para seguir creciendo y alcanzar tus metas."
-          : "Nos alegra tenerte aquí. Conéctate para inspirar, crecer y transformar vidas desde tu empresa."}
+          ? "Conéctate para seguir creciendo y alcanzar tus metas."
+          : "Conéctate para inspirar, crecer y transformar vidas desde tu empresa."}
       </p>
 
       <div className="container">
@@ -89,71 +91,52 @@ function LoginContent() {
         </div>
 
         {registroOk && (
-          <div
-            style={{
-              background: "#d4edda",
-              color: "#155724",
-              padding: "10px 14px",
-              borderRadius: 8,
-              marginBottom: 12,
-              fontSize: 14,
-              textAlign: "center",
-            }}
-          >
+          <div className="alert-success">
             ✅ Cuenta creada con éxito. Ahora inicia sesión.
           </div>
         )}
 
         <form onSubmit={handleSubmit} noValidate>
-          <input
-            type="email"
-            placeholder={
-              tipo === "candidato"
-                ? "ejemplo@gmail.com"
-                : "empresa@correo.com"
-            }
-            value={correo}
-            onChange={(e) => setCorreo(e.target.value)}
-            autoComplete="email"
-            required
-          />
-          <input
-            type="password"
-            placeholder="Contraseña"
-            value={contrasena}
-            onChange={(e) => setContrasena(e.target.value)}
-            autoComplete="current-password"
-            required
-          />
-          <a href="#" className="forgot-password">
-            ¿Olvidaste tu contraseña?
-          </a>
+          <div className="input-group">
+            <label>Correo electrónico</label>
+            <input
+              type="email"
+              placeholder={tipo === "candidato" ? "ejemplo@gmail.com" : "empresa@correo.com"}
+              value={correo}
+              onChange={(e) => setCorreo(e.target.value)}
+              autoComplete="email"
+              required
+            />
+          </div>
+          
+          <div className="input-group">
+            <label>Contraseña</label>
+            <input
+              type="password"
+              placeholder="••••••••"
+              value={contrasena}
+              onChange={(e) => setContrasena(e.target.value)}
+              autoComplete="current-password"
+              required
+            />
+          </div>
+          
+          <a href="#" className="forgot-password">¿Olvidaste tu contraseña?</a>
 
-          {error && (
-            <p
-              style={{
-                color: "#dc3545",
-                fontSize: 13,
-                margin: "4px 0",
-              }}
-            >
-              {error}
-            </p>
-          )}
+          {error && <div className="alert-error">{error}</div>}
 
-          <button type="submit" disabled={cargando}>
+          <button type="submit" className="btn-submit" disabled={cargando}>
             {cargando ? "Ingresando..." : "Iniciar sesión"}
+            {!cargando && (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M5 12h14M13 5l7 7-7 7" />
+              </svg>
+            )}
           </button>
 
-          <p>
+          <p className="footer-link">
             ¿Eres nuevo/a?{" "}
-            <Link
-              href={
-                tipo === "candidato"
-                  ? "/registro/candidato"
-                  : "/registro/empresa"
-              }
-            >
+            <Link href={tipo === "candidato" ? "/registro/candidato" : "/registro/empresa"}>
               Crea tu cuenta
             </Link>
           </p>
@@ -163,18 +146,9 @@ function LoginContent() {
   );
 }
 
-// Next.js 14+ requiere <Suspense> para useSearchParams
 export default function LoginPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="login-wrapper">
-          <div className="container" style={{ padding: 40, textAlign: "center" }}>
-            Cargando...
-          </div>
-        </div>
-      }
-    >
+    <Suspense fallback={<div className="auth-scope"><div className="container">Cargando...</div></div>}>
       <LoginContent />
     </Suspense>
   );

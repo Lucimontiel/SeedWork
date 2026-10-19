@@ -1,6 +1,5 @@
 """Schemas Pydantic: la 'forma' del JSON que entra y sale de la API."""
-from pydantic import BaseModel, EmailStr, ConfigDict
-#from typing import Optional, List
+from pydantic import BaseModel, EmailStr, ConfigDict, Field
 from typing import Optional, List, Literal
 from datetime import datetime, date
 
@@ -8,31 +7,27 @@ from datetime import datetime, date
 class RegistroCandidatoIn(BaseModel):
     nombreCompleto: str
     correo: EmailStr
-    contrasena: str
+    contrasena: str = Field(min_length=8, max_length=128)
     telefono: str
-    ciudad: str  # nombre del municipio, ej. "Medellín"
-
+    ciudad: str
 
 class RegistroEmpresaIn(BaseModel):
     nombreEmpresa: str
     correo: EmailStr
-    contrasena: str
+    contrasena: str = Field(min_length=8, max_length=128)
     nit: str
-    sector: str  # nombre del sector, ej. "Tecnología"
+    sector: str
     ciudad: str
-
 
 class LoginIn(BaseModel):
     correo: EmailStr
     contrasena: str
-    tipo: str  # "candidato" | "empresa"
-
+    tipo: str
 
 class UsuarioOut(BaseModel):
     idUsuario: int
     rol: str
     correo: str
-
 
 class CandidatoOut(BaseModel):
     idCandidato: int
@@ -46,7 +41,6 @@ class CandidatoOut(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-
 class EmpresaOut(BaseModel):
     idEmpresa: int
     idUsuario: int
@@ -58,13 +52,11 @@ class EmpresaOut(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-
 # --- Secciones del CV (Entradas y Salidas) ---
 class HabilidadOut(BaseModel):
     idHabilidad: int
     nombre: str
     model_config = ConfigDict(from_attributes=True)
-
 
 class EducacionOut(BaseModel):
     idEducacion: int
@@ -73,12 +65,10 @@ class EducacionOut(BaseModel):
     anio: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
-
 class EducacionIn(BaseModel):
     titulo: str
     institucion: Optional[str] = None
     anio: Optional[str] = None
-
 
 class ProyectoOut(BaseModel):
     idProyecto: int
@@ -87,22 +77,18 @@ class ProyectoOut(BaseModel):
     meta: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
-
 class ProyectoIn(BaseModel):
     titulo: str
     descripcion: Optional[str] = None
     meta: Optional[str] = None
-
 
 class IdiomaOut(BaseModel):
     idIdioma: int
     descripcion: str
     model_config = ConfigDict(from_attributes=True)
 
-
 class IdiomaIn(BaseModel):
     descripcion: str
-
 
 class ReferenciaOut(BaseModel):
     idReferencia: int
@@ -111,12 +97,10 @@ class ReferenciaOut(BaseModel):
     contacto: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
-
 class ReferenciaIn(BaseModel):
     nombre: str
     cargo: Optional[str] = None
     contacto: Optional[str] = None
-
 
 class SeccionCVOut(BaseModel):
     idSeccion: int
@@ -124,21 +108,17 @@ class SeccionCVOut(BaseModel):
     contenido: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
-
 class SeccionCVIn(BaseModel):
     titulo: str
     contenido: Optional[str] = None
-
 
 class SeccionCVUpdateIn(BaseModel):
     titulo: Optional[str] = None
     contenido: Optional[str] = None
 
-
 # --- Actualizaciones del CV ---
 class HabilidadesIn(BaseModel):
-    habilidades: List[str]   # reemplaza la lista completa, igual que el form original (separadas por coma)
-
+    habilidades: List[str]
 
 class DatosPersonalesIn(BaseModel):
     nombres: str
@@ -148,18 +128,14 @@ class DatosPersonalesIn(BaseModel):
     correo: Optional[EmailStr] = None
     telefono: Optional[str] = None
 
-
 class SobreMiIn(BaseModel):
     about: str
 
-
 class PlantillaIn(BaseModel):
-    plantilla: str  # "clasico" | "moderno" | "elegante"
-
+    plantilla: str
 
 class FotoIn(BaseModel):
-    fotoUrl: str  # data URI base64, igual que el FileReader original
-
+    fotoUrl: str
 
 # --- CV Completo ---
 class CVOut(BaseModel):
@@ -182,7 +158,6 @@ class CVOut(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-
 # --- Ofertas ---
 class OfertaOut(BaseModel):
     idOferta: int
@@ -198,7 +173,6 @@ class OfertaOut(BaseModel):
     fechaPublicacion: datetime
 
     model_config = ConfigDict(from_attributes=True)
-
 
 # --- Postulaciones ---
 class PostulacionIn(BaseModel):
@@ -220,33 +194,25 @@ class PostulacionOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 # --- Perfil y Preferencias ---
-# NOTA: estos 3 se completaron para que el Perfil del candidato funcione
-# de punta a punta (coinciden con lo que usePerfil.ts pide y con lo que
-# _armar_perfil()/actualizar_preferencias() en main.py usan). Se
-# conservan los campos que ya ten\u00edas (idModalidad/idDisponibilidad,
-# modalidad/disponibilidad) por si algo m\u00e1s los sigue usando.
-
 class PerfilDatosIn(BaseModel):
     nombres: Optional[str] = None
     apellidos: Optional[str] = None
     telefono: Optional[str] = None
-    ciudad: Optional[str] = None  # Nombre del municipio
+    ciudad: Optional[str] = None
     tituloProfesional: Optional[str] = None
     correo: Optional[EmailStr] = None
     fechaNacimiento: Optional[date] = None
-
 
 class PreferenciasIn(BaseModel):
     idModalidad: Optional[int] = None
     idDisponibilidad: Optional[int] = None
     areaInteres: Optional[str] = None
     salarioEsperado: Optional[str] = None
-    tipoContratoPreferido: Optional[str] = None  # nombre en catálogo TipoContrato
-    jornadaPreferida: Optional[str] = None       # nombre en catálogo JornadaLaboral
+    tipoContratoPreferido: Optional[str] = None
+    jornadaPreferida: Optional[str] = None
     movilidad: Optional[str] = None
-    modalidadPreferida: Optional[str] = None     # nombre en catálogo Modalidad
-    disponibilidad: Optional[str] = None         # nombre en catálogo Disponibilidad
-
+    modalidadPreferida: Optional[str] = None
+    disponibilidad: Optional[str] = None
 
 class PerfilOut(BaseModel):
     idCandidato: int
@@ -272,13 +238,8 @@ class PerfilOut(BaseModel):
     educacion: List[EducacionOut] = []
     experiencia: List[ProyectoOut] = []
     idiomas: List[IdiomaOut] = []
-    # --- Campos extra para que esta misma respuesta también sirva a Mi CV ---
-    # (usePerfil.ts y useCV.ts comparten las rutas /cv/foto, /cv/sobre-mi,
-    # /cv/habilidades, /cv/educacion, /cv/idiomas, /cv/proyectos porque son
-    # literalmente los mismos datos del candidato; esta respuesta trae todo
-    # lo que ambos hooks necesitan para no chocar entre sí)
     plantilla: str = "clasico"
-    proyectos: List[ProyectoOut] = []      # mismo contenido que "experiencia"
+    proyectos: List[ProyectoOut] = []
     referencias: List[ReferenciaOut] = []
     secciones: List[SeccionCVOut] = []
 
@@ -287,46 +248,51 @@ class PerfilOut(BaseModel):
 # ============================================================
 # NUEVOS SCHEMAS DE AUTENTICACIÓN (con tokens)
 # ============================================================
-
 class LoginTokenIn(BaseModel):
-    """Login que devuelve tokens."""
     correo: EmailStr
     contrasena: str
     tipo: Literal["candidato", "empresa"]
 
-
 class AdminLoginIn(BaseModel):
-    """Login de administrador (paso 1: correo + contraseña)."""
     correo: EmailStr
     contrasena: str
 
+# ⬅️ NUEVO: Estructura del token de desafío
+class AdminLoginChallengeOut(BaseModel):
+    dos_fa_requerido: bool = True
+    challenge_token: str
+    message: Optional[str] = None
 
+# ⬅️ ACTUALIZADO: Ahora recibe el token en lugar del correo
 class AdminLogin2FAIn(BaseModel):
-    """Login de administrador (paso 2: código TOTP o de respaldo)."""
-    correo: EmailStr
-    codigo: str
-
+    challenge_token: str = Field(min_length=20)
+    codigo: str = Field(min_length=6, max_length=20)
 
 class TokenOut(BaseModel):
-    """Respuesta con el access token."""
     access_token: str
     token_type: str = "bearer"
-    expires_in: int  # segundos
-
+    expires_in: int
 
 class MeOut(BaseModel):
-    """Datos del usuario autenticado actual."""
     idUsuario: int
     correo: str
     rol: str
-    tipo: str  # "candidato" | "empresa" | "administrador"
+    tipo: str
     idCandidato: Optional[int] = None
     idEmpresa: Optional[int] = None
     idAdministrador: Optional[int] = None
     totpHabilitado: bool = False
 
-
 class Setup2FAOut(BaseModel):
-    """Respuesta al iniciar la configuración de 2FA."""
     secreto: str
     qr_uri: str
+
+# ============================================================
+# RECUPERACIÓN DE CONTRASEÑA
+# ============================================================
+class OlvidePasswordIn(BaseModel):
+    correo: EmailStr
+
+class RestablecerPasswordIn(BaseModel):
+    token: str = Field(min_length=20, max_length=200)
+    contrasena: str = Field(min_length=8, max_length=128)

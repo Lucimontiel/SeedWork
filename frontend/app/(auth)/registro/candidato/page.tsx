@@ -8,12 +8,7 @@ import { API_BASE } from "../../../lib/api";
 export default function RegistroCandidatoPage() {
   const router = useRouter();
   const [form, setForm] = useState({
-    nombreCompleto: "",
-    correo: "",
-    contrasena: "",
-    confirmar: "",
-    telefono: "",
-    ciudad: "",
+    nombreCompleto: "", correo: "", contrasena: "", confirmar: "", telefono: "", ciudad: "",
   });
   const [aceptaTerminos, setAceptaTerminos] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -28,39 +23,16 @@ export default function RegistroCandidatoPage() {
     e.preventDefault();
     setError(null);
 
-    if (!form.nombreCompleto.trim()) {
-      setError("Escribe tu nombre completo.");
-      return;
-    }
-    if (!form.correo.trim()) {
-      setError("Escribe tu correo.");
-      return;
-    }
-    if (form.contrasena !== form.confirmar) {
-      setError("Las contraseñas no coinciden.");
-      return;
-    }
-    if (form.contrasena.length < 8) {
-      setError("La contraseña debe tener al menos 8 caracteres.");
-      return;
-    }
-    if (!form.telefono.trim()) {
-      setError("Escribe tu teléfono.");
-      return;
-    }
-    if (!form.ciudad.trim()) {
-      setError("Escribe tu ciudad.");
-      return;
-    }
-    if (!aceptaTerminos) {
-      setError("Debes aceptar los términos y condiciones.");
-      return;
-    }
+    if (!form.nombreCompleto.trim()) return setError("Escribe tu nombre completo.");
+    if (!form.correo.trim()) return setError("Escribe tu correo.");
+    if (form.contrasena !== form.confirmar) return setError("Las contraseñas no coinciden.");
+    if (form.contrasena.length < 8) return setError("La contraseña debe tener al menos 8 caracteres.");
+    if (!form.telefono.trim()) return setError("Escribe tu teléfono.");
+    if (!form.ciudad.trim()) return setError("Escribe tu ciudad.");
+    if (!aceptaTerminos) return setError("Debes aceptar los términos y condiciones.");
 
     setCargando(true);
     try {
-      // El registro ya no devuelve cookies ni loguea.
-      // Solo crea la cuenta. El usuario debe ir a /login después.
       const resp = await fetch(`${API_BASE}/api/auth/registro/candidato`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -78,11 +50,8 @@ export default function RegistroCandidatoPage() {
         throw new Error(data?.detail || "No se pudo crear la cuenta.");
       }
 
-      // ✅ Éxito: mostrar mensaje y redirigir a /login
       setExito(true);
-      setTimeout(() => {
-        router.push("/login?registro=ok&tipo=candidato");
-      }, 1800);
+      setTimeout(() => router.push("/login?registro=ok&tipo=candidato"), 1800);
     } catch (err: any) {
       setError(err?.message || "No se pudo crear la cuenta.");
     } finally {
@@ -90,18 +59,13 @@ export default function RegistroCandidatoPage() {
     }
   }
 
-  // Estado de éxito: mensaje y redirección
   if (exito) {
     return (
       <div className="login-wrapper">
         <div className="container" style={{ padding: 40 }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>✅</div>
-          <h2 style={{ color: "#0d6efd", marginBottom: 12 }}>
-            ¡Cuenta creada!
-          </h2>
-          <p style={{ color: "#667085" }}>
-            Redirigiendo a inicio de sesión...
-          </p>
+          <h2 style={{ color: "var(--sw-blue)" }}>¡Cuenta creada!</h2>
+          <p style={{ color: "var(--sw-text-muted)" }}>Redirigiendo a inicio de sesión...</p>
         </div>
       </div>
     );
@@ -109,95 +73,55 @@ export default function RegistroCandidatoPage() {
 
   return (
     <div className="login-wrapper">
+        <h1 className="sw-brand-name">SEEDWORK</h1>
       <h2>Crear Cuenta</h2>
       <p className="intro">Comienza a crecer con nosotros.</p>
 
       <div className="container">
         <div className="tabs">
-          <button type="button" className="active">
-            Soy Candidato
-          </button>
-          <button
-            type="button"
-            onClick={() => router.push("/registro/empresa")}
-          >
-            Soy Empresa
-          </button>
+          <button type="button" className="active">Soy Candidato</button>
+          <button type="button" onClick={() => router.push("/registro/empresa")}>Soy Empresa</button>
         </div>
 
         <form onSubmit={handleSubmit} noValidate>
-          <input
-            type="text"
-            placeholder="Nombre completo"
-            required
-            value={form.nombreCompleto}
-            onChange={(e) => update("nombreCompleto", e.target.value)}
-            autoComplete="name"
-          />
-          <input
-            type="email"
-            placeholder="ejemplo@gmail.com"
-            required
-            value={form.correo}
-            onChange={(e) => update("correo", e.target.value)}
-            autoComplete="email"
-          />
-          <input
-            type="password"
-            placeholder="Contraseña (mín. 8 caracteres)"
-            required
-            minLength={8}
-            value={form.contrasena}
-            onChange={(e) => update("contrasena", e.target.value)}
-            autoComplete="new-password"
-          />
-          <input
-            type="password"
-            placeholder="Confirmar contraseña"
-            required
-            minLength={8}
-            value={form.confirmar}
-            onChange={(e) => update("confirmar", e.target.value)}
-            autoComplete="new-password"
-          />
-          <input
-            type="tel"
-            placeholder="300 123 4567"
-            required
-            value={form.telefono}
-            onChange={(e) => update("telefono", e.target.value)}
-            autoComplete="tel"
-          />
-          <input
-            type="text"
-            placeholder="Medellín"
-            required
-            value={form.ciudad}
-            onChange={(e) => update("ciudad", e.target.value)}
-            autoComplete="address-level2"
-          />
-
-          <div className="checkbox-group">
-            <input
-              type="checkbox"
-              id="terms"
-              checked={aceptaTerminos}
-              onChange={(e) => setAceptaTerminos(e.target.checked)}
-              required
-            />
-            <label htmlFor="terms">Aceptar términos y condiciones</label>
+          <div className="input-group">
+            <label>Nombre completo</label>
+            <input type="text" placeholder="Ej. Juan Pérez" value={form.nombreCompleto} onChange={(e) => update("nombreCompleto", e.target.value)} />
+          </div>
+          <div className="input-group">
+            <label>Correo electrónico</label>
+            <input type="email" placeholder="ejemplo@gmail.com" value={form.correo} onChange={(e) => update("correo", e.target.value)} />
+          </div>
+          <div className="input-group">
+            <label>Contraseña</label>
+            <input type="password" placeholder="Mín. 8 caracteres" value={form.contrasena} onChange={(e) => update("contrasena", e.target.value)} />
+          </div>
+          <div className="input-group">
+            <label>Confirmar contraseña</label>
+            <input type="password" placeholder="Repite tu contraseña" value={form.confirmar} onChange={(e) => update("confirmar", e.target.value)} />
+          </div>
+          <div className="input-group">
+            <label>Teléfono</label>
+            <input type="tel" placeholder="300 123 4567" value={form.telefono} onChange={(e) => update("telefono", e.target.value)} />
+          </div>
+          <div className="input-group">
+            <label>Ciudad</label>
+            <input type="text" placeholder="Medellín" value={form.ciudad} onChange={(e) => update("ciudad", e.target.value)} />
           </div>
 
-          {error && (
-            <p style={{ color: "#dc3545", fontSize: 13, margin: "4px 0" }}>
-              {error}
-            </p>
-          )}
+          <div className="checkbox-group">
+            <input type="checkbox" id="terms" checked={aceptaTerminos} onChange={(e) => setAceptaTerminos(e.target.checked)} />
+            <label htmlFor="terms" style={{ fontWeight: "normal", fontSize: "14px", color: "var(--sw-text-muted)" }}>
+              Aceptar términos y condiciones
+            </label>
+          </div>
 
-          <button type="submit" disabled={cargando}>
+          {error && <div className="alert-error">{error}</div>}
+
+          <button type="submit" className="btn-submit" disabled={cargando}>
             {cargando ? "Creando cuenta..." : "Crear cuenta"}
           </button>
-          <p>
+          <p className="footer-link">
             ¿Ya tienes cuenta? <Link href="/login">Inicia sesión aquí</Link>
           </p>
         </form>

@@ -5,25 +5,12 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { API_BASE } from "../../../lib/api";
 
-const SECTORES = [
-  "Tecnología",
-  "Educación",
-  "Salud",
-  "Finanzas",
-  "Construcción",
-  "Otro",
-];
+const SECTORES = ["Tecnología", "Educación", "Salud", "Finanzas", "Construcción", "Otro"];
 
 export default function RegistroEmpresaPage() {
   const router = useRouter();
   const [form, setForm] = useState({
-    nombreEmpresa: "",
-    correo: "",
-    contrasena: "",
-    confirmar: "",
-    nit: "",
-    sector: "",
-    ciudad: "",
+    nombreEmpresa: "", correo: "", contrasena: "", confirmar: "", nit: "", sector: "", ciudad: "",
   });
   const [aceptaTerminos, setAceptaTerminos] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,38 +25,14 @@ export default function RegistroEmpresaPage() {
     e.preventDefault();
     setError(null);
 
-    if (!form.nombreEmpresa.trim()) {
-      setError("Escribe el nombre de la empresa.");
-      return;
-    }
-    if (!form.correo.trim()) {
-      setError("Escribe el correo.");
-      return;
-    }
-    if (form.contrasena !== form.confirmar) {
-      setError("Las contraseñas no coinciden.");
-      return;
-    }
-    if (form.contrasena.length < 8) {
-      setError("La contraseña debe tener al menos 8 caracteres.");
-      return;
-    }
-    if (!form.nit.trim()) {
-      setError("Escribe el NIT.");
-      return;
-    }
-    if (!form.sector) {
-      setError("Selecciona un sector.");
-      return;
-    }
-    if (!form.ciudad.trim()) {
-      setError("Escribe la ciudad.");
-      return;
-    }
-    if (!aceptaTerminos) {
-      setError("Debes aceptar los términos y condiciones.");
-      return;
-    }
+    if (!form.nombreEmpresa.trim()) return setError("Escribe el nombre de la empresa.");
+    if (!form.correo.trim()) return setError("Escribe el correo.");
+    if (form.contrasena !== form.confirmar) return setError("Las contraseñas no coinciden.");
+    if (form.contrasena.length < 8) return setError("La contraseña debe tener al menos 8 caracteres.");
+    if (!form.nit.trim()) return setError("Escribe el NIT.");
+    if (!form.sector) return setError("Selecciona un sector.");
+    if (!form.ciudad.trim()) return setError("Escribe la ciudad.");
+    if (!aceptaTerminos) return setError("Debes aceptar los términos y condiciones.");
 
     setCargando(true);
     try {
@@ -92,9 +55,7 @@ export default function RegistroEmpresaPage() {
       }
 
       setExito(true);
-      setTimeout(() => {
-        router.push("/login?registro=ok&tipo=empresa");
-      }, 1800);
+      setTimeout(() => router.push("/login?registro=ok&tipo=empresa"), 1800);
     } catch (err: any) {
       setError(err?.message || "No se pudo crear la cuenta.");
     } finally {
@@ -107,12 +68,8 @@ export default function RegistroEmpresaPage() {
       <div className="login-wrapper">
         <div className="container" style={{ padding: 40 }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>✅</div>
-          <h2 style={{ color: "#0d6efd", marginBottom: 12 }}>
-            ¡Cuenta creada!
-          </h2>
-          <p style={{ color: "#667085" }}>
-            Redirigiendo a inicio de sesión...
-          </p>
+          <h2 style={{ color: "var(--sw-blue)" }}>¡Cuenta creada!</h2>
+          <p style={{ color: "var(--sw-text-muted)" }}>Redirigiendo a inicio de sesión...</p>
         </div>
       </div>
     );
@@ -120,106 +77,62 @@ export default function RegistroEmpresaPage() {
 
   return (
     <div className="login-wrapper">
+        <h1 className="sw-brand-name">SEEDWORK</h1>
       <h2>Crear Cuenta</h2>
       <p className="intro">Tu empresa es parte del futuro del empleo.</p>
 
       <div className="container">
         <div className="tabs">
-          <button
-            type="button"
-            onClick={() => router.push("/registro/candidato")}
-          >
-            Soy Candidato
-          </button>
-          <button type="button" className="active">
-            Soy Empresa
-          </button>
+          <button type="button" onClick={() => router.push("/registro/candidato")}>Soy Candidato</button>
+          <button type="button" className="active">Soy Empresa</button>
         </div>
 
         <form onSubmit={handleSubmit} noValidate>
-          <input
-            type="text"
-            placeholder="Nombre empresa"
-            required
-            value={form.nombreEmpresa}
-            onChange={(e) => update("nombreEmpresa", e.target.value)}
-            autoComplete="organization"
-          />
-          <input
-            type="email"
-            placeholder="ejemplo@gmail.com"
-            required
-            value={form.correo}
-            onChange={(e) => update("correo", e.target.value)}
-            autoComplete="email"
-          />
-          <input
-            type="password"
-            placeholder="Contraseña (mín. 8 caracteres)"
-            required
-            minLength={8}
-            value={form.contrasena}
-            onChange={(e) => update("contrasena", e.target.value)}
-            autoComplete="new-password"
-          />
-          <input
-            type="password"
-            placeholder="Confirmar contraseña"
-            required
-            minLength={8}
-            value={form.confirmar}
-            onChange={(e) => update("confirmar", e.target.value)}
-            autoComplete="new-password"
-          />
-          <input
-            type="text"
-            placeholder="NIT / RUT"
-            required
-            value={form.nit}
-            onChange={(e) => update("nit", e.target.value)}
-          />
-          <select
-            required
-            value={form.sector}
-            onChange={(e) => update("sector", e.target.value)}
-          >
-            <option value="">Selecciona sector</option>
-            {SECTORES.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-          <input
-            type="text"
-            placeholder="Ciudad (ej. Medellín)"
-            required
-            value={form.ciudad}
-            onChange={(e) => update("ciudad", e.target.value)}
-            autoComplete="address-level2"
-          />
-
-          <div className="checkbox-group">
-            <input
-              type="checkbox"
-              id="terms"
-              checked={aceptaTerminos}
-              onChange={(e) => setAceptaTerminos(e.target.checked)}
-              required
-            />
-            <label htmlFor="terms">Aceptar términos y condiciones</label>
+          <div className="input-group">
+            <label>Nombre de la empresa</label>
+            <input type="text" placeholder="Ej. Tech Solutions" value={form.nombreEmpresa} onChange={(e) => update("nombreEmpresa", e.target.value)} />
+          </div>
+          <div className="input-group">
+            <label>Correo corporativo</label>
+            <input type="email" placeholder="contacto@empresa.com" value={form.correo} onChange={(e) => update("correo", e.target.value)} />
+          </div>
+          <div className="input-group">
+            <label>Contraseña</label>
+            <input type="password" placeholder="Mín. 8 caracteres" value={form.contrasena} onChange={(e) => update("contrasena", e.target.value)} />
+          </div>
+          <div className="input-group">
+            <label>Confirmar contraseña</label>
+            <input type="password" placeholder="Repite tu contraseña" value={form.confirmar} onChange={(e) => update("confirmar", e.target.value)} />
+          </div>
+          <div className="input-group">
+            <label>NIT / RUT</label>
+            <input type="text" placeholder="900.123.456-7" value={form.nit} onChange={(e) => update("nit", e.target.value)} />
+          </div>
+          <div className="input-group">
+            <label>Sector</label>
+            <select value={form.sector} onChange={(e) => update("sector", e.target.value)}>
+              <option value="">Selecciona un sector</option>
+              {SECTORES.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div className="input-group">
+            <label>Ciudad</label>
+            <input type="text" placeholder="Medellín" value={form.ciudad} onChange={(e) => update("ciudad", e.target.value)} />
           </div>
 
-          {error && (
-            <p style={{ color: "#dc3545", fontSize: 13, margin: "4px 0" }}>
-              {error}
-            </p>
-          )}
+          <div className="checkbox-group">
+            <input type="checkbox" id="terms" checked={aceptaTerminos} onChange={(e) => setAceptaTerminos(e.target.checked)} />
+            <label htmlFor="terms" style={{ fontWeight: "normal", fontSize: "14px", color: "var(--sw-text-muted)" }}>
+              Aceptar términos y condiciones
+            </label>
+          </div>
 
-          <button type="submit" disabled={cargando}>
+          {error && <div className="alert-error">{error}</div>}
+
+          <button type="submit" className="btn-submit" disabled={cargando}>
             {cargando ? "Creando cuenta..." : "Crear cuenta"}
           </button>
-          <p>
+          <p className="footer-link">
             ¿Ya tienes cuenta? <Link href="/login">Inicia sesión aquí</Link>
           </p>
         </form>

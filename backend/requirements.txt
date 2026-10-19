@@ -16,6 +16,7 @@ bcrypt
 
 # --- JWT ---
 python-jose[cryptography]
+sendgrid
 
 # --- 2FA ---
 pyotp
@@ -26,3 +27,5 @@ slowapi
 
 # --- Utilidades ---
 python-multipart
+
+cryptography

@@ -375,3 +375,20 @@ class CandidatoSeccionCV(Base):
     Titulo = Column(String(120), nullable=False)
     Contenido = Column(Text)
     Orden = Column(Integer, default=0)
+
+
+# ============================================================
+# NUEVO: PasswordResetToken (recuperación de contraseña)
+# Se guarda solo el HASH del token; el valor real viaja únicamente
+# en el enlace del correo.
+# ============================================================
+class PasswordResetToken(Base):
+    __tablename__ = "PasswordResetToken"
+    IdPasswordResetToken = Column(Integer, primary_key=True)
+    IdUsuario = Column(Integer, ForeignKey("Usuario.IdUsuario", ondelete="CASCADE"), nullable=False)
+    TokenHash = Column(String(64), unique=True, nullable=False)   # SHA-256 hex
+    ExpiraEn = Column(DateTime, nullable=False)
+    Usado = Column(Boolean, nullable=False, default=False)
+    UsadoEn = Column(DateTime, nullable=True)
+    IP = Column(String(45), nullable=True)
+    FechaCreacion = Column(DateTime, nullable=False)  # UTC, la asigna la app

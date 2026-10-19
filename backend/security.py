@@ -215,3 +215,27 @@ def verificar_codigo_respaldo(codigo_plano: str, codigo_hash: str) -> bool:
         return pwd_context.verify(codigo_plano.strip().upper(), codigo_hash)
     except Exception:
         return False
+
+
+# ============================================================
+# CHALLENGE TOKEN (para el paso 2 del 2FA)
+# ============================================================
+def crear_challenge_token(id_usuario: int) -> str:
+    """Crea un token temporal de 5 minutos para el paso 2FA."""
+    ahora = datetime.now(timezone.utc)
+    expira = ahora + timedelta(minutes=5)
+    
+    payload = {
+        "sub": str(id_usuario),
+        "tipo": "2fa_challenge",
+        "iat": int(ahora.timestamp()),
+        "exp": int(expira.timestamp()),
+    }
+    return jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
+
+def decodificar_challenge_token(token: str) -> int:
+    """Valida el token y devuelve el id_usuario. Lanza JWTError si falla."""
+    payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+    if payload.get("tipo") != "2fa_challenge":
+        raise JWTError("Token no es de tipo 2fa_challenge")
+    return int(payload.get("sub"))

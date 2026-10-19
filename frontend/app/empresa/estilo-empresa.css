@@ -5605,7 +5605,7 @@ textarea#answerInput::placeholder {
     background: var(--white);
     border: 1px solid var(--line);
     border-radius: 16px;
-    overflow: hidden;
+    /*overflow: hidden;*/ 
 }
 
 .misofertas-row {

@@ -8,11 +8,14 @@ Seguridad:
   - Audit log (ver audit.py)
 """
 
+import os
+
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 
 from database import get_db
@@ -38,7 +41,7 @@ from schemas import (
     SeccionCVOut, SeccionCVIn, SeccionCVUpdateIn,
 )
 from security import hash_password
-from rate_limit import limiter, rate_limit_exceeded_handler
+from rate_limit import limiter, rate_limit_exceeded_handler, LIMIT_REGISTRO
 from dependencies import (
     get_current_user,
     require_role,
@@ -48,7 +51,7 @@ from dependencies import (
 )
 from audit import registrar_evento, EVENTO_REGISTRO, EVENTO_ACCESO_DENEGADO
 
-# Importar el router de auth (endpoints /api/auth/login, /refresh, /logout, /me, /admin/login, etc.)
+# Importar el router de auth
 from auth import router as auth_router
 
 
@@ -62,13 +65,36 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
 # CORS
+ALLOWED_ORIGINS = [
+    o.strip()
+    for o in os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+    if o.strip()
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
-    allow_credentials=True,   # ← necesario para cookies
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+_METODOS_SEGUROS = {"GET", "HEAD", "OPTIONS"}
+
+
+@app.middleware("http")
+async def proteger_sesion(request: Request, call_next):
+    if request.method not in _METODOS_SEGUROS:
+        origin = request.headers.get("origin")
+        mismo_host = f"{request.url.scheme}://{request.headers.get('host', '')}"
+        if origin and origin not in ALLOWED_ORIGINS and origin != mismo_host:
+            return JSONResponse(status_code=403, content={"detail": "Origen no permitido."})
+
+    response = await call_next(request)
+    if request.url.path.startswith("/api/auth"):
+        response.headers["Cache-Control"] = "no-store"
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    return response
+
 
 # Registrar router de autenticación
 app.include_router(auth_router)
@@ -161,7 +187,6 @@ def _armar_perfil(candidato: Candidato) -> PerfilOut:
 
 
 def _verificar_ownership_candidato(usuario: Usuario, id_candidato: int):
-    """Verifica que el usuario sea el candidato o un admin."""
     if usuario.rol and usuario.rol.Nombre == "Administrador":
         return
     if not usuario.candidato or usuario.candidato.IdCandidato != id_candidato:
@@ -169,7 +194,6 @@ def _verificar_ownership_candidato(usuario: Usuario, id_candidato: int):
 
 
 def _verificar_ownership_empresa(usuario: Usuario, id_empresa: int):
-    """Verifica que el usuario sea la empresa o un admin."""
     if usuario.rol and usuario.rol.Nombre == "Administrador":
         return
     if not usuario.empresa or usuario.empresa.IdEmpresa != id_empresa:
@@ -180,6 +204,7 @@ def _verificar_ownership_empresa(usuario: Usuario, id_empresa: int):
 # REGISTRO
 # ============================================================
 @app.post("/api/auth/registro/candidato", response_model=CandidatoOut)
+@limiter.limit(LIMIT_REGISTRO)
 def registrar_candidato(body: RegistroCandidatoIn, request: Request, db: Session = Depends(get_db)):
     if db.query(Usuario).filter(Usuario.Correo == body.correo).first():
         raise HTTPException(400, "Ya existe una cuenta con ese correo")
@@ -213,6 +238,15 @@ def registrar_candidato(body: RegistroCandidatoIn, request: Request, db: Session
     )
     db.add(candidato)
     db.flush()
+        # ⬅️ NUEVO: notificación de bienvenida
+    from notificaciones import crear_notificacion, TIPO_SISTEMA
+    crear_notificacion(
+        db,
+        titulo="¡Bienvenido/a a SeedWork!",
+        mensaje="Completa tu perfil y empieza a postularte a ofertas.",
+        tipo=TIPO_SISTEMA,
+        id_candidato=candidato.IdCandidato,
+    )
 
     registrar_evento(db, EVENTO_REGISTRO, exito=True, id_usuario=usuario.IdUsuario,
                      correo_intentado=body.correo, request=request, detalles="candidato", commit=False)
@@ -232,6 +266,7 @@ def registrar_candidato(body: RegistroCandidatoIn, request: Request, db: Session
 
 
 @app.post("/api/auth/registro/empresa", response_model=EmpresaOut)
+@limiter.limit(LIMIT_REGISTRO)
 def registrar_empresa(body: RegistroEmpresaIn, request: Request, db: Session = Depends(get_db)):
     if db.query(Usuario).filter(Usuario.Correo == body.correo).first():
         raise HTTPException(400, "Ya existe una cuenta con ese correo")
@@ -259,6 +294,15 @@ def registrar_empresa(body: RegistroEmpresaIn, request: Request, db: Session = D
     )
     db.add(usuario)
     db.flush()
+        # ⬅️ NUEVO: notificación de bienvenida
+    from notificaciones import crear_notificacion, TIPO_SISTEMA
+    crear_notificacion(
+        db,
+        titulo="¡Bienvenido/a a SeedWork!",
+        mensaje="Completa el perfil de tu empresa y publica tu primera oferta.",
+        tipo=TIPO_SISTEMA,
+        id_empresa=empresa.IdEmpresa,
+    )
 
     empresa = Empresa(
         IdUsuario=usuario.IdUsuario,
@@ -287,40 +331,48 @@ def registrar_empresa(body: RegistroEmpresaIn, request: Request, db: Session = D
     )
 
 
-# ⚠️ El endpoint /api/auth/login VIEJO se elimina.
-# Ahora vive en auth.py con JWT + cookies + rate limiting.
-
-
 # ============================================================
-# DASHBOARDS
+# PERFIL DEL CANDIDATO (con permiso para empresas)
 # ============================================================
-@app.get("/api/candidato/{id_candidato}", response_model=CandidatoOut)
-def obtener_candidato(
+@app.get("/api/candidato/{id_candidato}/perfil", response_model=PerfilOut)
+def obtener_perfil(
     id_candidato: int,
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(get_current_user),
 ):
-    _verificar_ownership_candidato(usuario, id_candidato)
-    candidato = (
-        db.query(Candidato)
-        .options(joinedload(Candidato.usuario), joinedload(Candidato.municipio))
-        .filter(Candidato.IdCandidato == id_candidato)
-        .first()
-    )
-    if not candidato:
-        raise HTTPException(404, "Candidato no encontrado")
-    return CandidatoOut(
-        idCandidato=candidato.IdCandidato,
-        idUsuario=candidato.IdUsuario,
-        nombres=candidato.Nombres,
-        apellidos=candidato.Apellidos,
-        correo=candidato.usuario.Correo,
-        ciudad=candidato.municipio.Nombre if candidato.municipio else None,
-        telefono=candidato.Telefono,
-        fotoUrl=candidato.FotoUrl,
-    )
+    """
+    Devuelve el perfil completo de un candidato.
+
+    Permisos:
+      - El propio candidato (dueño)
+      - Un administrador
+      - Una empresa con una postulación de ese candidato a alguna de sus ofertas
+    """
+    # ⬅️ CORREGIDO: versión única con lógica de empresa
+    if usuario.rol and usuario.rol.Nombre == "Empresa":
+        if not usuario.empresa:
+            raise HTTPException(403, "No tienes permiso.")
+        existe = (
+            db.query(Postulacion)
+            .join(Oferta)
+            .filter(
+                Postulacion.IdCandidato == id_candidato,
+                Oferta.IdEmpresa == usuario.empresa.IdEmpresa,
+            )
+            .first()
+        )
+        if not existe:
+            raise HTTPException(403, "No tienes permiso para ver este perfil.")
+    else:
+        _verificar_ownership_candidato(usuario, id_candidato)
+
+    candidato = _obtener_candidato_completo(id_candidato, db)
+    return _armar_perfil(candidato)
 
 
+# ============================================================
+# PERFIL DE EMPRESA
+# ============================================================
 @app.get("/api/empresa/{id_empresa}")
 def obtener_empresa(
     id_empresa: int,
@@ -357,9 +409,6 @@ def obtener_empresa(
     }
 
 
-# ============================================================
-# PERFIL DE EMPRESA
-# ============================================================
 @app.put("/api/empresa/{id_empresa}")
 def actualizar_empresa(
     id_empresa: int,
@@ -372,36 +421,40 @@ def actualizar_empresa(
     if not empresa:
         raise HTTPException(404, "Empresa no encontrada")
 
-    if body.get("nombreEmpresa"):
+    # ⬅️ CORREGIDO: usar "is not None" en lugar de truthy check
+    # Esto permite guardar strings vacíos para BORRAR campos (útil en el frontend).
+    # Y evita que se descarten valores válidos como 0 o "".
+    if "nombreEmpresa" in body and body["nombreEmpresa"] is not None:
         empresa.NombreEmpresa = body["nombreEmpresa"]
-    if body.get("nit"):
+    if "nit" in body and body["nit"] is not None:
         empresa.NIT = body["nit"]
-    if body.get("ciudad"):
+    if "ciudad" in body and body["ciudad"]:
         municipio = _buscar_municipio(db, body["ciudad"])
         empresa.IdMunicipio = municipio.IdMunicipio
-    if body.get("sector"):
+    if "sector" in body and body["sector"]:
         sector = db.query(SectorEmpresa).filter(func.lower(SectorEmpresa.Nombre) == body["sector"].strip().lower()).first()
         if sector:
             empresa.IdSectorEmpresa = sector.IdSectorEmpresa
-    if body.get("telefono"):
+    if "telefono" in body and body["telefono"] is not None:
         empresa.Telefono = body["telefono"]
-    if body.get("descripcion"):
+    if "descripcion" in body and body["descripcion"] is not None:
         empresa.Descripcion = body["descripcion"]
-    if body.get("direccion"):
+    if "direccion" in body and body["direccion"] is not None:
         empresa.Direccion = body["direccion"]
-    if body.get("sitioweb"):
+    if "sitioweb" in body and body["sitioweb"] is not None:
         empresa.SitioWeb = body["sitioweb"]
-    if body.get("correoCorporativo"):
+    if "correoCorporativo" in body and body["correoCorporativo"] is not None:
         empresa.CorreoCorporativo = body["correoCorporativo"]
-    if body.get("especialidades"):
+    if "especialidades" in body and body["especialidades"] is not None:
         empresa.Especialidades = body["especialidades"]
-    if body.get("anioFundacion"):
+    if "anioFundacion" in body and body["anioFundacion"] is not None:
         empresa.AnioFundacion = int(body["anioFundacion"])
-    if body.get("mision"):
+    if "mision" in body and body["mision"] is not None:
         empresa.Mision = body["mision"]
-    if body.get("vision"):
+    if "vision" in body and body["vision"] is not None:
         empresa.Vision = body["vision"]
-    if body.get("logoUrl"):
+    # ⬅️ CRÍTICO: el logo se guarda aunque sea un string largo o vacío
+    if "logoUrl" in body and body["logoUrl"] is not None:
         empresa.LogoUrl = body["logoUrl"]
 
     db.commit()
@@ -409,6 +462,9 @@ def actualizar_empresa(
     return {"message": "Empresa actualizada correctamente"}
 
 
+# ============================================================
+# CANDIDATOS DE UNA EMPRESA
+# ============================================================
 @app.get("/api/empresa/{id_empresa}/candidatos")
 def obtener_candidatos_empresa(
     id_empresa: int,
@@ -439,6 +495,7 @@ def obtener_candidatos_empresa(
             "apellidos": p.candidato.Apellidos,
             "correo": p.candidato.usuario.Correo,
             "telefono": p.candidato.Telefono,
+            "fotoUrl": p.candidato.FotoUrl,
             "tituloOferta": p.oferta.Titulo,
             "estado": p.estado.Nombre,
             "fechaPostulacion": p.FechaPostulacion,
@@ -476,6 +533,7 @@ def obtener_candidatos_de_oferta(
             "apellidos": p.candidato.Apellidos,
             "correo": p.candidato.usuario.Correo,
             "telefono": p.candidato.Telefono,
+            "fotoUrl": p.candidato.FotoUrl,  # ⬅️ CORREGIDO: agregado
             "estado": p.estado.Nombre,
             "fechaPostulacion": p.FechaPostulacion,
         }
@@ -538,6 +596,70 @@ def cambiar_estado_oferta_empresa(
     db.commit()
     return {"idOferta": oferta.IdOferta, "estado": nuevo_estado_nombre}
 
+# ============================================================
+# EMPRESA: cambiar estado de una postulación
+# ============================================================
+@app.patch("/api/empresa/postulaciones/{id_postulacion}/estado")
+def cambiar_estado_postulacion_empresa(
+    id_postulacion: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_current_user),
+):
+    if not usuario.empresa:
+        raise HTTPException(403, "Solo las empresas pueden hacer esto.")
+
+    postulacion = (
+        db.query(Postulacion)
+        .options(
+            joinedload(Postulacion.oferta).joinedload(Oferta.empresa),
+            joinedload(Postulacion.candidato),
+        )
+        .filter(Postulacion.IdPostulacion == id_postulacion)
+        .first()
+    )
+    if not postulacion:
+        raise HTTPException(404, "Postulación no encontrada.")
+
+    if postulacion.oferta.IdEmpresa != usuario.empresa.IdEmpresa:
+        raise HTTPException(403, "No tienes permiso para modificar esta postulación.")
+
+    ESTADOS_PERMITIDOS_EMPRESA = {
+        "En revisión", "Entrevista", "Preseleccionado",
+        "Contratado", "Rechazado", "Prueba Técnica", "Postulado",
+    }
+    nuevo_estado_nombre = body.get("nuevoEstado")
+    if nuevo_estado_nombre not in ESTADOS_PERMITIDOS_EMPRESA:
+        raise HTTPException(400, f"Estado no permitido: {nuevo_estado_nombre}")
+
+    nuevo_estado = (
+        db.query(EstadoPostulacion)
+        .filter(EstadoPostulacion.Nombre == nuevo_estado_nombre)
+        .first()
+    )
+    if not nuevo_estado:
+        raise HTTPException(400, f"Estado '{nuevo_estado_nombre}' no encontrado.")
+
+    estado_anterior = postulacion.IdEstadoPostulacion
+    postulacion.IdEstadoPostulacion = nuevo_estado.IdEstadoPostulacion
+
+    # ⬅️ NUEVO: notificar al candidato SOLO si cambió el estado
+    if estado_anterior != nuevo_estado.IdEstadoPostulacion:
+        from notificaciones import crear_notificacion, TIPO_SISTEMA
+        crear_notificacion(
+            db,
+            titulo="Actualización de postulación",
+            mensaje=f"Tu postulación a {postulacion.oferta.Titulo} cambió a: {nuevo_estado_nombre}",
+            tipo=TIPO_SISTEMA,
+            id_candidato=postulacion.IdCandidato,
+        )
+
+    db.commit()
+
+    return {
+        "idPostulacion": postulacion.IdPostulacion,
+        "estado": nuevo_estado_nombre,
+    }
 
 # ============================================================
 # OFERTAS
@@ -615,6 +737,19 @@ def listar_ofertas_de_empresa(
         .order_by(Oferta.FechaPublicacion.desc())
         .all()
     )
+
+    # ⬅️ NUEVO: contar postulaciones por oferta en una sola consulta 
+    oferta_ids = [o.IdOferta for o in ofertas]
+    conteo_map: dict[int, int] = {}
+    if oferta_ids:
+        filas = (
+            db.query(Postulacion.IdOferta, func.count(Postulacion.IdPostulacion)) # pylint: disable=not-callable
+            .filter(Postulacion.IdOferta.in_(oferta_ids))
+            .group_by(Postulacion.IdOferta)
+            .all()
+        )
+        conteo_map = {id_oferta: total for id_oferta, total in filas}
+
     return [
         {
             "idOferta": o.IdOferta,
@@ -625,6 +760,7 @@ def listar_ofertas_de_empresa(
             "categoria": o.categoria.Nombre,
             "estado": o.estado.Nombre,
             "fechaPublicacion": o.FechaPublicacion,
+            "totalPostulaciones": conteo_map.get(o.IdOferta, 0),  # ⬅️ NUEVO
         }
         for o in ofertas
     ]
@@ -736,7 +872,7 @@ def listar_vacantes(
 
 
 # ============================================================
-# POSTULACIONES (ARREGLADO)
+# POSTULACIONES
 # ============================================================
 @app.post("/api/postulaciones")
 def crear_postulacion(
@@ -744,7 +880,6 @@ def crear_postulacion(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(get_current_user),
 ):
-    """Candidato autenticado se postula a una oferta."""
     if not usuario.candidato:
         raise HTTPException(403, "Solo los candidatos pueden postularse.")
 
@@ -753,11 +888,15 @@ def crear_postulacion(
     if not id_oferta:
         raise HTTPException(400, "Falta idOferta")
 
-    oferta = db.query(Oferta).filter(Oferta.IdOferta == id_oferta).first()
+    oferta = (
+        db.query(Oferta)
+        .options(joinedload(Oferta.empresa))
+        .filter(Oferta.IdOferta == id_oferta)
+        .first()
+    )
     if not oferta:
         raise HTTPException(404, "Oferta no encontrada")
 
-    # ¿Ya se postuló?
     existente = db.query(Postulacion).filter(
         Postulacion.IdOferta == id_oferta,
         Postulacion.IdCandidato == candidato.IdCandidato,
@@ -776,6 +915,18 @@ def crear_postulacion(
         Vista=False,
     )
     db.add(postulacion)
+    db.flush()
+
+    # ⬅️ NUEVO: crear notificación para la empresa
+    from notificaciones import crear_notificacion, TIPO_NUEVA_POSTULACION
+    crear_notificacion(
+        db,
+        titulo="Nueva postulación",
+        mensaje=f"{candidato.Nombres} {candidato.Apellidos} se postuló a {oferta.Titulo}",
+        tipo=TIPO_NUEVA_POSTULACION,
+        id_empresa=oferta.IdEmpresa,
+    )
+
     db.commit()
     db.refresh(postulacion)
 
@@ -823,18 +974,9 @@ def listar_postulaciones_candidato(
     ]
 
 
-# ============================================================
-# PERFIL DEL CANDIDATO
-# ============================================================
-@app.get("/api/candidato/{id_candidato}/perfil", response_model=PerfilOut)
-def obtener_perfil(
-    id_candidato: int,
-    db: Session = Depends(get_db),
-    usuario: Usuario = Depends(get_current_user),
-):
-    _verificar_ownership_candidato(usuario, id_candidato)
-    candidato = _obtener_candidato_completo(id_candidato, db)
-    return _armar_perfil(candidato)
+# ⬅️ ELIMINADO: la segunda función obtener_perfil que estaba duplicada aquí.
+# Ahora solo existe la primera (arriba), que permite a empresas ver perfiles
+# de candidatos que se postularon a sus ofertas.
 
 
 @app.put("/api/candidato/{id_candidato}/perfil/datos", response_model=PerfilOut)
@@ -1293,6 +1435,75 @@ def eliminar_seccion(
     db.commit()
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
 
+@app.get("/api/candidato/{id_candidato}/notificaciones")
+def obtener_notificaciones_candidato(
+    id_candidato: int,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_current_user),
+):
+    _verificar_ownership_candidato(usuario, id_candidato)
+    notificaciones = (
+        db.query(Notificacion)
+        .filter(
+            (Notificacion.IdCandidato == id_candidato) |
+            (Notificacion.IdCandidato == None)  # noqa: E711
+        )
+        .order_by(Notificacion.Fecha.desc())
+        .all()
+    )
+    return [
+        {
+            "idNotificacion": n.IdNotificacion,
+            "titulo": n.Titulo,
+            "mensaje": n.Mensaje,
+            "leida": n.Leida,
+            "fecha": n.Fecha,
+        }
+        for n in notificaciones
+    ]
+
+
+@app.patch("/api/candidato/{id_candidato}/notificaciones/{id_notificacion}/leer")
+def marcar_notificacion_leida_candidato(
+    id_candidato: int,
+    id_notificacion: int,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_current_user),
+):
+    _verificar_ownership_candidato(usuario, id_candidato)
+    noti = (
+        db.query(Notificacion)
+        .filter(
+            Notificacion.IdNotificacion == id_notificacion,
+            Notificacion.IdCandidato == id_candidato,
+        )
+        .first()
+    )
+    if not noti:
+        raise HTTPException(404, "Notificación no encontrada.")
+    noti.Leida = True
+    db.commit()
+    return {"idNotificacion": noti.IdNotificacion, "leida": True}
+
+
+@app.patch("/api/candidato/{id_candidato}/notificaciones/leer-todas")
+def marcar_todas_leidas_candidato(
+    id_candidato: int,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_current_user),
+):
+    _verificar_ownership_candidato(usuario, id_candidato)
+    actualizadas = (
+        db.query(Notificacion)
+        .filter(
+            Notificacion.IdCandidato == id_candidato,
+            Notificacion.Leida == False,  # noqa: E712
+        )
+        .update({"Leida": True})
+    )
+    db.commit()
+    return {"actualizadas": actualizadas}
+
 
 # ============================================================
 # ADMINISTRADOR
@@ -1325,7 +1536,6 @@ def listar_vacantes_admin(
         for o in ofertas
     ]
 
-
 @app.patch("/api/admin/vacantes/{id_oferta}/estado")
 def cambiar_estado_vacante(
     id_oferta: int,
@@ -1337,12 +1547,34 @@ def cambiar_estado_vacante(
     if nuevo_estado_nombre not in ESTADOS_PERMITIDOS:
         raise HTTPException(400, f"Estado no permitido: {nuevo_estado_nombre}")
 
-    oferta = db.query(Oferta).filter(Oferta.IdOferta == id_oferta).first()
+    oferta = (
+        db.query(Oferta)
+        .options(joinedload(Oferta.empresa))
+        .filter(Oferta.IdOferta == id_oferta)
+        .first()
+    )
     if not oferta:
         raise HTTPException(404, "Vacante no encontrada")
 
     nuevo_estado = db.query(EstadoOferta).filter(EstadoOferta.Nombre == nuevo_estado_nombre).first()
     oferta.IdEstadoOferta = nuevo_estado.IdEstadoOferta
+
+    # ⬅️ NUEVO: notificar a la empresa
+    from notificaciones import crear_notificacion, TIPO_SISTEMA
+    verbo = {
+        "Publicada": "aprobada y publicada",
+        "Rechazada": "rechazada",
+        "Pausada": "pausada",
+    }.get(nuevo_estado_nombre, "actualizada")
+
+    crear_notificacion(
+        db,
+        titulo=f"Oferta {verbo}",
+        mensaje=f"Tu oferta '{oferta.Titulo}' fue {verbo} por el administrador.",
+        tipo=TIPO_SISTEMA,
+        id_empresa=oferta.IdEmpresa,
+    )
+
     db.commit()
     return {"idOferta": oferta.IdOferta, "estado": nuevo_estado_nombre}
 
@@ -1374,6 +1606,51 @@ def obtener_notificaciones_empresa(
         for n in notificaciones
     ]
 
+@app.patch("/api/empresa/{id_empresa}/notificaciones/{id_notificacion}/leer")
+def marcar_notificacion_leida(
+    id_empresa: int,
+    id_notificacion: int,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_current_user),
+):
+    """Marca UNA notificación como leída."""
+    _verificar_ownership_empresa(usuario, id_empresa)
+
+    noti = (
+        db.query(Notificacion)
+        .filter(
+            Notificacion.IdNotificacion == id_notificacion,
+            Notificacion.IdEmpresa == id_empresa,
+        )
+        .first()
+    )
+    if not noti:
+        raise HTTPException(404, "Notificación no encontrada.")
+
+    noti.Leida = True
+    db.commit()
+    return {"idNotificacion": noti.IdNotificacion, "leida": True}
+
+
+@app.patch("/api/empresa/{id_empresa}/notificaciones/leer-todas")
+def marcar_todas_leidas(
+    id_empresa: int,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_current_user),
+):
+    """Marca TODAS las notificaciones de una empresa como leídas."""
+    _verificar_ownership_empresa(usuario, id_empresa)
+
+    actualizadas = (
+        db.query(Notificacion)
+        .filter(
+            Notificacion.IdEmpresa == id_empresa,
+            Notificacion.Leida == False,  # noqa: E712
+        )
+        .update({"Leida": True})
+    )
+    db.commit()
+    return {"actualizadas": actualizadas}
 
 @app.get("/api/empresa/{id_empresa}/resumen")
 def obtener_resumen_empresa(
@@ -1415,9 +1692,8 @@ def eliminar_postulacion(
     if not postulacion:
         raise HTTPException(404, "Postulación no encontrada")
 
-    # Solo el candidato dueño o un admin
     if usuario.rol and usuario.rol.Nombre == "Administrador":
-        pass  
+        pass
     elif not usuario.candidato or usuario.candidato.IdCandidato != postulacion.IdCandidato:
         raise HTTPException(403, "No tienes permiso.")
 
@@ -1451,7 +1727,6 @@ def obtener_busquedas_guardadas(
 # ============================================================
 @app.get("/api/municipios/")
 def obtener_municipios(db: Session = Depends(get_db)):
-    """Público: lo usa el registro."""
     return db.query(Municipio).all()
 
 
@@ -1460,7 +1735,6 @@ def obtener_roles(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(require_role("Administrador")),
 ):
-    """Solo admin."""
     return db.query(Rol).all()
 
 
