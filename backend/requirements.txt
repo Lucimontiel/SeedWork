@@ -16,7 +16,7 @@ bcrypt
 
 # --- JWT ---
 python-jose[cryptography]
-sendgrid
+resend
 
 # --- 2FA ---
 pyotp

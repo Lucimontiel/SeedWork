@@ -1,14 +1,10 @@
 """
 Backend de SeedWork (FastAPI).
-
-Seguridad:
-  - Autenticación con JWT + refresh tokens (ver auth.py)
-  - Autorización por rol y por ownership (ver dependencies.py)
-  - Rate limiting (ver rate_limit.py)
-  - Audit log (ver audit.py)
 """
-
 import os
+import secrets
+import hashlib
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
@@ -26,7 +22,7 @@ from models import (
     TipoContrato, JornadaLaboral, Disponibilidad,
     CandidatoHabilidad, CandidatoEducacion, CandidatoProyecto, CandidatoIdioma,
     CandidatoReferencia, CandidatoSeccionCV,
-    TipoNotificacion, Notificacion,
+    Notificacion, EmailVerificationToken, # ⬅️ Añadido EmailVerificationToken
 )
 from schemas import (
     RegistroCandidatoIn, RegistroEmpresaIn,
@@ -50,6 +46,7 @@ from dependencies import (
     get_current_admin,
 )
 from audit import registrar_evento, EVENTO_REGISTRO, EVENTO_ACCESO_DENEGADO
+from email_service import enviar_correo_verificacion # ⬅️ Añadido
 
 # Importar el router de auth
 from auth import router as auth_router
@@ -60,11 +57,9 @@ from auth import router as auth_router
 # ============================================================
 app = FastAPI(title="SeedWork API")
 
-# Rate limiting
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
-# CORS
 ALLOWED_ORIGINS = [
     o.strip()
     for o in os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
@@ -79,7 +74,6 @@ app.add_middleware(
 )
 
 _METODOS_SEGUROS = {"GET", "HEAD", "OPTIONS"}
-
 
 @app.middleware("http")
 async def proteger_sesion(request: Request, call_next):
@@ -96,7 +90,6 @@ async def proteger_sesion(request: Request, call_next):
     return response
 
 
-# Registrar router de autenticación
 app.include_router(auth_router)
 
 
@@ -238,15 +231,32 @@ def registrar_candidato(body: RegistroCandidatoIn, request: Request, db: Session
     )
     db.add(candidato)
     db.flush()
-        # ⬅️ NUEVO: notificación de bienvenida
+    
+    # 1. Crear notificación de bienvenida
     from notificaciones import crear_notificacion, TIPO_SISTEMA
     crear_notificacion(
         db,
         titulo="¡Bienvenido/a a SeedWork!",
-        mensaje="Completa tu perfil y empieza a postularte a ofertas.",
+        mensaje="Verifica tu correo y completa tu perfil para empezar.",
         tipo=TIPO_SISTEMA,
         id_candidato=candidato.IdCandidato,
     )
+
+    # 2. Generar y guardar el token de verificación de correo
+    token_plano = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(token_plano.encode("utf-8")).hexdigest()
+    
+    nuevo_token = EmailVerificationToken(
+        IdUsuario=usuario.IdUsuario,
+        TokenHash=token_hash,
+        ExpiraEn=(datetime.now(timezone.utc) + timedelta(hours=24)).replace(tzinfo=None),
+        FechaCreacion=datetime.now(timezone.utc).replace(tzinfo=None)
+    )
+    db.add(nuevo_token)
+
+    # 3. Enviar el correo
+    enlace = f"http://localhost:3000/verificar-correo?token={token_plano}"
+    enviar_correo_verificacion(usuario.Correo, enlace)
 
     registrar_evento(db, EVENTO_REGISTRO, exito=True, id_usuario=usuario.IdUsuario,
                      correo_intentado=body.correo, request=request, detalles="candidato", commit=False)
@@ -294,15 +304,6 @@ def registrar_empresa(body: RegistroEmpresaIn, request: Request, db: Session = D
     )
     db.add(usuario)
     db.flush()
-        # ⬅️ NUEVO: notificación de bienvenida
-    from notificaciones import crear_notificacion, TIPO_SISTEMA
-    crear_notificacion(
-        db,
-        titulo="¡Bienvenido/a a SeedWork!",
-        mensaje="Completa el perfil de tu empresa y publica tu primera oferta.",
-        tipo=TIPO_SISTEMA,
-        id_empresa=empresa.IdEmpresa,
-    )
 
     empresa = Empresa(
         IdUsuario=usuario.IdUsuario,
@@ -313,6 +314,31 @@ def registrar_empresa(body: RegistroEmpresaIn, request: Request, db: Session = D
     )
     db.add(empresa)
     db.flush()
+
+    from notif_utils import crear_notificacion, TIPO_SISTEMA
+    crear_notificacion(
+        db,
+        titulo="¡Bienvenido/a a SeedWork!",
+        mensaje="Verifica tu correo y publica tu primera oferta.",
+        tipo=TIPO_SISTEMA,
+        id_empresa=empresa.IdEmpresa,
+    )
+
+    # Generar y guardar el token de verificación de correo
+    token_plano = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(token_plano.encode("utf-8")).hexdigest()
+    
+    nuevo_token = EmailVerificationToken(
+        IdUsuario=usuario.IdUsuario,
+        TokenHash=token_hash,
+        ExpiraEn=(datetime.now(timezone.utc) + timedelta(hours=24)).replace(tzinfo=None),
+        FechaCreacion=datetime.now(timezone.utc).replace(tzinfo=None)
+    )
+    db.add(nuevo_token)
+
+    # Enviar el correo
+    enlace = f"http://localhost:3000/verificar-correo?token={token_plano}"
+    enviar_correo_verificacion(usuario.Correo, enlace)
 
     registrar_evento(db, EVENTO_REGISTRO, exito=True, id_usuario=usuario.IdUsuario,
                      correo_intentado=body.correo, request=request, detalles="empresa", commit=False)
@@ -332,7 +358,7 @@ def registrar_empresa(body: RegistroEmpresaIn, request: Request, db: Session = D
 
 
 # ============================================================
-# PERFIL DEL CANDIDATO (con permiso para empresas)
+# (El resto de tus endpoints de perfiles, ofertas, postulaciones, etc.)
 # ============================================================
 @app.get("/api/candidato/{id_candidato}/perfil", response_model=PerfilOut)
 def obtener_perfil(
@@ -340,15 +366,6 @@ def obtener_perfil(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(get_current_user),
 ):
-    """
-    Devuelve el perfil completo de un candidato.
-
-    Permisos:
-      - El propio candidato (dueño)
-      - Un administrador
-      - Una empresa con una postulación de ese candidato a alguna de sus ofertas
-    """
-    # ⬅️ CORREGIDO: versión única con lógica de empresa
     if usuario.rol and usuario.rol.Nombre == "Empresa":
         if not usuario.empresa:
             raise HTTPException(403, "No tienes permiso.")
@@ -369,10 +386,6 @@ def obtener_perfil(
     candidato = _obtener_candidato_completo(id_candidato, db)
     return _armar_perfil(candidato)
 
-
-# ============================================================
-# PERFIL DE EMPRESA
-# ============================================================
 @app.get("/api/empresa/{id_empresa}")
 def obtener_empresa(
     id_empresa: int,
@@ -408,7 +421,6 @@ def obtener_empresa(
         "logoUrl": empresa.LogoUrl,
     }
 
-
 @app.put("/api/empresa/{id_empresa}")
 def actualizar_empresa(
     id_empresa: int,
@@ -421,9 +433,6 @@ def actualizar_empresa(
     if not empresa:
         raise HTTPException(404, "Empresa no encontrada")
 
-    # ⬅️ CORREGIDO: usar "is not None" en lugar de truthy check
-    # Esto permite guardar strings vacíos para BORRAR campos (útil en el frontend).
-    # Y evita que se descarten valores válidos como 0 o "".
     if "nombreEmpresa" in body and body["nombreEmpresa"] is not None:
         empresa.NombreEmpresa = body["nombreEmpresa"]
     if "nit" in body and body["nit"] is not None:
@@ -453,7 +462,6 @@ def actualizar_empresa(
         empresa.Mision = body["mision"]
     if "vision" in body and body["vision"] is not None:
         empresa.Vision = body["vision"]
-    # ⬅️ CRÍTICO: el logo se guarda aunque sea un string largo o vacío
     if "logoUrl" in body and body["logoUrl"] is not None:
         empresa.LogoUrl = body["logoUrl"]
 
@@ -461,10 +469,6 @@ def actualizar_empresa(
     db.refresh(empresa)
     return {"message": "Empresa actualizada correctamente"}
 
-
-# ============================================================
-# CANDIDATOS DE UNA EMPRESA
-# ============================================================
 @app.get("/api/empresa/{id_empresa}/candidatos")
 def obtener_candidatos_empresa(
     id_empresa: int,
@@ -503,7 +507,6 @@ def obtener_candidatos_empresa(
         for p in postulaciones
     ]
 
-
 @app.get("/api/empresa/ofertas/{id_oferta}/candidatos")
 def obtener_candidatos_de_oferta(
     id_oferta: int,
@@ -533,13 +536,12 @@ def obtener_candidatos_de_oferta(
             "apellidos": p.candidato.Apellidos,
             "correo": p.candidato.usuario.Correo,
             "telefono": p.candidato.Telefono,
-            "fotoUrl": p.candidato.FotoUrl,  # ⬅️ CORREGIDO: agregado
+            "fotoUrl": p.candidato.FotoUrl,
             "estado": p.estado.Nombre,
             "fechaPostulacion": p.FechaPostulacion,
         }
         for p in postulaciones
     ]
-
 
 @app.get("/api/empresa/{id_empresa}/ofertas/estados")
 def contar_ofertas_por_estado(
@@ -571,7 +573,6 @@ def contar_ofertas_por_estado(
         "cerradas": cerradas,
     }
 
-
 @app.patch("/api/empresa/ofertas/{id_oferta}/estado")
 def cambiar_estado_oferta_empresa(
     id_oferta: int,
@@ -596,9 +597,6 @@ def cambiar_estado_oferta_empresa(
     db.commit()
     return {"idOferta": oferta.IdOferta, "estado": nuevo_estado_nombre}
 
-# ============================================================
-# EMPRESA: cambiar estado de una postulación
-# ============================================================
 @app.patch("/api/empresa/postulaciones/{id_postulacion}/estado")
 def cambiar_estado_postulacion_empresa(
     id_postulacion: int,
@@ -643,9 +641,8 @@ def cambiar_estado_postulacion_empresa(
     estado_anterior = postulacion.IdEstadoPostulacion
     postulacion.IdEstadoPostulacion = nuevo_estado.IdEstadoPostulacion
 
-    # ⬅️ NUEVO: notificar al candidato SOLO si cambió el estado
     if estado_anterior != nuevo_estado.IdEstadoPostulacion:
-        from notificaciones import crear_notificacion, TIPO_SISTEMA
+        from notif_utils import crear_notificacion, TIPO_SISTEMA
         crear_notificacion(
             db,
             titulo="Actualización de postulación",
@@ -661,12 +658,8 @@ def cambiar_estado_postulacion_empresa(
         "estado": nuevo_estado_nombre,
     }
 
-# ============================================================
-# OFERTAS
-# ============================================================
 @app.get("/api/ofertas/{id_oferta}")
 def obtener_oferta(id_oferta: int, db: Session = Depends(get_db)):
-    """Público: cualquiera puede ver una oferta."""
     oferta = (
         db.query(Oferta)
         .options(
@@ -687,7 +680,6 @@ def obtener_oferta(id_oferta: int, db: Session = Depends(get_db)):
         "ciudad": oferta.municipio.Nombre,
         "modalidad": oferta.modalidad.Nombre,
     }
-
 
 @app.put("/api/ofertas/{id_oferta}")
 def actualizar_oferta(
@@ -717,7 +709,6 @@ def actualizar_oferta(
     db.refresh(oferta)
     return {"message": "Oferta actualizada correctamente"}
 
-
 @app.get("/api/empresa/{id_empresa}/ofertas")
 def listar_ofertas_de_empresa(
     id_empresa: int,
@@ -738,7 +729,6 @@ def listar_ofertas_de_empresa(
         .all()
     )
 
-    # ⬅️ NUEVO: contar postulaciones por oferta en una sola consulta 
     oferta_ids = [o.IdOferta for o in ofertas]
     conteo_map: dict[int, int] = {}
     if oferta_ids:
@@ -760,11 +750,10 @@ def listar_ofertas_de_empresa(
             "categoria": o.categoria.Nombre,
             "estado": o.estado.Nombre,
             "fechaPublicacion": o.FechaPublicacion,
-            "totalPostulaciones": conteo_map.get(o.IdOferta, 0),  # ⬅️ NUEVO
+            "totalPostulaciones": conteo_map.get(o.IdOferta, 0),
         }
         for o in ofertas
     ]
-
 
 @app.post("/api/ofertas")
 def crear_oferta(
@@ -772,7 +761,6 @@ def crear_oferta(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(get_current_user),
 ):
-    """Solo empresa autenticada. Usa SU idEmpresa, no el del body."""
     if not usuario.empresa:
         raise HTTPException(403, "Solo las empresas pueden crear ofertas.")
 
@@ -815,10 +803,6 @@ def crear_oferta(
         "modalidad": modalidad.Nombre,
     }
 
-
-# ============================================================
-# VACANTES (público)
-# ============================================================
 @app.get("/api/vacantes", response_model=list[OfertaOut])
 def listar_vacantes(
     q: str | None = None,
@@ -870,10 +854,6 @@ def listar_vacantes(
         for o in ofertas
     ]
 
-
-# ============================================================
-# POSTULACIONES
-# ============================================================
 @app.post("/api/postulaciones")
 def crear_postulacion(
     body: dict,
@@ -917,8 +897,7 @@ def crear_postulacion(
     db.add(postulacion)
     db.flush()
 
-    # ⬅️ NUEVO: crear notificación para la empresa
-    from notificaciones import crear_notificacion, TIPO_NUEVA_POSTULACION
+    from notif_utils import crear_notificacion, TIPO_NUEVA_POSTULACION
     crear_notificacion(
         db,
         titulo="Nueva postulación",
@@ -936,7 +915,6 @@ def crear_postulacion(
         "idCandidato": candidato.IdCandidato,
         "estado": estado_inicial.Nombre,
     }
-
 
 @app.get("/api/candidato/{id_candidato}/postulaciones", response_model=list[PostulacionOut])
 def listar_postulaciones_candidato(
@@ -973,12 +951,6 @@ def listar_postulaciones_candidato(
         for p in postulaciones
     ]
 
-
-# ⬅️ ELIMINADO: la segunda función obtener_perfil que estaba duplicada aquí.
-# Ahora solo existe la primera (arriba), que permite a empresas ver perfiles
-# de candidatos que se postularon a sus ofertas.
-
-
 @app.put("/api/candidato/{id_candidato}/perfil/datos", response_model=PerfilOut)
 def actualizar_datos_perfil(
     id_candidato: int,
@@ -1006,7 +978,6 @@ def actualizar_datos_perfil(
         candidato.IdMunicipio = _buscar_municipio(db, body.ciudad).IdMunicipio
     db.commit()
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
-
 
 @app.put("/api/candidato/{id_candidato}/perfil/preferencias", response_model=PerfilOut)
 def actualizar_preferencias(
@@ -1042,7 +1013,6 @@ def actualizar_preferencias(
     db.commit()
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
 
-
 @app.put("/api/candidato/{id_candidato}/cv/sobre-mi", response_model=PerfilOut)
 def actualizar_sobre_mi(
     id_candidato: int,
@@ -1055,7 +1025,6 @@ def actualizar_sobre_mi(
     candidato.AcercaDe = body.about
     db.commit()
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
-
 
 @app.put("/api/candidato/{id_candidato}/cv/foto", response_model=PerfilOut)
 def actualizar_foto(
@@ -1070,10 +1039,6 @@ def actualizar_foto(
     db.commit()
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
 
-
-# ============================================================
-# SECCIONES DEL CV
-# ============================================================
 @app.get("/api/candidato/{id_candidato}/cv/habilidades", response_model=list[HabilidadOut])
 def obtener_habilidades(
     id_candidato: int,
@@ -1082,7 +1047,6 @@ def obtener_habilidades(
 ):
     _verificar_ownership_candidato(usuario, id_candidato)
     return db.query(CandidatoHabilidad).filter(CandidatoHabilidad.IdCandidato == id_candidato).all()
-
 
 @app.put("/api/candidato/{id_candidato}/cv/habilidades", response_model=PerfilOut)
 def actualizar_habilidades(
@@ -1098,7 +1062,6 @@ def actualizar_habilidades(
         db.add(CandidatoHabilidad(IdCandidato=id_candidato, Nombre=nombre.strip()))
     db.commit()
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
-
 
 @app.post("/api/candidato/{id_candidato}/cv/educacion", response_model=PerfilOut)
 def crear_educacion(
@@ -1118,7 +1081,6 @@ def crear_educacion(
     db.commit()
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
 
-
 @app.delete("/api/candidato/{id_candidato}/cv/educacion/{id_educacion}", response_model=PerfilOut)
 def eliminar_educacion(
     id_candidato: int,
@@ -1133,7 +1095,6 @@ def eliminar_educacion(
     db.delete(educacion)
     db.commit()
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
-
 
 @app.put("/api/candidato/{id_candidato}/cv/educacion/{id_educacion}", response_model=PerfilOut)
 def actualizar_educacion(
@@ -1157,7 +1118,6 @@ def actualizar_educacion(
     db.commit()
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
 
-
 @app.post("/api/candidato/{id_candidato}/cv/proyectos", response_model=PerfilOut)
 def crear_proyecto(
     id_candidato: int,
@@ -1176,7 +1136,6 @@ def crear_proyecto(
     db.commit()
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
 
-
 @app.delete("/api/candidato/{id_candidato}/cv/proyectos/{id_proyecto}", response_model=PerfilOut)
 def eliminar_proyecto(
     id_candidato: int,
@@ -1191,7 +1150,6 @@ def eliminar_proyecto(
     db.delete(proyecto)
     db.commit()
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
-
 
 @app.put("/api/candidato/{id_candidato}/cv/proyectos/{id_proyecto}", response_model=PerfilOut)
 def actualizar_proyecto(
@@ -1215,7 +1173,6 @@ def actualizar_proyecto(
     db.commit()
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
 
-
 @app.post("/api/candidato/{id_candidato}/cv/idiomas", response_model=PerfilOut)
 def crear_idioma(
     id_candidato: int,
@@ -1228,7 +1185,6 @@ def crear_idioma(
     db.add(CandidatoIdioma(IdCandidato=id_candidato, Descripcion=body.descripcion))
     db.commit()
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
-
 
 @app.delete("/api/candidato/{id_candidato}/cv/idiomas/{id_idioma}", response_model=PerfilOut)
 def eliminar_idioma(
@@ -1244,7 +1200,6 @@ def eliminar_idioma(
     db.delete(idioma)
     db.commit()
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
-
 
 @app.put("/api/candidato/{id_candidato}/cv/idiomas/{id_idioma}", response_model=PerfilOut)
 def actualizar_idioma(
@@ -1266,10 +1221,6 @@ def actualizar_idioma(
     db.commit()
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
 
-
-# ============================================================
-# MI CV
-# ============================================================
 @app.get("/api/candidato/{id_candidato}/cv", response_model=PerfilOut)
 def obtener_cv(
     id_candidato: int,
@@ -1279,7 +1230,6 @@ def obtener_cv(
     _verificar_ownership_candidato(usuario, id_candidato)
     candidato = _obtener_candidato_completo(id_candidato, db)
     return _armar_perfil(candidato)
-
 
 @app.put("/api/candidato/{id_candidato}/cv/datos-personales", response_model=PerfilOut)
 def actualizar_datos_personales_cv(
@@ -1303,7 +1253,6 @@ def actualizar_datos_personales_cv(
     db.commit()
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
 
-
 @app.put("/api/candidato/{id_candidato}/cv/plantilla", response_model=PerfilOut)
 def actualizar_plantilla(
     id_candidato: int,
@@ -1316,7 +1265,6 @@ def actualizar_plantilla(
     candidato.PlantillaCV = body.plantilla
     db.commit()
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
-
 
 @app.post("/api/candidato/{id_candidato}/cv/referencias", response_model=PerfilOut)
 def crear_referencia(
@@ -1336,7 +1284,6 @@ def crear_referencia(
     db.commit()
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
 
-
 @app.delete("/api/candidato/{id_candidato}/cv/referencias/{id_referencia}", response_model=PerfilOut)
 def eliminar_referencia(
     id_candidato: int,
@@ -1351,7 +1298,6 @@ def eliminar_referencia(
     db.delete(referencia)
     db.commit()
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
-
 
 @app.put("/api/candidato/{id_candidato}/cv/referencias/{id_referencia}", response_model=PerfilOut)
 def actualizar_referencia(
@@ -1375,7 +1321,6 @@ def actualizar_referencia(
     db.commit()
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
 
-
 @app.post("/api/candidato/{id_candidato}/cv/secciones", response_model=PerfilOut)
 def crear_seccion(
     id_candidato: int,
@@ -1394,7 +1339,6 @@ def crear_seccion(
     ))
     db.commit()
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
-
 
 @app.put("/api/candidato/{id_candidato}/cv/secciones/{id_seccion}", response_model=PerfilOut)
 def actualizar_seccion(
@@ -1418,7 +1362,6 @@ def actualizar_seccion(
         seccion.Contenido = body.contenido
     db.commit()
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
-
 
 @app.delete("/api/candidato/{id_candidato}/cv/secciones/{id_seccion}", response_model=PerfilOut)
 def eliminar_seccion(
@@ -1462,7 +1405,6 @@ def obtener_notificaciones_candidato(
         for n in notificaciones
     ]
 
-
 @app.patch("/api/candidato/{id_candidato}/notificaciones/{id_notificacion}/leer")
 def marcar_notificacion_leida_candidato(
     id_candidato: int,
@@ -1485,7 +1427,6 @@ def marcar_notificacion_leida_candidato(
     db.commit()
     return {"idNotificacion": noti.IdNotificacion, "leida": True}
 
-
 @app.patch("/api/candidato/{id_candidato}/notificaciones/leer-todas")
 def marcar_todas_leidas_candidato(
     id_candidato: int,
@@ -1504,12 +1445,7 @@ def marcar_todas_leidas_candidato(
     db.commit()
     return {"actualizadas": actualizadas}
 
-
-# ============================================================
-# ADMINISTRADOR
-# ============================================================
 ESTADOS_PERMITIDOS = {"Publicada", "Rechazada", "Pausada"}
-
 
 @app.get("/api/admin/vacantes")
 def listar_vacantes_admin(
@@ -1559,8 +1495,7 @@ def cambiar_estado_vacante(
     nuevo_estado = db.query(EstadoOferta).filter(EstadoOferta.Nombre == nuevo_estado_nombre).first()
     oferta.IdEstadoOferta = nuevo_estado.IdEstadoOferta
 
-    # ⬅️ NUEVO: notificar a la empresa
-    from notificaciones import crear_notificacion, TIPO_SISTEMA
+    from notif_utils import crear_notificacion, TIPO_SISTEMA
     verbo = {
         "Publicada": "aprobada y publicada",
         "Rechazada": "rechazada",
@@ -1577,7 +1512,6 @@ def cambiar_estado_vacante(
 
     db.commit()
     return {"idOferta": oferta.IdOferta, "estado": nuevo_estado_nombre}
-
 
 @app.get("/api/empresa/{id_empresa}/notificaciones")
 def obtener_notificaciones_empresa(
@@ -1613,7 +1547,6 @@ def marcar_notificacion_leida(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(get_current_user),
 ):
-    """Marca UNA notificación como leída."""
     _verificar_ownership_empresa(usuario, id_empresa)
 
     noti = (
@@ -1631,14 +1564,12 @@ def marcar_notificacion_leida(
     db.commit()
     return {"idNotificacion": noti.IdNotificacion, "leida": True}
 
-
 @app.patch("/api/empresa/{id_empresa}/notificaciones/leer-todas")
 def marcar_todas_leidas(
     id_empresa: int,
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(get_current_user),
 ):
-    """Marca TODAS las notificaciones de una empresa como leídas."""
     _verificar_ownership_empresa(usuario, id_empresa)
 
     actualizadas = (
@@ -1681,7 +1612,6 @@ def obtener_resumen_empresa(
         "rendimiento": rendimiento,
     }
 
-
 @app.delete("/api/postulaciones/{id_postulacion}")
 def eliminar_postulacion(
     id_postulacion: int,
@@ -1700,7 +1630,6 @@ def eliminar_postulacion(
     db.delete(postulacion)
     db.commit()
     return {"message": "Postulación eliminada"}
-
 
 @app.get("/api/candidato/busquedas-guardadas")
 def obtener_busquedas_guardadas(
@@ -1721,14 +1650,9 @@ def obtener_busquedas_guardadas(
         busquedas.append({"titulo": categoria.Nombre, "total": total})
     return busquedas
 
-
-# ============================================================
-# CATÁLOGOS
-# ============================================================
 @app.get("/api/municipios/")
 def obtener_municipios(db: Session = Depends(get_db)):
     return db.query(Municipio).all()
-
 
 @app.get("/api/roles/")
 def obtener_roles(
@@ -1737,10 +1661,6 @@ def obtener_roles(
 ):
     return db.query(Rol).all()
 
-
-# ============================================================
-# REPORTES (admin)
-# ============================================================
 @app.post("/api/reportes")
 def crear_reporte(
     body: dict,
@@ -1749,10 +1669,6 @@ def crear_reporte(
 ):
     return {"message": "Reporte creado correctamente"}
 
-
-# ============================================================
-# Punto de entrada
-# ============================================================
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

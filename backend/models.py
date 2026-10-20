@@ -78,7 +78,10 @@ class Usuario(Base):
     Contrasena = Column(String(255), nullable=False)
     FechaCreacion: datetime = Column(DateTime, server_default=func.now())
 
-    # ⬅️ NUEVO: columnas de seguridad
+    # ⬅️ NUEVO: Verificación de correo
+    EmailVerificado = Column(Boolean, nullable=False, default=False)
+
+    # Columnas de seguridad
     IntentosFallidos = Column(Integer, nullable=False, default=0)
     BloqueadoHasta = Column(DateTime, nullable=True)
     TotpSecret = Column(String(64), nullable=True)
@@ -92,7 +95,6 @@ class Usuario(Base):
     empresa = relationship("Empresa", back_populates="usuario", uselist=False, lazy="selectin")
     administrador = relationship("Administrador", back_populates="usuario", uselist=False, lazy="selectin")
 
-    # ⬅️ NUEVO: relaciones con tokens y códigos
     refresh_tokens = relationship(
         "RefreshToken",
         back_populates="usuario",
@@ -156,7 +158,7 @@ class AuditLog(Base):
 
 
 # ============================================================
-# ADMINISTRADOR / EMPRESA / CANDIDATO (sin cambios)
+# ADMINISTRADOR / EMPRESA / CANDIDATO
 # ============================================================
 class Administrador(Base):
     __tablename__ = "Administrador"
@@ -188,7 +190,7 @@ class Candidato(Base):
     PlantillaCV = Column(String(20), default="clasico")
     FechaNacimiento = Column(Date)
     AreaInteres = Column(String(255))
-    SalarioEsperado = Column(String(100))  # ⬅️ CAMBIO: era Numeric en el SQL viejo
+    SalarioEsperado = Column(String(100))
     Movilidad = Column(String(100))
     FechaCreacion: datetime = Column(DateTime, server_default=func.now())
 
@@ -377,18 +379,24 @@ class CandidatoSeccionCV(Base):
     Orden = Column(Integer, default=0)
 
 
-# ============================================================
-# NUEVO: PasswordResetToken (recuperación de contraseña)
-# Se guarda solo el HASH del token; el valor real viaja únicamente
-# en el enlace del correo.
-# ============================================================
 class PasswordResetToken(Base):
     __tablename__ = "PasswordResetToken"
     IdPasswordResetToken = Column(Integer, primary_key=True)
     IdUsuario = Column(Integer, ForeignKey("Usuario.IdUsuario", ondelete="CASCADE"), nullable=False)
-    TokenHash = Column(String(64), unique=True, nullable=False)   # SHA-256 hex
+    TokenHash = Column(String(64), unique=True, nullable=False)
     ExpiraEn = Column(DateTime, nullable=False)
     Usado = Column(Boolean, nullable=False, default=False)
     UsadoEn = Column(DateTime, nullable=True)
     IP = Column(String(45), nullable=True)
-    FechaCreacion = Column(DateTime, nullable=False)  # UTC, la asigna la app
+    FechaCreacion = Column(DateTime, nullable=False)
+
+
+# ⬅️ NUEVO: Modelo para verificar el correo
+class EmailVerificationToken(Base):
+    __tablename__ = "EmailVerificationToken"
+    IdEmailVerificationToken = Column(Integer, primary_key=True)
+    IdUsuario = Column(Integer, ForeignKey("Usuario.IdUsuario", ondelete="CASCADE"), nullable=False)
+    TokenHash = Column(String(64), unique=True, nullable=False)
+    ExpiraEn = Column(DateTime, nullable=False)
+    Usado = Column(Boolean, nullable=False, default=False)
+    FechaCreacion = Column(DateTime, nullable=False)
