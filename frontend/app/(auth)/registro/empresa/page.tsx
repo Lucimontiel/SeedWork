@@ -13,6 +13,8 @@ export default function RegistroEmpresaPage() {
     nombreEmpresa: "", correo: "", contrasena: "", confirmar: "", nit: "", sector: "", ciudad: "",
   });
   const [aceptaTerminos, setAceptaTerminos] = useState(false);
+  const [showContrasena, setShowContrasena] = useState(false);
+  const [showConfirmar, setShowConfirmar] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [exito, setExito] = useState(false);
   const [cargando, setCargando] = useState(false);
@@ -77,7 +79,10 @@ export default function RegistroEmpresaPage() {
 
   return (
     <div className="login-wrapper">
+      <div className="sw-brand-header">
+        <img src="/logo_blanco.png" alt="SeedWork Logo" className="sw-logo-icon" />
         <h1 className="sw-brand-name">SEEDWORK</h1>
+      </div>
       <h2>Crear Cuenta</h2>
       <p className="intro">Tu empresa es parte del futuro del empleo.</p>
 
@@ -96,14 +101,45 @@ export default function RegistroEmpresaPage() {
             <label>Correo corporativo</label>
             <input type="email" placeholder="contacto@empresa.com" value={form.correo} onChange={(e) => update("correo", e.target.value)} />
           </div>
+          
           <div className="input-group">
             <label>Contraseña</label>
-            <input type="password" placeholder="Mín. 8 caracteres" value={form.contrasena} onChange={(e) => update("contrasena", e.target.value)} />
+            <div className="input-group-password">
+              <input
+                type={showContrasena ? "text" : "password"}
+                placeholder="Mín. 8 caracteres"
+                value={form.contrasena}
+                onChange={(e) => update("contrasena", e.target.value)}
+              />
+              <button type="button" className="btn-toggle-password" onClick={() => setShowContrasena(!showContrasena)} aria-label={showContrasena ? "Ocultar contraseña" : "Mostrar contraseña"}>
+                {showContrasena ? (
+                  <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                ) : (
+                  <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                )}
+              </button>
+            </div>
           </div>
+
           <div className="input-group">
             <label>Confirmar contraseña</label>
-            <input type="password" placeholder="Repite tu contraseña" value={form.confirmar} onChange={(e) => update("confirmar", e.target.value)} />
+            <div className="input-group-password">
+              <input
+                type={showConfirmar ? "text" : "password"}
+                placeholder="Repite tu contraseña"
+                value={form.confirmar}
+                onChange={(e) => update("confirmar", e.target.value)}
+              />
+              <button type="button" className="btn-toggle-password" onClick={() => setShowConfirmar(!showConfirmar)} aria-label={showConfirmar ? "Ocultar contraseña" : "Mostrar contraseña"}>
+                {showConfirmar ? (
+                  <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                ) : (
+                  <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                )}
+              </button>
+            </div>
           </div>
+
           <div className="input-group">
             <label>NIT / RUT</label>
             <input type="text" placeholder="900.123.456-7" value={form.nit} onChange={(e) => update("nit", e.target.value)} />
@@ -121,9 +157,21 @@ export default function RegistroEmpresaPage() {
           </div>
 
           <div className="checkbox-group">
-            <input type="checkbox" id="terms" checked={aceptaTerminos} onChange={(e) => setAceptaTerminos(e.target.checked)} />
-            <label htmlFor="terms" style={{ fontWeight: "normal", fontSize: "14px", color: "var(--sw-text-muted)" }}>
-              Aceptar términos y condiciones
+            <input 
+              type="checkbox" 
+              id="terms" 
+              checked={aceptaTerminos} 
+              onChange={(e) => setAceptaTerminos(e.target.checked)} 
+            />
+            <label htmlFor="terms" style={{ fontWeight: "normal", fontSize: "14px", color: "var(--sw-text-muted)", lineHeight: "1.4" }}>
+              Acepto los{" "}
+              <a href="/terminos" target="_blank" style={{ color: "var(--sw-blue)", textDecoration: "underline" }}>
+                términos y condiciones
+              </a>{" "}
+              y la{" "}
+              <a href="/privacidad" target="_blank" style={{ color: "var(--sw-blue)", textDecoration: "underline" }}>
+                política de privacidad
+              </a>
             </label>
           </div>
 

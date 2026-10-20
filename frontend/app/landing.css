@@ -1,0 +1,181 @@
+/* ==========================================================
+   SEEDWORK — Estilos de la Landing Page
+   ========================================================== */
+
+.sw-landing {
+  position: relative;
+  min-height: 100vh;
+  width: 100%;
+  isolation: isolate;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 24px;
+  overflow: hidden; 
+  color: #fff;
+  background:
+    radial-gradient(ellipse at 8% 40%, rgba(54, 154, 255, 0.75), transparent 35%),
+    radial-gradient(ellipse at 95% 15%, rgba(91, 85, 255, 0.65), transparent 32%),
+    radial-gradient(ellipse at 70% 100%, rgba(16, 126, 255, 0.75), transparent 45%),
+    linear-gradient(125deg, #0751dc 0%, #0645c5 48%, #155ce9 100%);
+}
+
+.sw-landing::before, .sw-landing::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: 50%;
+}
+
+.sw-landing::before {
+  width: 380px; height: 380px; top: -245px; left: -130px;
+  background: linear-gradient(145deg, rgba(139, 126, 255, 0.95), rgba(70, 127, 255, 0.15));
+  box-shadow: 0 0 100px rgba(90, 113, 255, 0.15);
+}
+
+.sw-landing::after {
+  width: 480px; height: 480px; right: -285px; bottom: -315px;
+  background: linear-gradient(145deg, rgba(158, 113, 255, 0.9), rgba(90, 104, 255, 0.15));
+}
+
+.sw-landing-inner {
+  position: relative;
+  width: 100%;
+  max-width: 850px; /* ⬅️ Más ancho para que respire mejor */
+  margin: auto;
+  padding: 10px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  z-index: 1;
+}
+
+.sw-landing-inner::before, .sw-landing-inner::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  border: 1px solid rgba(155, 205, 255, 0.18);
+  border-radius: 50%;
+}
+.sw-landing-inner::before {
+  width: 420px; height: 420px; left: -270px; top: 35%;
+  box-shadow: 0 0 0 30px rgba(93, 169, 255, 0.035), 0 0 0 70px rgba(93, 169, 255, 0.025);
+}
+.sw-landing-inner::after {
+  width: 500px; height: 500px; right: -330px; top: 15%;
+  box-shadow: 0 0 0 40px rgba(163, 151, 255, 0.04), 0 0 0 85px rgba(163, 151, 255, 0.025);
+}
+
+/* Encabezado y Logo */
+.sw-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 24px; /* ⬅️ Más espacio */
+}
+
+.sw-landing-logo {
+  width: 110px; /* ⬅️ Logo más grande (antes 80px) */
+  height: auto;
+  margin-bottom: 16px;
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.2));
+  object-fit: contain;
+}
+
+.sw-title {
+  font-family: "Poppins", "Inter", sans-serif;
+  font-size: clamp(2.8rem, 4.5vw, 3.8rem); /* ⬅️ Título más grande */
+  font-weight: 800; line-height: 1.05; letter-spacing: 0.035em;
+  color: #fff; margin: 0;
+  text-shadow: 0 5px 24px rgba(0, 20, 90, 0.2);
+}
+
+.sw-tagline {
+  margin: 0 0 32px; /* ⬅️ Más espacio abajo */
+  color: #c4e5ff;
+  font-size: clamp(0.75rem, 1.4vw, 0.95rem); /* ⬅️ Más grande */
+  font-weight: 600; letter-spacing: 0.3em; line-height: 1.8;
+  text-transform: uppercase;
+}
+.sw-tagline span { padding: 0 5px; color: #8ce4ff; }
+
+.sw-headline {
+  max-width: 750px; /* ⬅️ Permite que las letras crezcan */
+  margin: 0 0 24px; color: #fff;
+  font-family: "Poppins", "Inter", sans-serif;
+  font-size: clamp(2rem, 3.8vw, 3.2rem); /* ⬅️ Título principal más grande */
+  font-weight: 800; line-height: 1.15; letter-spacing: -0.035em;
+}
+.sw-headline .accent { color: #8be6ff; text-shadow: 0 0 32px rgba(88, 209, 255, 0.18); }
+
+.sw-subtitle {
+  max-width: 600px; margin: 0 0 36px; /* ⬅️ Más espacio */
+  color: #e1edff;
+  font-size: clamp(1rem, 1.6vw, 1.2rem); /* ⬅️ Subtítulo más grande */
+  line-height: 1.6; font-weight: 400;
+}
+
+/* Botones */
+.sw-actions {
+  width: 100%; max-width: 400px; /* ⬅️ Botones más anchos */
+  display: flex; flex-direction: column; gap: 16px;
+}
+
+.sw-btn {
+  position: relative; display: flex; align-items: center; justify-content: center;
+  gap: 12px; width: 100%; min-height: 60px; padding: 16px 28px; /* ⬅️ Botones más altos */
+  border: 2px solid transparent; border-radius: 999px;
+  font-family: inherit; font-size: 1.1rem; font-weight: 700; line-height: 1.3; /* ⬅️ Texto del botón más grande */
+  text-decoration: none; cursor: pointer;
+  transition: transform 0.22s ease, box-shadow 0.22s ease, background 0.22s ease, border-color 0.22s ease;
+}
+.sw-btn-primary { background: #fff; color: #0756df; box-shadow: 0 10px 30px rgba(0, 24, 95, 0.2); }
+.sw-btn-primary:hover { transform: translateY(-3px); box-shadow: 0 15px 34px rgba(0, 24, 95, 0.3); background: #edf7ff; }
+.sw-btn-secondary { background: rgba(255, 255, 255, 0.025); color: #fff; border-color: rgba(255, 255, 255, 0.9); }
+.sw-btn-secondary:hover { transform: translateY(-3px); background: rgba(255, 255, 255, 0.12); border-color: #fff; box-shadow: 0 8px 24px rgba(0, 24, 95, 0.12); }
+.sw-btn-arrow { display: inline-flex; align-items: center; transition: transform 0.2s ease; }
+.sw-btn:hover .sw-btn-arrow { transform: translateX(4px); }
+
+.sw-footer-quote {
+  display: flex; align-items: center; justify-content: center; gap: 16px;
+  margin: 40px 0 0; /* ⬅️ Más espacio arriba */
+  color: rgba(230, 241, 255, 0.86);
+  font-size: 0.9rem; /* ⬅️ Un poco más grande */
+  line-height: 1.6; font-style: normal;
+}
+.sw-footer-quote::before, .sw-footer-quote::after {
+  content: ""; flex: 0 0 40px; height: 1px; background: rgba(210, 235, 255, 0.6);
+}
+
+/* Decoraciones flotantes */
+.sw-deco { position: absolute; border-radius: 50%; pointer-events: none; z-index: 0; }
+.sw-deco-1 { top: -60px; left: -80px; animation: floatDeco 8s ease-in-out infinite; }
+.sw-deco-2 { bottom: -90px; right: -100px; animation: floatDeco 10s ease-in-out infinite reverse; }
+.sw-float-icon { position: absolute; width: 40px; height: 40px; pointer-events: none; z-index: 0; animation: floatDeco 6s ease-in-out infinite; }
+.sw-float-icon svg { width: 100%; height: 100%; }
+.sw-float-icon-1 { top: 18%; left: 10%; animation-delay: 0s; }
+.sw-float-icon-2 { top: 65%; left: 8%; animation-delay: 1.5s; }
+
+@keyframes floatDeco {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-14px) rotate(3deg); }
+}
+
+@media (max-width: 900px) {
+  .sw-float-icon, .sw-deco-1, .sw-deco-2 { display: none; }
+}
+
+/* ⬅️ PROTECCIÓN: En laptops con poca altura, volvemos a achicar todo para que no haya scroll */
+@media (max-height: 800px) {
+  .sw-landing-logo { width: 80px; margin-bottom: 12px; }
+  .sw-title { font-size: 2.5rem; }
+  .sw-tagline { margin-bottom: 16px; }
+  .sw-headline { font-size: 2rem; margin-bottom: 16px; }
+  .sw-subtitle { margin-bottom: 20px; font-size: 0.95rem; }
+  .sw-actions { gap: 12px; }
+  .sw-btn { min-height: 50px; padding: 12px 24px; font-size: 1rem; }
+  .sw-footer-quote { margin-top: 24px; }
+}
