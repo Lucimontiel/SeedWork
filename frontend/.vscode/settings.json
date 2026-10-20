@@ -1,0 +1,8 @@
+{
+    "python-envs.defaultEnvManager": "ms-python.python:system",
+    "python.analysis.diagnosticSeverity": {
+        "reportGeneralTypeIssues": "none"
+    }
+}
+//hola
+
