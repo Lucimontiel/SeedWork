@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useState, useEffect, JSX } from "react";
+import { useEffect, useMemo, useState, JSX } from "react";
 import CandidatoShell from "../CandidatoShell";
-import { useCandidato } from "../../lib/useCandidato";
-import { API_BASE } from "../../lib/api";
+import { useAuth } from "@/app/lib/auth-context";
+import { apiFetch } from "@/app/lib/api";
 
 interface Postulacion {
   idPostulacion: number;
@@ -46,7 +46,7 @@ const STATUS_ICON: Record<string, JSX.Element> = {
 };
 
 export default function PostulacionesPage() {
-  const { candidato } = useCandidato();
+  const { user } = useAuth();
   const [postulaciones, setPostulaciones] = useState<Postulacion[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -54,16 +54,12 @@ export default function PostulacionesPage() {
   const [search, setSearch] = useState("");
 
   useEffect(() => {
-    if (!candidato) return;
-    fetch(`${API_BASE}/api/candidato/${candidato.idCandidato}/postulaciones`)
-      .then((r) => {
-        if (!r.ok) throw new Error("No se pudieron cargar tus postulaciones");
-        return r.json();
-      })
+    if (!user?.idCandidato) return;
+    apiFetch<Postulacion[]>(`/api/candidato/${user.idCandidato}/postulaciones`)
       .then(setPostulaciones)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [candidato]);
+  }, [user]);
 
   const conteos = useMemo(() => {
     const c = { postulado: 0, vistas: 0, proceso: 0, cerradas: 0 };
@@ -96,7 +92,7 @@ export default function PostulacionesPage() {
     return lista;
   }, [postulaciones, tab, search]);
 
-  const total = postulaciones.length || 1; // evita división por 0
+  const total = postulaciones.length || 1;
   const pctPostulado = (conteos.postulado / total) * 100;
   const pctProceso = (conteos.proceso / total) * 100;
   const pctVistas = (conteos.vistas / total) * 100;
@@ -108,8 +104,7 @@ export default function PostulacionesPage() {
 
   return (
     <CandidatoShell
-      nombre={candidato ? `${candidato.nombres} ${candidato.apellidos}` : undefined}
-      fotoUrl={candidato?.fotoUrl}
+      nombre={user?.correo}
       pageTitle="Mis Postulaciones"
       pageSubtitle="Consulta el estado de las ofertas a las que te has postulado"
     >
@@ -138,7 +133,6 @@ export default function PostulacionesPage() {
         </div>
         <button className="filter-select">Estado <svg viewBox="0 0 20 20"><path d="M5 8l5 5 5-5" /></svg></button>
         <button className="filter-select">Área <svg viewBox="0 0 20 20"><path d="M5 8l5 5 5-5" /></svg></button>
-        <button className="filter-select">Modalidad <svg viewBox="0 0 20 20"><path d="M5 8l5 5 5-5" /></svg></button>
       </div>
 
       <div className="vacantes-layout">
@@ -171,7 +165,6 @@ export default function PostulacionesPage() {
                 </div>
                 <div className="application-actions">
                   <button className="btn-outline-sm">Ver oferta</button>
-                  <button className="btn-outline-sm">Ver empresa</button>
                 </div>
               </div>
             );
@@ -180,7 +173,6 @@ export default function PostulacionesPage() {
 
         <aside className="vacantes-sidebar" style={{ width: 250 }}>
           <h3 className="sidebar-title">Resumen de postulaciones</h3>
-
           <div className="summary-legend">
             <div className="summary-legend-item">
               <span className="legend-dot" style={{ background: "#F0A93F" }} />

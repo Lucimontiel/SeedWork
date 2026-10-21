@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { API_BASE } from "../../lib/api";
+import { apiFetch } from "../../lib/api";
 
 export interface Perfil {
   idCandidato: number;
@@ -32,22 +32,18 @@ export function usePerfil(idCandidato: number | null) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const cargar = useCallback(() => {
+  const cargar = useCallback(async () => {
     if (!idCandidato) return;
     setLoading(true);
-    const url = `${API_BASE}/api/candidato/${idCandidato}/perfil`;
-    console.log("Cargando perfil desde:", url);
-    fetch(url)
-      .then((r) => {
-        if (!r.ok) throw new Error("No se pudo cargar tu perfil");
-        return r.json();
-      })
-      .then(setPerfil)
-      .catch((err: Error) => {
-        console.error("Error cargando perfil:", err);
-        setError(err.message);
-      })
-      .finally(() => setLoading(false));
+    try {
+      const data = await apiFetch<Perfil>(`/api/candidato/${idCandidato}/perfil`);
+      setPerfil(data);
+      setError(null);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   }, [idCandidato]);
 
   useEffect(() => {
@@ -57,42 +53,33 @@ export function usePerfil(idCandidato: number | null) {
   const mutar = useCallback(
     async (path: string, method: string, body?: unknown): Promise<Perfil> => {
       if (!idCandidato) throw new Error("ID de candidato no disponible");
-      const url = `${API_BASE}/api/candidato/${idCandidato}${path}`;
-      console.log(`Mutando: ${method} ${url}`, body);
-      const resp = await fetch(url, {
+      
+      const nuevo = await apiFetch<Perfil>(`/api/candidato/${idCandidato}${path}`, {
         method,
-        headers: { "Content-Type": "application/json" },
-        body: body !== undefined ? JSON.stringify(body) : undefined,
+        body,
       });
-      if (!resp.ok) {
-        const data = await resp.json().catch(() => null);
-        throw new Error(data?.detail || "No se pudo guardar el cambio");
-      }
-      const nuevo = await resp.json();
+      
       setPerfil(nuevo);
       return nuevo;
     },
     [idCandidato]
   );
 
-  const mutarYRecargar = useCallback(
-    async (path: string, method: string, body?: unknown): Promise<Perfil> => {
-      await mutar(path, method, body);
-      await cargar();
-      return perfil!;
-    },
-    [mutar, cargar, perfil]
-  );
+  const aplicarCambiosLocales = useCallback((cambios: Partial<Perfil>) => {
+    setPerfil((prev) => (prev ? { ...prev, ...cambios } : prev));
+  }, []);
 
   return {
     perfil,
     loading,
     error,
+    recargar: cargar,
+    aplicarCambiosLocales,
     guardarDatos: (body: any) => mutar("/perfil/datos", "PUT", body),
     guardarPreferencias: (body: any) => mutar("/perfil/preferencias", "PUT", body),
     guardarSobreMi: (about: string) => mutar("/cv/sobre-mi", "PUT", { about }),
     guardarHabilidades: (habilidades: string[]) => mutar("/cv/habilidades", "PUT", { habilidades }),
-    guardarFoto: (fotoUrl: string) => mutarYRecargar("/cv/foto", "PUT", { fotoUrl }),
+    guardarFoto: (fotoUrl: string) => mutar("/cv/foto", "PUT", { fotoUrl }),
     agregarEducacion: (body: any) => mutar("/cv/educacion", "POST", body),
     agregarIdioma: (descripcion: string) => mutar("/cv/idiomas", "POST", { descripcion }),
     agregarExperiencia: (body: any) => mutar("/cv/proyectos", "POST", body),

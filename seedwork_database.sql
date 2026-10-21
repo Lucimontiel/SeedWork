@@ -671,4 +671,3 @@ INSERT INTO Postulacion(IdOferta,IdCandidato,IdEstadoPostulacion,Vista,FechaVist
 -- Reporte (coherente con el caso #0231 del panel Administrador)
 INSERT INTO Reporte(IdUsuarioReporta,IdEstadoReporte,IdOfertaReportada,Motivo,Detalle) VALUES
 (6,1,2,'Vacante engañosa','Un candidato reportó la vacante "Analista de Datos Jr." de Data Up como engañosa.');
-

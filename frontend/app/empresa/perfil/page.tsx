@@ -2,9 +2,8 @@
 
 import { useEffect, useState } from "react";
 import EmpresaShell from "../EmpresaShell";
-import { getSession } from "../../lib/session";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
+import { useAuth } from "@/app/lib/auth-context";
+import { apiFetch } from "@/app/lib/api";
 
 type Empresa = {
   idEmpresa: number;
@@ -22,13 +21,15 @@ type Empresa = {
   mision?: string;
   vision?: string;
   direccion?: string;
-  logoUrl?: string; // 👈 AGREGA ESTE CAMPO
+  logoUrl?: string;
 };
 
 export default function PerfilEmpresaPage() {
+  const { user } = useAuth();
+  
   const [empresa, setEmpresa] = useState<Empresa | null>(null);
   const [editando, setEditando] = useState(false);
-  const [empresaLogo, setEmpresaLogo] = useState<string | null>(null); // 👈 ESTADO PARA LA FOTO
+  const [empresaLogo, setEmpresaLogo] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     nombreEmpresa: "",
@@ -47,15 +48,13 @@ export default function PerfilEmpresaPage() {
   });
 
   useEffect(() => {
-    const session = getSession();
-    if (!session) return;
+    if (!user?.idEmpresa) return;
 
-    fetch(`${API_BASE}/api/empresa/${session.id}`)
-      .then((r) => (r.ok ? r.json() : null))
+    apiFetch<Empresa>(`/api/empresa/${user.idEmpresa}`)
       .then((data) => {
         if (data) {
           setEmpresa(data);
-          setEmpresaLogo(data.logoUrl || null); // 👈 CARGA LA FOTO
+          setEmpresaLogo(data.logoUrl || null);
           setForm({
             nombreEmpresa: data.nombreEmpresa || "",
             nit: data.nit || "",
@@ -73,10 +72,9 @@ export default function PerfilEmpresaPage() {
           });
         }
       })
-      .catch(() => {});
-  }, []);
+      .catch((err) => console.error("Error al cargar perfil:", err));
+  }, [user]);
 
-  // 👇 CONVERTIR LA IMAGEN A BASE64
   function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (file) {
@@ -90,25 +88,21 @@ export default function PerfilEmpresaPage() {
 
   async function handleUpdate(e: React.FormEvent) {
     e.preventDefault();
-    const session = getSession();
-    if (!session) return;
+    if (!user?.idEmpresa) return;
 
-    const resp = await fetch(`${API_BASE}/api/empresa/${session.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...form,
-        anioFundacion: form.anioFundacion ? Number(form.anioFundacion) : null,
-        logoUrl: empresaLogo || empresa?.logoUrl || null, // 👈 ENVÍA LA FOTO
-      }),
-    });
-
-    if (resp.ok) {
+    try {
+      await apiFetch(`/api/empresa/${user.idEmpresa}`, {
+        method: "PUT",
+        body: {
+          ...form,
+          anioFundacion: form.anioFundacion ? Number(form.anioFundacion) : null,
+          logoUrl: empresaLogo || empresa?.logoUrl || null,
+        },
+      });
       setEditando(false);
       window.location.reload();
-    } else {
-      const data = await resp.json().catch(() => null);
-      alert(data?.detail || "Error al actualizar");
+    } catch (err: any) {
+      alert(err.message || "Error al actualizar el perfil");
     }
   }
 
@@ -119,7 +113,6 @@ export default function PerfilEmpresaPage() {
           {/* Bloque 1: Información principal */}
           <div className="empresa-profile-card">
             <div className="empresa-profile-logo" style={{ position: "relative" }}>
-              {/* 👇 AQUÍ SE MUESTRA LA FOTO */}
               {empresaLogo ? (
                 <img
                   src={empresaLogo}
@@ -135,7 +128,6 @@ export default function PerfilEmpresaPage() {
               <div className="empresa-logo-name">{empresa.nombreEmpresa}</div>
               <div className="empresa-logo-tagline">SeedWork</div>
 
-              {/* 👇 BOTÓN DE LA CÁMARA PARA SUBIR LA FOTO */}
               <button
                 className="empresa-logo-camera-btn"
                 onClick={() => document.getElementById("empresaLogoInput")?.click()}
@@ -146,7 +138,6 @@ export default function PerfilEmpresaPage() {
                 </svg>
               </button>
 
-              {/* 👇 INPUT OCULTO PARA SUBIR LA FOTO */}
               <input
                 id="empresaLogoInput"
                 type="file"
@@ -247,7 +238,7 @@ export default function PerfilEmpresaPage() {
             </div>
           </div>
 
-          {/* Bloque 3: Estadísticas */}
+          {/* Bloque 3: Estadísticas (Estáticas por ahora, se pueden conectar al backend después) */}
           <div className="empresa-stats-card">
             <div className="empresa-stat-item">
               <div className="empresa-stat-icon">
@@ -276,7 +267,7 @@ export default function PerfilEmpresaPage() {
               <div className="empresa-stat-info">
                 <strong>5.4K</strong>
                 <span className="empresa-stat-title">Visualizaciones</span>
-                <span className="empresa-stat-sub">Último 1 hora</span>
+                <span className="empresa-stat-sub">Último mes</span>
               </div>
             </div>
           </div>
@@ -288,7 +279,6 @@ export default function PerfilEmpresaPage() {
         <form onSubmit={handleUpdate} style={{ background: "#fff", border: "1px solid #E6E9EF", borderRadius: 14, padding: 20, marginBottom: 20 }}>
           <h3 style={{ marginTop: 0 }}>Editar Perfil</h3>
 
-          {/* 👇 CAMPOS DEL FORMULARIO */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <input
               type="text"
@@ -359,16 +349,16 @@ export default function PerfilEmpresaPage() {
               placeholder="Dirección"
               value={form.direccion}
               onChange={(e) => setForm({ ...form, direccion: e.target.value })}
-              style={{ border: "1px solid #E6E9EF", borderRadius: 8, padding: 10 }}
+              style={{ border: "1px solid #E6E9EF", borderRadius: 8, padding: 10, width: "100%" }}
             />
           </div>
           <div style={{ marginTop: 12 }}>
             <input
               type="text"
-              placeholder="Telefono"
+              placeholder="Teléfono"
               value={form.telefono}
               onChange={(e) => setForm({ ...form, telefono: e.target.value })}
-              style={{ border: "1px solid #E6E9EF", borderRadius: 8, padding: 10 }}
+              style={{ border: "1px solid #E6E9EF", borderRadius: 8, padding: 10, width: "100%" }}
             />
           </div>
           <div style={{ marginTop: 12 }}>
@@ -398,9 +388,14 @@ export default function PerfilEmpresaPage() {
               style={{ width: "100%", border: "1px solid #E6E9EF", borderRadius: 8, padding: 10 }}
             />
           </div>
-          <button type="submit" className="btn-empresa-solid" style={{ marginTop: 12 }}>
-            Guardar cambios
-          </button>
+          <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+            <button type="submit" className="btn-empresa-solid">
+              Guardar cambios
+            </button>
+            <button type="button" className="btn-empresa-outline" onClick={() => setEditando(false)}>
+              Cancelar
+            </button>
+          </div>
         </form>
       )}
     </EmpresaShell>

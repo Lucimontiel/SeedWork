@@ -1,18 +1,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap');
 
-/* 👇 HACE QUE TODO OCUPE TODA LA PANTALLA */
-html, body {
-    height: 100%;
-    width: 100%;
-    margin: 0;
-    padding: 0;
-}
-
-body {
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-}
+/* 👇 Antes esto tocaba html/body directamente (afectaba TODA la app,
+   incluyendo login/registro). Ya no hace falta: .app-shell más abajo
+   maneja su propio alto y flex de forma independiente. */
 
 .app-shell {
     width: 100%;
@@ -67,10 +57,9 @@ body {
 html,
 body {
     margin: 0;
-    padding: 0;
 }
 
-body {
+.app-shell {
 
     background: var(--app-bg);
 
@@ -1434,13 +1423,8 @@ textarea#answerInput::placeholder {
 }
 
 .logo-icon {
-    width: 26px;
-    height: 26px;
-    stroke: var(--blue);
-    fill: none;
-    stroke-width: 1.6;
-    stroke-linecap: round;
-    stroke-linejoin: round;
+    width: 28px;
+    height: 28px;
     flex-shrink: 0;
 }
 
@@ -1855,6 +1839,18 @@ textarea#answerInput::placeholder {
 .bookmark-btn:hover {
     color: var(--blue);
     border-color: var(--blue);
+}
+
+.bookmark-btn-active {
+    color: var(--blue);
+    border-color: var(--blue);
+    background: var(--blue-bg-soft);
+}
+
+.bookmark-btn-active svg,
+.bookmark-btn-active svg path {
+    fill: var(--blue) !important;
+    stroke: var(--blue) !important;
 }
 
 
@@ -3310,6 +3306,7 @@ textarea#answerInput::placeholder {
 .cv-btn-solid {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 8px;
     border-radius: 10px;
     padding: 12px 22px;
@@ -3317,6 +3314,8 @@ textarea#answerInput::placeholder {
     font-weight: 600;
     cursor: pointer;
     font-family: inherit;
+    text-align: center;
+    line-height: 1.2;
 }
 
 .cv-btn-outline {
@@ -7073,4 +7072,1136 @@ textarea#answerInput::placeholder {
     color: var(--muted);
     line-height: 1.4;
     margin-top: 3px;
+}
+
+/* ============================================================ */
+/* MODO OSCURO — se aplica a <html data-theme="dark">          */
+/* ============================================================ */
+
+html[data-theme="dark"] {
+    --blue: #4A8CFF;
+    --blue-dark: #3B7AEC;
+    --blue-bg-soft: #1E3A5F;
+    --blue-card: #1E3A5F;
+    --blue-card-text: #DCE8FF;
+    --ink: #F1F5F9;
+    --muted: #94A3B8;
+    --line: #334155;
+    --sidebar-bg: #1E293B;
+    --app-bg: #0F172A;
+    --white: #1E293B;
+    --danger-soft: #4A1E1E;
+}
+
+/* Fondo general — solo cuando estamos dentro del panel del candidato */
+html[data-theme="dark"] body,
+html[data-theme="dark"] .app-shell {
+    background: var(--app-bg);
+    color: var(--ink);
+}
+
+/* Sidebar */
+html[data-theme="dark"] .sidebar {
+    background: var(--sidebar-bg);
+    border-right-color: var(--line);
+}
+html[data-theme="dark"] .nav-item {
+    color: var(--muted);
+}
+html[data-theme="dark"] .nav-item:hover {
+    background: rgba(74, 140, 255, 0.12);
+    color: var(--ink);
+}
+html[data-theme="dark"] .nav-item.active {
+    background: var(--blue-bg-soft);
+    color: var(--blue);
+}
+html[data-theme="dark"] .nav-footer {
+    border-top-color: var(--line);
+}
+
+/* Topbar */
+html[data-theme="dark"] .topbar {
+    background: var(--white);
+    border-bottom-color: var(--line);
+}
+html[data-theme="dark"] .page-title h1 {
+    color: var(--ink);
+}
+html[data-theme="dark"] .page-title p {
+    color: var(--muted);
+}
+
+/* Botón campana */
+html[data-theme="dark"] .icon-btn {
+    background: #334155;
+    color: var(--muted);
+}
+html[data-theme="dark"] .icon-btn:hover {
+    background: #475569;
+}
+
+/* Notificaciones dropdown */
+html[data-theme="dark"] .notification-dropdown {
+    background: #1E293B;
+    border-color: var(--line);
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.5);
+}
+html[data-theme="dark"] .notification-item {
+    border-bottom-color: var(--line);
+}
+html[data-theme="dark"] .notification-info strong {
+    color: var(--ink);
+}
+html[data-theme="dark"] .notification-info p {
+    color: var(--muted);
+}
+html[data-theme="dark"] .notification-info small {
+    color: #64748B;
+}
+
+/* Tarjetas y paneles */
+html[data-theme="dark"] .panel-white,
+html[data-theme="dark"] .info-card,
+html[data-theme="dark"] .profile-card,
+html[data-theme="dark"] .application-card,
+html[data-theme="dark"] .opportunity-card,
+html[data-theme="dark"] .cv-sections-panel,
+html[data-theme="dark"] .cv-preview,
+html[data-theme="dark"] .vacantes-sidebar,
+html[data-theme="dark"] .settings-card,
+html[data-theme="dark"] .action-card,
+html[data-theme="dark"] .consejo-card,
+html[data-theme="dark"] .guide-card,
+html[data-theme="dark"] .notif-card,
+html[data-theme="dark"] .notif-summary-card,
+html[data-theme="dark"] .candidatos-table-card,
+html[data-theme="dark"] .misofertas-table-card,
+html[data-theme="dark"] .empresa-welcome-card,
+html[data-theme="dark"] .empresa-offer-card,
+html[data-theme="dark"] .empresa-candidate-card,
+html[data-theme="dark"] .empresa-profile-card,
+html[data-theme="dark"] .empresa-stats-card {
+    background: var(--white);
+    border-color: var(--line);
+}
+
+/* Textos */
+html[data-theme="dark"] h1,
+html[data-theme="dark"] h2,
+html[data-theme="dark"] h3,
+html[data-theme="dark"] h4,
+html[data-theme="dark"] strong {
+    color: var(--ink);
+}
+html[data-theme="dark"] .profile-about p,
+html[data-theme="dark"] .profile-role,
+html[data-theme="dark"] .opportunity-desc,
+html[data-theme="dark"] .pref-row .v,
+html[data-theme="dark"] .timeline-content .year,
+html[data-theme="dark"] .exp-content .year {
+    color: var(--muted);
+}
+html[data-theme="dark"] .pref-row {
+    border-bottom-color: var(--line);
+}
+html[data-theme="dark"] .pref-row .k {
+    color: var(--ink);
+}
+
+/* Inputs y selects */
+html[data-theme="dark"] input,
+html[data-theme="dark"] select,
+html[data-theme="dark"] textarea {
+    background: #0F172A;
+    color: var(--ink);
+    border-color: var(--line);
+}
+html[data-theme="dark"] input::placeholder,
+html[data-theme="dark"] textarea::placeholder {
+    color: #64748B;
+}
+html[data-theme="dark"] .search-input-wrap input,
+html[data-theme="dark"] .filter-select {
+    background: #0F172A;
+    color: var(--ink);
+    border-color: var(--line);
+}
+
+/* Chips y tags */
+html[data-theme="dark"] .skill-pill {
+    background: var(--blue-bg-soft);
+    color: #93B9FF;
+}
+html[data-theme="dark"] .tag {
+    background: #1E3A5F;
+    color: #93B9FF;
+}
+
+/* Botones secundarios */
+html[data-theme="dark"] .btn-secondary,
+html[data-theme="dark"] .cv-btn-outline,
+html[data-theme="dark"] .btn-cancel-edit {
+    background: #334155;
+    color: var(--ink);
+    border-color: var(--line);
+}
+html[data-theme="dark"] .btn-secondary:hover,
+html[data-theme="dark"] .cv-btn-outline:hover,
+html[data-theme="dark"] .btn-cancel-edit:hover {
+    background: #475569;
+}
+
+/* Configuración */
+html[data-theme="dark"] .settings-row-link,
+html[data-theme="dark"] .settings-row-toggle {
+    color: var(--ink);
+    border-bottom-color: var(--line);
+}
+html[data-theme="dark"] .settings-row-link:hover {
+    background: rgba(74, 140, 255, 0.06);
+}
+html[data-theme="dark"] .settings-row-value {
+    color: var(--muted);
+}
+html[data-theme="dark"] .appearance-option {
+    background: #0F172A;
+    color: var(--muted);
+    border-color: var(--line);
+}
+html[data-theme="dark"] .appearance-option.active {
+    background: var(--blue-bg-soft);
+    color: var(--blue);
+    border-color: var(--blue);
+}
+html[data-theme="dark"] .switch-slider {
+    background: #475569;
+}
+html[data-theme="dark"] .device-icon {
+    background: #334155;
+}
+html[data-theme="dark"] .device-icon svg {
+    stroke: var(--ink);
+}
+html[data-theme="dark"] .device-menu-btn:hover {
+    background: #334155;
+}
+html[data-theme="dark"] .btn-danger-outline {
+    background: transparent;
+    border-color: #E4867B;
+    color: #F8A99F;
+}
+
+/* Modales */
+html[data-theme="dark"] .cv-form-modal,
+html[data-theme="dark"] .guide-modal {
+    background: #1E293B;
+}
+html[data-theme="dark"] .cv-form-modal-header,
+html[data-theme="dark"] .cv-form-modal-footer,
+html[data-theme="dark"] .guide-modal-header {
+    border-color: var(--line);
+}
+html[data-theme="dark"] .cv-form-field input,
+html[data-theme="dark"] .cv-form-field textarea,
+html[data-theme="dark"] .cv-edit-field input,
+html[data-theme="dark"] .cv-edit-field textarea {
+    background: #0F172A;
+    color: var(--ink);
+    border-color: var(--line);
+}
+
+/* Toast */
+html[data-theme="dark"] .sw-toast {
+    background: #F1F5F9;
+    color: #0F172A;
+}
+
+/* CV Preview */
+html[data-theme="dark"] .cv-preview-content {
+    background: var(--white);
+}
+html[data-theme="dark"] .cv-preview-section h4 {
+    color: var(--ink);
+}
+html[data-theme="dark"] .cv-preview-section > p {
+    color: var(--muted);
+}
+html[data-theme="dark"] .cv-empty-note {
+    color: var(--muted);
+}
+
+/* Panel azul del simulador */
+html[data-theme="dark"] .panel-blue {
+    background: #1E3A5F;
+    color: #DCE8FF;
+}
+
+/* Otros */
+html[data-theme="dark"] .feedback-disclaimer {
+    color: var(--muted);
+}
+html[data-theme="dark"] .status-line {
+    color: var(--muted);
+}
+html[data-theme="dark"] hr,
+html[data-theme="dark"] .panel-divider {
+    border-color: var(--line);
+    background-color: var(--line);
+}
+
+/* ============================================================ */
+/* MODO OSCURO — Simulador                                      */
+/* ============================================================ */
+
+html[data-theme="dark"] .field-label {
+    color: var(--ink);
+}
+
+html[data-theme="dark"] select#roleSelect {
+    background-color: #0F172A;
+    color: var(--ink);
+    border-color: var(--line);
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'><path d='M5 8l5 5 5-5' fill='none' stroke='%2394A3B8' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    background-size: 16px;
+    appearance: none;
+}
+
+html[data-theme="dark"] textarea#answerInput {
+    background: #0F172A;
+    color: var(--ink);
+    border-color: var(--line);
+}
+
+html[data-theme="dark"] textarea#answerInput::placeholder {
+    color: #64748B;
+}
+
+html[data-theme="dark"] .speak-btn {
+    background: #334155;
+    color: var(--muted);
+}
+
+html[data-theme="dark"] .speak-btn:hover {
+    background: #475569;
+}
+
+html[data-theme="dark"] .speak-btn.is-active {
+    background: var(--blue-bg-soft);
+    color: var(--blue);
+}
+
+html[data-theme="dark"] .mic-btn {
+    background: #334155;
+    border-color: var(--line);
+    color: var(--muted);
+}
+
+html[data-theme="dark"] .mic-btn:hover {
+    background: #475569;
+}
+
+html[data-theme="dark"] .mic-btn.is-recording {
+    background: #4A1E1E;
+    border-color: #E2574C;
+    color: #E2574C;
+}
+
+html[data-theme="dark"] .status-line {
+    color: var(--muted);
+}
+
+/* Panel del consejo/feedback del simulador */
+html[data-theme="dark"] .sim-tip-panel {
+    background: #1E3A5F !important;
+    border-left-color: var(--blue) !important;
+    color: #DCE8FF;
+}
+
+html[data-theme="dark"] .sim-tip-panel h3,
+html[data-theme="dark"] .sim-tip-panel strong {
+    color: #DCE8FF;
+}
+
+html[data-theme="dark"] .sim-tip-panel p,
+html[data-theme="dark"] .sim-tip-panel span,
+html[data-theme="dark"] .sim-tip-panel li {
+    color: #B8CCE8;
+}
+
+html[data-theme="dark"] .sim-tip-panel hr,
+html[data-theme="dark"] .sim-tip-panel .panel-divider {
+    border-color: rgba(74, 140, 255, 0.25);
+    background-color: rgba(74, 140, 255, 0.25);
+}
+
+/* Barra de progreso dentro del panel */
+html[data-theme="dark"] .sim-tip-panel .progress-bar-bg {
+    background: rgba(74, 140, 255, 0.15);
+}
+
+/* Panel del consejo/feedback — versión clara */
+.sim-tip-panel {
+    background: #E4EEFC;
+    border-left: 3px solid #2D6CDF;
+    border-radius: 18px;
+    padding: 22px 22px 24px;
+    font-size: 14px;
+    line-height: 1.55;
+    height: fit-content;
+}
+
+/* Panel del consejo — corregir colores de texto en modo oscuro */
+html[data-theme="dark"] .sim-tip-panel h3,
+html[data-theme="dark"] .sim-tip-panel strong {
+    color: #DCE8FF !important;
+}
+
+html[data-theme="dark"] .sim-tip-panel p,
+html[data-theme="dark"] .sim-tip-panel span,
+html[data-theme="dark"] .sim-tip-panel li,
+html[data-theme="dark"] .sim-tip-panel div {
+    color: #B8CCE8 !important;
+}
+
+html[data-theme="dark"] .sim-tip-panel em {
+    color: #94A3B8 !important;
+}
+
+/* Placeholder de la foto cuando no hay imagen */
+.photo-placeholder-box {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f0f2f5;
+    color: #6b7280;
+    border-radius: inherit;
+}
+
+/* Modo oscuro: fondo más oscuro y menos saturado, ícono con mejor contraste */
+html[data-theme="dark"] .photo-placeholder-box {
+    background: #334155;
+    color: #94A3B8;
+}
+
+/* ============================================================ */
+/* MODO OSCURO — Edición del perfil                             */
+/* ============================================================ */
+
+/* Inputs, textareas y selects del modo edición */
+html[data-theme="dark"] .profile-edit-root input,
+html[data-theme="dark"] .profile-edit-root textarea,
+html[data-theme="dark"] .profile-edit-root select {
+    background: #0F172A !important;
+    color: var(--ink) !important;
+    border-color: var(--line) !important;
+}
+
+html[data-theme="dark"] .profile-edit-root input::placeholder,
+html[data-theme="dark"] .profile-edit-root textarea::placeholder {
+    color: #64748B !important;
+}
+
+html[data-theme="dark"] .profile-edit-root select option {
+    background: #0F172A;
+    color: var(--ink);
+}
+
+/* Foto de perfil en modo edición */
+html[data-theme="dark"] .profile-edit-root .photo-placeholder-box {
+    background: #334155;
+    color: #94A3B8;
+}
+
+html[data-theme="dark"] .profile-edit-root .camera-btn {
+    background: #1E293B;
+    color: var(--ink);
+}
+
+html[data-theme="dark"] .profile-edit-root .camera-btn svg {
+    stroke: var(--ink);
+}
+
+/* Skill pills */
+html[data-theme="dark"] .profile-edit-root .skill-pill {
+    background: var(--blue-bg-soft);
+    color: #93B9FF;
+}
+
+html[data-theme="dark"] .profile-edit-root .remove-pill {
+    background: rgba(255, 255, 255, 0.15);
+    color: #93B9FF;
+}
+
+html[data-theme="dark"] .profile-edit-root .remove-pill:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* Enlace "Agregar" (Agregar habilidad, Agregar educación, etc.) */
+html[data-theme="dark"] .profile-edit-root .add-link {
+    color: #93B9FF;
+}
+
+html[data-theme="dark"] .profile-edit-root .add-link:hover {
+    color: #B8CCE8;
+}
+
+/* Botones "Cancelar" y "Guardar cambios" */
+html[data-theme="dark"] .profile-edit-root .btn-cancel-edit {
+    background: #334155;
+    color: var(--ink);
+    border-color: var(--line);
+}
+
+html[data-theme="dark"] .profile-edit-root .btn-cancel-edit:hover {
+    background: #475569;
+}
+
+/* Preferencias: inputs y selects del panel derecho */
+html[data-theme="dark"] .profile-edit-root .pref-row .v {
+    color: var(--muted);
+}
+
+/* Texto "Sobre mí" cuando está en modo lectura */
+html[data-theme="dark"] .profile-edit-root .profile-about p {
+    color: var(--muted);
+}
+
+/* Fecha de nacimiento: el ícono del input de tipo date a veces queda oscuro */
+html[data-theme="dark"] .profile-edit-root input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(0.7);
+}
+
+/* ============================================================ */
+/* VALIDACIÓN DE FORMULARIOS                                    */
+/* ============================================================ */
+
+/* Mensajes de error (rojo) */
+.form-error-msg {
+    display: block;
+    margin-top: 4px;
+    font-size: 12px;
+    color: #D0402F;
+    font-weight: 500;
+}
+
+/* Mensajes de ayuda — aún no cumple el mínimo (naranja) */
+.form-hint-msg {
+    display: block;
+    margin-top: 4px;
+    font-size: 12px;
+    color: #C97A1F;
+    font-weight: 500;
+}
+
+/* Mensajes de éxito — cumple el requisito (verde) */
+.form-success-msg {
+    display: block;
+    margin-top: 4px;
+    font-size: 12px;
+    color: #2FA360;
+    font-weight: 500;
+}
+
+/* Input con error */
+.cv-form-field input.input-error,
+.cv-form-field input.input-error:focus {
+    border-color: #D0402F;
+    box-shadow: 0 0 0 3px rgba(208, 64, 47, 0.12);
+}
+
+/* ============================================================ */
+/* VALIDACIÓN DE FORMULARIOS — Modo oscuro                      */
+/* ============================================================ */
+
+html[data-theme="dark"] .form-error-msg {
+    color: #F8A99F;
+}
+
+html[data-theme="dark"] .form-hint-msg {
+    color: #E5A85C;
+}
+
+html[data-theme="dark"] .form-success-msg {
+    color: #4ADE80;
+}
+
+html[data-theme="dark"] .cv-form-field input.input-error,
+html[data-theme="dark"] .cv-form-field input.input-error:focus {
+    border-color: #E4867B;
+    box-shadow: 0 0 0 3px rgba(228, 134, 123, 0.2);
+}
+
+/* ============================================================ */
+/* MODAL: Información de la cuenta                              */
+/* ============================================================ */
+
+.cuenta-info-row {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--line);
+}
+
+.cuenta-info-row:last-child {
+    border-bottom: none;
+}
+
+.cuenta-info-label {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.cuenta-info-value {
+    font-size: 14px;
+    color: var(--ink);
+    word-break: break-word;
+}
+
+/* Modo oscuro */
+html[data-theme="dark"] .cuenta-info-row {
+    border-bottom-color: var(--line);
+}
+
+html[data-theme="dark"] .cuenta-info-label {
+    color: var(--muted);
+}
+
+html[data-theme="dark"] .cuenta-info-value {
+    color: var(--ink);
+}
+
+/* ============================================================ */
+/* ACCESIBILIDAD                                                */
+/* ============================================================ */
+
+/* --- Alto contraste --- */
+html[data-contrast="high"] {
+    --ink: #000000;
+    --muted: #1F2937;
+    --line: #6B7280;
+    --app-bg: #FFFFFF;
+    --white: #FFFFFF;
+    --sidebar-bg: #F3F4F6;
+}
+
+html[data-theme="dark"][data-contrast="high"] {
+    --ink: #FFFFFF;
+    --muted: #E5E7EB;
+    --line: #94A3B8;
+    --app-bg: #000000;
+    --white: #0A0A0A;
+    --sidebar-bg: #0A0A0A;
+}
+
+html[data-contrast="high"] body,
+html[data-contrast="high"] .app-shell {
+    color: var(--ink);
+}
+
+html[data-contrast="high"] a,
+html[data-contrast="high"] .profile-role,
+html[data-contrast="high"] .timeline-content a,
+html[data-contrast="high"] .exp-content a {
+    color: #0B4FBA;
+}
+
+html[data-theme="dark"][data-contrast="high"] a,
+html[data-theme="dark"][data-contrast="high"] .profile-role,
+html[data-theme="dark"][data-contrast="high"] .timeline-content a,
+html[data-theme="dark"][data-contrast="high"] .exp-content a {
+    color: #93B9FF;
+}
+
+/* --- Reducir animaciones --- */
+html[data-reduce-motion="true"] *,
+html[data-reduce-motion="true"] *::before,
+html[data-reduce-motion="true"] *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+}
+
+html[data-reduce-motion="true"] .notification-card,
+html[data-reduce-motion="true"] .action-card,
+html[data-reduce-motion="true"] .mic-btn.is-recording svg {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+}
+
+/* --- Navegación con teclado: focus más visible --- */
+html[data-keyboard-nav="true"] :focus-visible {
+    outline: 3px solid var(--blue) !important;
+    outline-offset: 3px !important;
+    border-radius: 4px;
+}
+
+html[data-keyboard-nav="true"] button:focus-visible,
+html[data-keyboard-nav="true"] a:focus-visible,
+html[data-keyboard-nav="true"] input:focus-visible,
+html[data-keyboard-nav="true"] select:focus-visible,
+html[data-keyboard-nav="true"] textarea:focus-visible {
+    outline: 3px solid var(--blue) !important;
+    outline-offset: 2px !important;
+}
+
+/* Vista previa de idioma/región */
+.locale-preview {
+    margin-top: 16px;
+    padding: 14px 16px;
+    background: var(--blue-bg-soft);
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.locale-preview-title {
+    margin: 0 0 4px;
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--blue-dark);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+
+.locale-preview-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    font-size: 13px;
+}
+
+.locale-preview-row span:first-child {
+    color: var(--muted);
+    font-weight: 600;
+}
+
+.locale-preview-row span:last-child {
+    color: var(--ink);
+    text-align: right;
+    font-weight: 500;
+}
+
+html[data-theme="dark"] .locale-preview {
+    background: #1E3A5F;
+}
+
+html[data-theme="dark"] .locale-preview-title {
+    color: #93B9FF;
+}
+
+html[data-theme="dark"] .locale-preview-row span:first-child {
+    color: #94A3B8;
+}
+
+html[data-theme="dark"] .locale-preview-row span:last-child {
+    color: #F1F5F9;
+}
+
+/* ============================================================ */
+/* MODALES DE PREFERENCIAS DE CONTENIDO                         */
+/* ============================================================ */
+
+.pref-modal-sub {
+    margin: 0 0 14px;
+    font-size: 13.5px;
+    color: var(--muted);
+    line-height: 1.5;
+}
+
+.pref-options-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 6px;
+    background: var(--white);
+}
+
+.pref-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--ink);
+    transition: background 0.15s ease;
+}
+
+.pref-option:hover {
+    background: var(--blue-bg-soft);
+}
+
+.pref-option input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--blue);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.pref-option span {
+    user-select: none;
+}
+
+/* Modo oscuro */
+html[data-theme="dark"] .pref-options-list {
+    background: #0F172A;
+    border-color: var(--line);
+}
+
+html[data-theme="dark"] .pref-option {
+    color: var(--ink);
+}
+
+html[data-theme="dark"] .pref-option:hover {
+    background: #1E3A5F;
+}
+
+html[data-theme="dark"] .pref-option input[type="checkbox"] {
+    accent-color: #4A8CFF;
+}
+
+/* ============================================================ */
+/* CONSEJOS — Modo oscuro                                       */
+/* ============================================================ */
+
+/* Modal */
+html[data-theme="dark"] .guide-modal {
+    background: #1E293B;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.6);
+}
+
+html[data-theme="dark"] .guide-modal-header {
+    border-bottom-color: var(--line);
+}
+
+html[data-theme="dark"] .guide-modal-heading h2 {
+    color: var(--ink);
+}
+
+html[data-theme="dark"] .guide-modal-heading p {
+    color: var(--muted);
+}
+
+html[data-theme="dark"] .guide-modal-close {
+    color: var(--muted);
+}
+
+html[data-theme="dark"] .guide-modal-close:hover {
+    background: #334155;
+    color: var(--ink);
+}
+
+/* Secciones dentro del modal */
+html[data-theme="dark"] .guide-section h3 {
+    color: var(--ink);
+}
+
+html[data-theme="dark"] .guide-section p {
+    color: var(--muted);
+}
+
+html[data-theme="dark"] .guide-list li {
+    color: var(--ink);
+}
+
+html[data-theme="dark"] .guide-list li strong {
+    color: var(--ink);
+}
+
+/* Callout (los avisos de "Consejo extra") */
+html[data-theme="dark"] .guide-callout {
+    background: #0F172A;
+    border-left-color: var(--blue);
+    color: var(--muted);
+}
+
+html[data-theme="dark"] .guide-callout strong {
+    color: var(--ink);
+}
+
+/* Callouts por tema */
+html[data-theme="dark"] .guide-modal.theme-blue .guide-callout {
+    background: #172B4D;
+    border-left-color: #4A8CFF;
+    color: #B8CCE8;
+}
+
+html[data-theme="dark"] .guide-modal.theme-green .guide-callout {
+    background: #143324;
+    border-left-color: #4ADE80;
+    color: #A7E8C3;
+}
+
+html[data-theme="dark"] .guide-modal.theme-purple .guide-callout {
+    background: #2A1F47;
+    border-left-color: #A78BFA;
+    color: #D3C4F5;
+}
+
+/* Grupos de habilidades */
+html[data-theme="dark"] .guide-skill-group h4 {
+    color: var(--ink);
+}
+
+html[data-theme="dark"] .guide-skill-group-tags span {
+    background: #2A1F47;
+    color: #D3C4F5;
+}
+
+/* ============================================================ */
+/* CONSEJOS — Página principal (tarjetas)                        */
+/* ============================================================ */
+
+html[data-theme="dark"] .consejo-card {
+    background: var(--white);
+    border-color: var(--line);
+}
+
+html[data-theme="dark"] .consejo-card h3 {
+    color: var(--ink);
+}
+
+html[data-theme="dark"] .consejo-checklist li {
+    color: var(--ink);
+}
+
+html[data-theme="dark"] .section-subtitle,
+html[data-theme="dark"] .consejos-section-sub {
+    color: var(--muted);
+}
+
+html[data-theme="dark"] .section-title,
+html[data-theme="dark"] .consejos-section-title {
+    color: var(--ink);
+}
+
+/* Tags de habilidades en la tarjeta */
+html[data-theme="dark"] .skill-tag-purple {
+    background: #2A1F47;
+    color: #D3C4F5;
+}
+
+/* Botones de la tarjeta — mantener su color, solo ajustar hover */
+html[data-theme="dark"] .consejo-btn-blue {
+    background: #2563EB;
+}
+html[data-theme="dark"] .consejo-btn-blue:hover {
+    background: #1D4ED8;
+}
+
+html[data-theme="dark"] .consejo-btn-green {
+    background: #16A34A;
+}
+html[data-theme="dark"] .consejo-btn-green:hover {
+    background: #15803D;
+}
+
+html[data-theme="dark"] .consejo-btn-purple {
+    background: #7C3AED;
+}
+html[data-theme="dark"] .consejo-btn-purple:hover {
+    background: #6D28D9;
+}
+
+/* ============================================================ */
+/* MI CV — Modo oscuro                                          */
+/* ============================================================ */
+
+html[data-theme="dark"] .cv-sections-panel {
+    background: var(--white);
+    border-color: var(--line);
+}
+
+html[data-theme="dark"] .cv-section-item {
+    color: var(--muted);
+}
+
+html[data-theme="dark"] .cv-section-item:hover {
+    background: rgba(74, 140, 255, 0.12);
+    color: var(--ink);
+}
+
+html[data-theme="dark"] .cv-section-item.active {
+    background: var(--blue-bg-soft);
+    color: #93B9FF;
+}
+
+/* Botón "Agregar sección" */
+html[data-theme="dark"] .cv-add-section {
+    background: transparent;
+    border-color: #475569;
+    color: #93B9FF;
+}
+
+html[data-theme="dark"] .cv-add-section:hover {
+    background: rgba(74, 140, 255, 0.12);
+}
+
+/* Selector de plantillas */
+html[data-theme="dark"] .cv-template-title {
+    color: var(--muted);
+}
+
+html[data-theme="dark"] .cv-template-option {
+    background: #0F172A;
+    border-color: var(--line);
+}
+
+html[data-theme="dark"] .cv-template-option:hover {
+    border-color: #475569;
+}
+
+html[data-theme="dark"] .cv-template-option.active {
+    background: var(--blue-bg-soft);
+    border-color: var(--blue);
+}
+
+html[data-theme="dark"] .cv-template-label {
+    color: var(--ink);
+}
+
+html[data-theme="dark"] .cv-template-thumb {
+    background: #334155;
+}
+
+html[data-theme="dark"] .cv-template-thumb-clasico .thumb-lines span,
+html[data-theme="dark"] .cv-template-thumb-moderno .thumb-lines span {
+    background: #64748B;
+}
+
+html[data-theme="dark"] .cv-template-thumb-elegante {
+    background: #1E293B;
+}
+
+html[data-theme="dark"] .cv-template-thumb-elegante .thumb-lines span {
+    background: #475569;
+}
+
+/* Tarjeta del consejo */
+html[data-theme="dark"] .cv-tip-card {
+    background: #1E3A5F;
+    border-color: #2A4A73;
+}
+
+html[data-theme="dark"] .cv-tip-title {
+    color: #93B9FF;
+}
+
+html[data-theme="dark"] .cv-tip-title svg {
+    stroke: #93B9FF;
+}
+
+html[data-theme="dark"] .cv-tip-card p {
+    color: #B8CCE8;
+}
+
+html[data-theme="dark"] .cv-tip-bar-bg {
+    background: #334155;
+}
+
+html[data-theme="dark"] .cv-tip-percent {
+    color: #93B9FF;
+}
+
+/* Botones de acción (Vista previa / Descargar) */
+html[data-theme="dark"] .cv-btn-outline {
+    background: transparent;
+    border-color: var(--line);
+    color: var(--ink);
+}
+
+html[data-theme="dark"] .cv-btn-outline:hover {
+    background: #334155;
+}
+
+/* Modales (nueva sección, edit form) */
+html[data-theme="dark"] .cv-form-modal {
+    background: #1E293B;
+}
+
+html[data-theme="dark"] .cv-form-modal-header h3 {
+    color: var(--ink);
+}
+
+html[data-theme="dark"] .cv-form-field {
+    color: var(--muted);
+}
+
+html[data-theme="dark"] .cv-form-field input,
+html[data-theme="dark"] .cv-form-field textarea {
+    background: #0F172A;
+    color: var(--ink);
+    border-color: var(--line);
+}
+
+html[data-theme="dark"] .cv-form-field input::placeholder,
+html[data-theme="dark"] .cv-form-field textarea::placeholder {
+    color: #64748B;
+}
+
+/* ============================================================ */
+/* DOCUMENTO DEL CV — Isla clara                                */
+/* Resetea las variables dentro del preview para que las        */
+/* plantillas se vean EXACTAMENTE igual que en modo claro.      */
+/* ============================================================ */
+
+html[data-theme="dark"] .cv-preview {
+    /* Resetear variables */
+    --white: #FFFFFF;
+    --ink: #101828;
+    --muted: #667085;
+    --line: #E6E9EF;
+    --blue: #2D6CDF;
+    --blue-dark: #1B4FBA;
+    --blue-bg-soft: #E4EEFC;
+    --app-bg: #F4F6F9;
+
+    /* Fondo y borde del contenedor */
+    background: #FFFFFF;
+    border-color: #E6E9EF;
+}
+
+/* Contenido del CV */
+html[data-theme="dark"] .cv-preview-content {
+    background: #FFFFFF;
+}
+
+/* Los botones × y los iconos de eliminar siguen visibles */
+html[data-theme="dark"] .cv-preview .cv-delete-btn {
+    background: #FCE9E7;
+    color: #D0402F;
+    opacity: 0.5;
+}
+
+html[data-theme="dark"] .cv-preview .cv-delete-btn:hover {
+    background: #F8C6C0;
+    opacity: 1;
+}
+
+html[data-theme="dark"] .cv-preview .cv-skill-remove {
+    background: rgba(255, 255, 255, 0.35);
+    color: #FFFFFF;
+}
+
+html[data-theme="dark"] .cv-preview .cv-skill-remove:hover {
+    background: rgba(255, 255, 255, 0.7);
+    color: #D0402F;
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { API_BASE } from "../../lib/api";
+import { apiFetch } from "../../lib/api";
 import type { CV } from "./types";
 
 export function useCV(idCandidato: number | null) {
@@ -9,17 +9,18 @@ export function useCV(idCandidato: number | null) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const cargar = useCallback(() => {
+  const cargar = useCallback(async () => {
     if (!idCandidato) return;
     setLoading(true);
-    fetch(`${API_BASE}/api/candidato/${idCandidato}/cv`)
-      .then((r) => {
-        if (!r.ok) throw new Error("No se pudo cargar tu CV");
-        return r.json();
-      })
-      .then((data: CV) => setCv(data))
-      .catch((err: Error) => setError(err.message))
-      .finally(() => setLoading(false));
+    try {
+      const data = await apiFetch<CV>(`/api/candidato/${idCandidato}/cv`);
+      setCv(data);
+      setError(null);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   }, [idCandidato]);
 
   useEffect(() => {
@@ -28,23 +29,20 @@ export function useCV(idCandidato: number | null) {
 
   const mutar = useCallback(
     async (path: string, method: string, body?: unknown): Promise<CV> => {
-      const resp = await fetch(`${API_BASE}/api/candidato/${idCandidato}${path}`, {
+      if (!idCandidato) throw new Error("ID de candidato no disponible");
+      
+      const nuevo = await apiFetch<CV>(`/api/candidato/${idCandidato}${path}`, {
         method,
-        headers: { "Content-Type": "application/json" },
-        body: body !== undefined ? JSON.stringify(body) : undefined,
+        body,
       });
-      if (!resp.ok) {
-        const data = await resp.json().catch(() => null);
-        throw new Error(data?.detail || "No se pudo guardar el cambio");
-      }
-      const nuevo: CV = await resp.json();
+      
       setCv(nuevo);
       return nuevo;
     },
     [idCandidato]
   );
 
-    return {
+  return {
     cv,
     loading,
     error,
@@ -61,7 +59,6 @@ export function useCV(idCandidato: number | null) {
     actualizarSeccion: (idSeccion: number, contenido: string) => mutar(`/cv/secciones/${idSeccion}`, "PUT", { contenido }),
     guardarPlantilla: (plantilla: string) => mutar("/cv/plantilla", "PUT", { plantilla }),
     guardarFoto: (fotoUrl: string) => mutar("/cv/foto", "PUT", { fotoUrl }),
-    // Nuevos métodos de eliminación
     eliminarEducacion: (id: number) => mutar(`/cv/educacion/${id}`, "DELETE"),
     eliminarProyecto: (id: number) => mutar(`/cv/proyectos/${id}`, "DELETE"),
     eliminarIdioma: (id: number) => mutar(`/cv/idiomas/${id}`, "DELETE"),

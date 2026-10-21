@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  devIndicators: false, // 👈 Agregado aquí para quitar el logo "N" en desarrollo
   images: {
     domains: ['localhost'],
   },

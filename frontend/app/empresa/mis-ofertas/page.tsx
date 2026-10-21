@@ -2,9 +2,8 @@
 
 import { useEffect, useState } from "react";
 import EmpresaShell from "../EmpresaShell";
-import { getSession } from "../../lib/session";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
+import { useAuth } from "@/app/lib/auth-context";
+import { apiFetch } from "@/app/lib/api";
 
 type Oferta = {
   idOferta: number;
@@ -33,14 +32,19 @@ type ConteoEstados = {
 };
 
 export default function MisOfertasEmpresaPage() {
+  const { user } = useAuth();
+
   const [ofertas, setOfertas] = useState<Oferta[]>([]);
   const [conteo, setConteo] = useState<ConteoEstados | null>(null);
   const [crearNueva, setCrearNueva] = useState(false);
   const [tabActivo, setTabActivo] = useState<string>("todas");
+  
+  // Filtros
   const [filtroTitulo, setFiltroTitulo] = useState("");
   const [filtroModalidad, setFiltroModalidad] = useState("");
   const [filtroEstado, setFiltroEstado] = useState("");
   const [filtroArea, setFiltroArea] = useState("");
+  
   const [menuAbierto, setMenuAbierto] = useState<number | null>(null);
 
   // Estados para el modal de edición
@@ -53,22 +57,25 @@ export default function MisOfertasEmpresaPage() {
     modalidad: "",
   });
 
+  // Estado para el formulario de creación
+  const [form, setForm] = useState({
+    titulo: "",
+    descripcion: "",
+    ciudad: "Medellín",
+    modalidad: "Híbrido",
+  });
+
   useEffect(() => {
-    const session = getSession();
-    if (!session) return;
+    if (!user?.idEmpresa) return;
 
-    fetch(`${API_BASE}/api/empresa/${session.id}/ofertas`)
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data) => {
-        if (Array.isArray(data)) setOfertas(data);
-      })
-      .catch(() => {});
+    apiFetch<Oferta[]>(`/api/empresa/${user.idEmpresa}/ofertas`)
+      .then((data) => { if (Array.isArray(data)) setOfertas(data); })
+      .catch(console.error);
 
-    fetch(`${API_BASE}/api/empresa/${session.id}/ofertas/estados`)
-      .then((r) => (r.ok ? r.json() : null))
+    apiFetch<ConteoEstados>(`/api/empresa/${user.idEmpresa}/ofertas/estados`)
       .then(setConteo)
-      .catch(() => {});
-  }, []);
+      .catch(console.error);
+  }, [user]);
 
   function filtrarOfertas() {
     return ofertas.filter((oferta) => {
@@ -78,7 +85,6 @@ export default function MisOfertasEmpresaPage() {
       const coincideArea = filtroArea ? oferta.categoria === filtroArea : true;
 
       let coincideTab = true;
-      if (tabActivo === "todas") coincideTab = true;
       if (tabActivo === "activas") coincideTab = oferta.estado === "Publicada" || oferta.estado === "Activa";
       if (tabActivo === "en_revision") coincideTab = oferta.estado === "Por aprobar" || oferta.estado === "En revisión";
       if (tabActivo === "pausadas") coincideTab = oferta.estado === "Pausada";
@@ -88,95 +94,76 @@ export default function MisOfertasEmpresaPage() {
     });
   }
 
-  // Función para cambiar el estado
   async function cambiarEstado(idOferta: number, nuevoEstado: string) {
-    const resp = await fetch(`${API_BASE}/api/empresa/ofertas/${idOferta}/estado`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nuevoEstado }),
-    });
-
-    if (resp.ok) {
+    try {
+      await apiFetch(`/api/empresa/ofertas/${idOferta}/estado`, {
+        method: "PATCH",
+        body: { nuevoEstado },
+      });
       window.location.reload();
-    } else {
-      const data = await resp.json().catch(() => null);
-      alert(data?.detail || "Error al cambiar estado");
+    } catch (err: any) {
+      alert(err.message || "Error al cambiar estado");
+    } finally {
+      setMenuAbierto(null);
     }
-    setMenuAbierto(null);
   }
 
-  // Función para abrir el modal de edición
   async function abrirEdicion(idOferta: number) {
     setMenuAbierto(null);
-    const resp = await fetch(`${API_BASE}/api/ofertas/${idOferta}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .catch(() => null);
-
-    if (resp) {
-      setOfertaEditar(resp);
-      setFormEdicion({
-        titulo: resp.titulo,
-        descripcion: resp.descripcion,
-        ciudad: resp.ciudad,
-        modalidad: resp.modalidad,
-      });
-      setEditando(true);
+    try {
+      const resp = await apiFetch<OfertaEditable>(`/api/ofertas/${idOferta}`);
+      if (resp) {
+        setOfertaEditar(resp);
+        setFormEdicion({
+          titulo: resp.titulo,
+          descripcion: resp.descripcion,
+          ciudad: resp.ciudad,
+          modalidad: resp.modalidad,
+        });
+        setEditando(true);
+      }
+    } catch (err) {
+      console.error(err);
     }
   }
 
-  // Función para guardar la edición
   async function guardarEdicion(e: React.FormEvent) {
     e.preventDefault();
     if (!ofertaEditar) return;
 
-    const resp = await fetch(`${API_BASE}/api/ofertas/${ofertaEditar.idOferta}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(formEdicion),
-    });
-
-    if (resp.ok) {
+    try {
+      await apiFetch(`/api/ofertas/${ofertaEditar.idOferta}`, {
+        method: "PUT",
+        body: formEdicion,
+      });
       setEditando(false);
       window.location.reload();
-    } else {
-      const data = await resp.json().catch(() => null);
-      alert(data?.detail || "Error al actualizar oferta");
+    } catch (err: any) {
+      alert(err.message || "Error al actualizar oferta");
     }
   }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
-    const session = getSession();
-    if (!session) return;
+    if (!user?.idEmpresa) return;
 
     setCrearNueva(false);
-
-    const resp = await fetch(`${API_BASE}/api/ofertas`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        idEmpresa: session.id,
-        titulo: form.titulo,
-        descripcion: form.descripcion,
-        ciudad: form.ciudad,
-        modalidad: form.modalidad,
-      }),
-    });
-
-    if (resp.ok) {
+    try {
+      await apiFetch(`/api/ofertas`, {
+        method: "POST",
+        body: {
+          idEmpresa: user.idEmpresa,
+          titulo: form.titulo,
+          descripcion: form.descripcion,
+          ciudad: form.ciudad,
+          modalidad: form.modalidad,
+        },
+      });
       window.location.reload();
-    } else {
-      const data = await resp.json().catch(() => null);
-      alert(data?.detail || "Error al crear oferta");
+    } catch (err: any) {
+      alert(err.message || "Error al crear oferta");
     }
   }
-
-  const [form, setForm] = useState({
-    titulo: "",
-    descripcion: "",
-    ciudad: "Medellín",
-    modalidad: "Híbrido",
-  });
 
   return (
     <EmpresaShell pageTitle="Mis ofertas" pageSubtitle="Gestiona las ofertas que has publicado">
@@ -221,7 +208,6 @@ export default function MisOfertasEmpresaPage() {
           <option value="Administración">Administración</option>
           <option value="Marketing">Marketing</option>
           <option value="Ventas">Ventas</option>
-          <option value="Recursos Humanos">Recursos Humanos</option>
         </select>
         <select className="filter-select" value={filtroModalidad} onChange={(e) => setFiltroModalidad(e.target.value)}>
           <option value="">Modalidad</option>
@@ -231,7 +217,7 @@ export default function MisOfertasEmpresaPage() {
         </select>
         <select className="filter-select" value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)}>
           <option value="">Estado</option>
-          <option value="Activa">Activa</option>
+          <option value="Publicada">Publicada</option>
           <option value="Pausada">Pausada</option>
           <option value="Cerrada">Cerrada</option>
         </select>
@@ -280,9 +266,10 @@ export default function MisOfertasEmpresaPage() {
               <option value="Remoto">Remoto</option>
             </select>
           </div>
-          <button type="submit" className="btn-empresa-solid" style={{ marginTop: 12 }}>
-            Crear oferta
-          </button>
+          <div style={{ marginTop: 12, display: "flex", gap: 10 }}>
+            <button type="submit" className="btn-empresa-solid">Crear oferta</button>
+            <button type="button" className="btn-empresa-outline" onClick={() => setCrearNueva(false)}>Cancelar</button>
+          </div>
         </form>
       )}
 
@@ -299,70 +286,70 @@ export default function MisOfertasEmpresaPage() {
         </div>
         <div className="misofertas-body">
           {filtrarOfertas().length === 0 ? (
-            <p style={{ fontSize: 14, color: "#667085", padding: 16 }}>No hay ofertas activas.</p>
+            <p style={{ fontSize: 14, color: "#667085", padding: 16 }}>No hay ofertas para mostrar.</p>
           ) : (
-            <>
-              {filtrarOfertas().map((oferta) => (
-                <div className="misofertas-row" key={oferta.idOferta} style={{ display: "grid", gridTemplateColumns: "2.3fr 0.9fr 1.2fr 1fr 1fr 1fr 0.6fr" }}>
-                  <div className="misofertas-offer-cell" style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
-                    <div className="misofertas-avatar">DM</div>
-                    <div style={{ minWidth: 0 }}>
-                      <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: "#101828" }}>{oferta.titulo}</h4>
-                      <p style={{ margin: "2px 0 8px", fontSize: 12.5, color: "#667085" }}>{oferta.empresa}</p>
-                      <span className="tag tag-blue-soft">Sin experiencia</span>
-                      <span className="tag tag-blue-soft" style={{ marginLeft: 5 }}>Publicado por ti</span>
-                    </div>
-                  </div>
-                  <div className="misofertas-area">{oferta.categoria || "Tecnología"}</div>
-                  <div className="misofertas-modalidad">
-                    <div className="misofertas-modalidad-top">
-                      <svg viewBox="0 0 20 20"><rect x="3.5" y="4" width="13" height="12" rx="1.5"/><path d="M3.5 8h13M7 2.5v3M13 2.5v3"/></svg>
-                      <span>{oferta.modalidad}</span>
-                    </div>
-                    <div className="misofertas-modalidad-sub">{oferta.ciudad} - Colombia</div>
-                  </div>
-                  <div className="misofertas-postulaciones">28</div>
-                  <div className="misofertas-status-pill">{oferta.estado || "Publicada"}</div>
-                  <div className="misofertas-publicada">18/06/2026</div>
-                  <div className="misofertas-actions-btn" style={{ position: "relative" }}>
-                    <button
-                      onClick={() => setMenuAbierto(menuAbierto === oferta.idOferta ? null : oferta.idOferta)}
-                      style={{ background: "none", border: "none", fontSize: 18, color: "#667085", cursor: "pointer" }}
-                    >
-                      ...
-                    </button>
-                    {menuAbierto === oferta.idOferta && (
-                      <div style={{ position: "absolute", right: 0, bottom: "100%", marginBottom: 8, background: "#fff", border: "1px solid #E6E9EF", borderRadius: 8, boxShadow: "0 4px 12px rgba(0,0,0,0.1)", padding: 8, zIndex: 10, width: 150 }}>
-                        <button
-                          onClick={() => abrirEdicion(oferta.idOferta)}
-                          style={{ display: "block", width: "100%", background: "none", border: "none", padding: "8px 12px", fontSize: 13, fontWeight: 600, color: "#101828", cursor: "pointer" }}
-                        >
-                          Editar
-                        </button>
-                        <button
-                          onClick={() => cambiarEstado(oferta.idOferta, "Pausada")}
-                          style={{ display: "block", width: "100%", background: "none", border: "none", padding: "8px 12px", fontSize: 13, fontWeight: 600, color: "#101828", cursor: "pointer" }}
-                        >
-                          Pausar
-                        </button>
-                        <button
-                          onClick={() => cambiarEstado(oferta.idOferta, "Cerrada")}
-                          style={{ display: "block", width: "100%", background: "none", border: "none", padding: "8px 12px", fontSize: 13, fontWeight: 600, color: "#D0402F", cursor: "pointer" }}
-                        >
-                          Cerrar
-                        </button>
-                        <button
-                          onClick={() => cambiarEstado(oferta.idOferta, "Publicada")}
-                          style={{ display: "block", width: "100%", background: "none", border: "none", padding: "8px 12px", fontSize: 13, fontWeight: 600, color: "#2FA360", cursor: "pointer" }}
-                        >
-                          Publicar
-                        </button>
-                      </div>
-                    )}
+            filtrarOfertas().map((oferta) => (
+              <div className="misofertas-row" key={oferta.idOferta} style={{ display: "grid", gridTemplateColumns: "2.3fr 0.9fr 1.2fr 1fr 1fr 1fr 0.6fr" }}>
+                <div className="misofertas-offer-cell" style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
+                  <div className="misofertas-avatar">{oferta.empresa ? oferta.empresa.substring(0, 2).toUpperCase() : "EM"}</div>
+                  <div style={{ minWidth: 0 }}>
+                    <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: "#101828" }}>{oferta.titulo}</h4>
+                    <p style={{ margin: "2px 0 8px", fontSize: 12.5, color: "#667085" }}>{oferta.empresa}</p>
                   </div>
                 </div>
-              ))}
-            </>
+                <div className="misofertas-area">{oferta.categoria || "General"}</div>
+                <div className="misofertas-modalidad">
+                  <div className="misofertas-modalidad-top">
+                    <svg viewBox="0 0 20 20"><rect x="3.5" y="4" width="13" height="12" rx="1.5"/><path d="M3.5 8h13M7 2.5v3M13 2.5v3"/></svg>
+                    <span>{oferta.modalidad}</span>
+                  </div>
+                  <div className="misofertas-modalidad-sub">{oferta.ciudad}</div>
+                </div>
+                <div className="misofertas-postulaciones">0</div>
+                <div className="misofertas-status-pill">
+                  <span className={"status-pill " + (oferta.estado === "Publicada" || oferta.estado === "Activa" ? "in-progress" : "closed")}>
+                    {oferta.estado}
+                  </span>
+                </div>
+                <div className="misofertas-publicada">Reciente</div>
+                <div className="misofertas-actions-btn" style={{ position: "relative" }}>
+                  <button
+                    onClick={() => setMenuAbierto(menuAbierto === oferta.idOferta ? null : oferta.idOferta)}
+                    style={{ background: "none", border: "none", fontSize: 18, color: "#667085", cursor: "pointer" }}
+                  >
+                    ...
+                  </button>
+                  {menuAbierto === oferta.idOferta && (
+                    <div style={{ position: "absolute", right: 0, bottom: "100%", marginBottom: 8, background: "#fff", border: "1px solid #E6E9EF", borderRadius: 8, boxShadow: "0 4px 12px rgba(0,0,0,0.1)", padding: 8, zIndex: 10, width: 150 }}>
+                      <button
+                        onClick={() => abrirEdicion(oferta.idOferta)}
+                        style={{ display: "block", width: "100%", background: "none", border: "none", padding: "8px 12px", fontSize: 13, fontWeight: 600, color: "#101828", cursor: "pointer" }}
+                      >
+                        Editar
+                      </button>
+                      <button
+                        onClick={() => cambiarEstado(oferta.idOferta, "Pausada")}
+                        style={{ display: "block", width: "100%", background: "none", border: "none", padding: "8px 12px", fontSize: 13, fontWeight: 600, color: "#101828", cursor: "pointer" }}
+                      >
+                        Pausar
+                      </button>
+                      <button
+                        onClick={() => cambiarEstado(oferta.idOferta, "Cerrada")}
+                        style={{ display: "block", width: "100%", background: "none", border: "none", padding: "8px 12px", fontSize: 13, fontWeight: 600, color: "#D0402F", cursor: "pointer" }}
+                      >
+                        Cerrar
+                      </button>
+                      <button
+                        onClick={() => cambiarEstado(oferta.idOferta, "Publicada")}
+                        style={{ display: "block", width: "100%", background: "none", border: "none", padding: "8px 12px", fontSize: 13, fontWeight: 600, color: "#2FA360", cursor: "pointer" }}
+                      >
+                        Publicar
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))
           )}
         </div>
       </div>
@@ -417,9 +404,14 @@ export default function MisOfertasEmpresaPage() {
                   <option value="Remoto">Remoto</option>
                 </select>
               </div>
-              <button type="submit" className="btn-empresa-solid" style={{ marginTop: 12 }}>
-                Guardar cambios
-              </button>
+              <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+                <button type="submit" className="btn-empresa-solid">
+                  Guardar cambios
+                </button>
+                <button type="button" className="btn-empresa-outline" onClick={() => setEditando(false)}>
+                  Cancelar
+                </button>
+              </div>
             </form>
           </div>
         </div>

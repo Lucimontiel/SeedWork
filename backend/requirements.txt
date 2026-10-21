@@ -1,6 +1,28 @@
 fastapi
-uvicorn
+uvicorn[standard]
 sqlalchemy
 pymysql
-bcrypt
+python-dotenv
+pydantic[email]
 email-validator
+python-multipart
+
+# --- Seguridad / Hashing ---
+passlib[argon2]
+argon2-cffi
+bcrypt
+
+# --- JWT ---
+python-jose[cryptography]
+resend
+cryptography
+
+# --- 2FA (Autenticación en dos pasos) ---
+pyotp
+qrcode[pil]
+
+# --- Rate Limiting ---
+slowapi
+
+# --- Inteligencia Artificial (Simulador) ---
+groq

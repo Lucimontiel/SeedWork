@@ -1,10 +1,5 @@
-import Script from "next/script";
+import "./estilo-empresa.css";
 
 export default function EmpresaLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <>
-      {children}
-      <Script src="/empresa-script.js" strategy="afterInteractive" />
-    </>
-  );
+  return <div className="scope-empresa">{children}</div>;
 }

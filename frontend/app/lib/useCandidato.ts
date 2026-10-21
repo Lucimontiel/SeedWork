@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getSession } from "./session";
-import { API_BASE } from "./api";
+import { useAuth } from "./auth-context";
+import { apiFetch } from "./api";
 
 export interface CandidatoData {
   idCandidato: number;
@@ -18,24 +18,33 @@ export interface CandidatoData {
 
 export function useCandidato() {
   const router = useRouter();
+  const { user, cargando: cargandoAuth } = useAuth();
   const [candidato, setCandidato] = useState<CandidatoData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const session = getSession();
-    if (!session || session.tipo !== "candidato") {
-      router.replace("/login");
+  const recargar = useCallback(async () => {
+    // Si no es un candidato, no hacemos nada (el shell protegerá la ruta)
+    if (!user || user.tipo !== "candidato" || !user.idCandidato) {
+      if (!cargandoAuth) setLoading(false);
       return;
     }
-    fetch(`${API_BASE}/api/candidato/${session.id}`)
-      .then((r) => {
-        if (!r.ok) throw new Error("No se pudo cargar el candidato");
-        return r.json();
-      })
-      .then((data: CandidatoData) => setCandidato(data))
-      .catch(() => router.replace("/login"))
-      .finally(() => setLoading(false));
-  }, [router]);
 
-  return { candidato, loading };
+    setLoading(true);
+    try {
+      const data = await apiFetch<CandidatoData>(`/api/candidato/${user.idCandidato}`);
+      setCandidato(data);
+    } catch (err) {
+      console.error("Error al cargar candidato:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [user, cargandoAuth]);
+
+  useEffect(() => {
+    if (!cargandoAuth) {
+      recargar();
+    }
+  }, [cargandoAuth, recargar]);
+
+  return { candidato, loading, recargar };
 }

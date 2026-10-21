@@ -1,6 +1,6 @@
 """Schemas Pydantic: la 'forma' del JSON que entra y sale de la API."""
 from pydantic import BaseModel, EmailStr, ConfigDict
-from typing import Optional, List
+from typing import Optional, List, Literal
 from datetime import datetime, date
 
 
@@ -137,7 +137,7 @@ class SeccionCVUpdateIn(BaseModel):
 
 # --- Actualizaciones del CV ---
 class HabilidadesIn(BaseModel):
-    habilidades: List[str]   # reemplaza la lista completa, igual que el form original (separadas por coma)
+    habilidades: List[str]
 
 
 class DatosPersonalesIn(BaseModel):
@@ -154,11 +154,11 @@ class SobreMiIn(BaseModel):
 
 
 class PlantillaIn(BaseModel):
-    plantilla: str  # "clasico" | "moderno" | "elegante"
+    plantilla: str
 
 
 class FotoIn(BaseModel):
-    fotoUrl: str  # data URI base64, igual que el FileReader original
+    fotoUrl: str
 
 
 # --- CV Completo ---
@@ -219,18 +219,13 @@ class PostulacionOut(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-# --- Perfil y Preferencias ---
-# NOTA: estos 3 se completaron para que el Perfil del candidato funcione
-# de punta a punta (coinciden con lo que usePerfil.ts pide y con lo que
-# _armar_perfil()/actualizar_preferencias() en main.py usan). Se
-# conservan los campos que ya ten\u00edas (idModalidad/idDisponibilidad,
-# modalidad/disponibilidad) por si algo m\u00e1s los sigue usando.
 
+# --- Perfil y Preferencias ---
 class PerfilDatosIn(BaseModel):
     nombres: Optional[str] = None
     apellidos: Optional[str] = None
     telefono: Optional[str] = None
-    ciudad: Optional[str] = None  # Nombre del municipio
+    ciudad: Optional[str] = None
     tituloProfesional: Optional[str] = None
     correo: Optional[EmailStr] = None
     fechaNacimiento: Optional[date] = None
@@ -241,11 +236,11 @@ class PreferenciasIn(BaseModel):
     idDisponibilidad: Optional[int] = None
     areaInteres: Optional[str] = None
     salarioEsperado: Optional[str] = None
-    tipoContratoPreferido: Optional[str] = None  # nombre en catálogo TipoContrato
-    jornadaPreferida: Optional[str] = None       # nombre en catálogo JornadaLaboral
+    tipoContratoPreferido: Optional[str] = None
+    jornadaPreferida: Optional[str] = None
     movilidad: Optional[str] = None
-    modalidadPreferida: Optional[str] = None     # nombre en catálogo Modalidad
-    disponibilidad: Optional[str] = None         # nombre en catálogo Disponibilidad
+    modalidadPreferida: Optional[str] = None
+    disponibilidad: Optional[str] = None
 
 
 class PerfilOut(BaseModel):
@@ -272,14 +267,65 @@ class PerfilOut(BaseModel):
     educacion: List[EducacionOut] = []
     experiencia: List[ProyectoOut] = []
     idiomas: List[IdiomaOut] = []
-    # --- Campos extra para que esta misma respuesta también sirva a Mi CV ---
-    # (usePerfil.ts y useCV.ts comparten las rutas /cv/foto, /cv/sobre-mi,
-    # /cv/habilidades, /cv/educacion, /cv/idiomas, /cv/proyectos porque son
-    # literalmente los mismos datos del candidato; esta respuesta trae todo
-    # lo que ambos hooks necesitan para no chocar entre sí)
     plantilla: str = "clasico"
-    proyectos: List[ProyectoOut] = []      # mismo contenido que "experiencia"
+    proyectos: List[ProyectoOut] = []
     referencias: List[ReferenciaOut] = []
     secciones: List[SeccionCVOut] = []
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class CambiarContrasenaIn(BaseModel):
+    idUsuario: int
+    contrasenaActual: str
+    contrasenaNueva: str
+
+
+# ============================================================
+# NUEVOS SCHEMAS DE AUTENTICACIÓN (con tokens y 2FA)
+# ============================================================
+
+class LoginTokenIn(BaseModel):
+    """Login que devuelve tokens."""
+    correo: EmailStr
+    contrasena: str
+    tipo: Literal["candidato", "empresa"]
+
+
+class AdminLoginIn(BaseModel):
+    """Login de administrador (paso 1: correo + contraseña)."""
+    correo: EmailStr
+    contrasena: str
+
+
+class AdminLogin2FAIn(BaseModel):
+    """Login de administrador (paso 2: código TOTP o de respaldo)."""
+    correo: EmailStr
+    codigo: str
+
+
+class TokenOut(BaseModel):
+    """Respuesta con el access token."""
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int  # segundos
+
+
+class MeOut(BaseModel):
+    """Datos del usuario autenticado actual."""
+    idUsuario: int
+    correo: str
+    rol: str
+    tipo: str  # "candidato" | "empresa" | "administrador"
+    idCandidato: Optional[int] = None
+    idEmpresa: Optional[int] = None
+    idAdministrador: Optional[int] = None
+    totpHabilitado: bool = False
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class Setup2FAOut(BaseModel):
+    """Respuesta al iniciar la configuración de 2FA."""
+    secreto: str
+    qr_uri: str

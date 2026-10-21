@@ -1,188 +1,349 @@
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+/* ==========================================================
+   SEEDWORK — Estilos de Autenticación (Login, Registro, Admin)
+   ========================================================== */
 
-body {
-  font-family: "Inter", sans-serif;
-  background-color: #0d6efd;
+.auth-scope {
+  --sw-blue: #0d47c9;
+  --sw-blue-dark: #073593;
+  --sw-accent: #60A5FA;
+  --sw-text-dark: #1e293b;
+  --sw-text-muted: #64748b;
+  --sw-bg-white: #ffffff;
+  --sw-border: #e2e8f0;
+  --sw-error: #ef4444;
+  --sw-success: #10b981;
+
+  position: fixed !important; /* 🔥 Ancla el fondo a la pantalla completa */
+  inset: 0 !important;        /* 🔥 Top, Right, Bottom, Left a 0 */
+  width: 100% !important;
+  height: 100% !important;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
   align-items: center;
-  min-height: 100vh;
-  margin: 0;
-  padding: 20px;
+  overflow-y: auto; /* 🔥 Permite scroll interno si el formulario es largo */
+  overflow-x: hidden;
+  padding: 40px 20px;
+  box-sizing: border-box;
+  
+  background: 
+    radial-gradient(ellipse at 10% 40%, rgba(54, 154, 255, 0.4), transparent 40%),
+    radial-gradient(ellipse at 90% 20%, rgba(91, 85, 255, 0.4), transparent 40%),
+    linear-gradient(135deg, var(--sw-blue) 0%, var(--sw-blue-dark) 100%) !important;
 }
 
-/* Contenedor principal del login */
+.auth-scope::before,
+.auth-scope::after {
+  content: "";
+  position: fixed;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+  filter: blur(40px);
+}
+.auth-scope::before {
+  width: 400px; height: 400px;
+  top: -100px; left: -100px;
+  background: rgba(96, 165, 250, 0.15);
+}
+.auth-scope::after {
+  width: 500px; height: 500px;
+  bottom: -150px; right: -150px;
+  background: rgba(167, 139, 250, 0.15);
+}
+
 .login-wrapper {
-  width: 100%;
-  max-width: 400px;
-  text-align: center;
+  position: fixed !important; /* Ocupa toda la ventana */
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100dvh !important; /* 100dvh es más preciso en navegadores modernos */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 20px;
+  box-sizing: border-box;
+  
+  /* Permite el scroll si la pantalla es pequeña */
+  overflow-y: auto; 
+  overflow-x: hidden;
+
+  /* 🌟 EL TRUCO PARA OCULTAR LA BARRA DE SCROLL */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE y Edge antiguos */
+  
+  /* El fondo azul idéntico a la landing */
+  background: 
+    radial-gradient(ellipse at 10% 40%, rgba(54, 154, 255, 0.6), transparent 40%),
+    radial-gradient(ellipse at 90% 20%, rgba(91, 85, 255, 0.5), transparent 40%),
+    linear-gradient(135deg, #0d47c9 0%, #073593 100%) !important;
+  z-index: 9999;
+}
+
+
+/* Cabecera con el Logo y el Texto juntos */
+.sw-brand-header {
+  display: flex;
+  flex-direction: row; /* 👈 Cambia de columna a fila */
+  align-items: center; /* Los alinea verticalmente al centro */
+  justify-content: center;
+  gap: 12px; /* Espacio entre el logo y el texto */
+  margin-bottom: 24px;
+  position: relative;
+  z-index: 10;
+}
+
+/* Tamaño del logo pequeño */
+.sw-logo-icon {
+  width: 40px !important; /* 👈 Ajusta este valor para hacerlo más grande o pequeño */
+  height: 40px !important;
+  object-fit: contain;
+}
+
+/* Estilo del texto SEEDWORK */
+.sw-brand-name {
+  font-family: "Poppins", "Inter", sans-serif;
+  font-size: 2rem; /* Tamaño del texto */
+  font-weight: 800;
+  color: #fff;
+  margin: 0;
+  letter-spacing: 0.05em;
 }
 
 .login-wrapper h2 {
   color: #fff;
-  font-size: 28px;
+  font-size: 22px;
+  font-weight: 600;
   margin-bottom: 8px;
-  font-weight: 700;
-}
-
-.login-wrapper .intro {
-  color: #e0e8ff;
-  font-size: 15px;
-  margin-bottom: 25px;
-  line-height: 1.4;
-}
-
-/* Tarjeta del login */
-.container {
-  background: #fff;
-  color: #000;
-  padding: 35px 30px 30px;
-  border-radius: 16px;
-  width: 100%;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
   text-align: center;
 }
 
-/* Tabs */
+.login-wrapper .intro {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 15px;
+  margin-bottom: 24px;
+  line-height: 1.5;
+  text-align: center;
+  max-width: 340px;
+}
+
+.container {
+  width: 100%;
+  background: var(--sw-bg-white);
+  padding: 32px;
+  border-radius: 24px;
+  box-shadow: 0 20px 40px -10px rgba(0, 20, 80, 0.3);
+  text-align: center;
+}
+
 .tabs {
   display: flex;
-  justify-content: space-around;
-  margin-bottom: 25px;
-  border-bottom: 2px solid #e9ecef;
-  gap: 10px;
+  background: #f1f5f9;
+  padding: 6px;
+  border-radius: 12px;
+  margin-bottom: 24px;
 }
 
 .tabs button {
-  background: transparent;
-  border: none;
-  font-weight: 600;
-  font-size: 15px;
-  cursor: pointer;
-  padding: 10px 15px;
-  border-bottom: 3px solid transparent;
-  color: #6c757d;
-  transition: all 0.3s ease;
   flex: 1;
+  padding: 10px 15px;
+  border: none;
+  background: transparent;
+  color: var(--sw-text-muted);
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-.tabs button:hover {
-  color: #0d6efd;
+.tabs button:hover { color: var(--sw-text-dark); }
+
+.tabs button.active {
+  background: #fff;
+  color: var(--sw-blue);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
-.tabs .active {
-  color: #0d6efd;
-  border-bottom: 3px solid #0d6efd;
-}
-
-/* Formulario */
 form {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
+  text-align: left;
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.input-group label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sw-text-dark);
 }
 
 form input,
 form select {
   width: 100%;
-  padding: 12px 14px;
-  border-radius: 10px;
-  border: 1.5px solid #e0e0e0;
+  padding: 14px 16px;
+  border: 1.5px solid var(--sw-border);
+  border-radius: 12px;
+  background: #f8fafc;
+  color: var(--sw-text-dark);
   font-size: 15px;
-  transition: border-color 0.3s ease;
-  background: #f8f9fa;
+  transition: all 0.2s ease;
 }
 
 form input:focus,
 form select:focus {
   outline: none;
-  border-color: #0d6efd;
+  border-color: var(--sw-blue);
   background: #fff;
+  box-shadow: 0 0 0 4px rgba(13, 71, 201, 0.1);
 }
 
-form .forgot-password {
-  display: block;
-  text-align: right;
+.forgot-password {
+  align-self: flex-end;
+  color: var(--sw-blue);
   font-size: 13px;
-  color: #0d6efd;
+  font-weight: 500;
   text-decoration: none;
-  margin: -4px 0 2px;
+  margin-top: -8px;
 }
+.forgot-password:hover { text-decoration: underline; }
 
-form .forgot-password:hover {
-  text-decoration: underline;
-}
-
-form button {
-  background: #0d6efd;
-  color: #fff;
-  border: none;
-  padding: 14px;
-  border-radius: 50px;
+.btn-submit {
   width: 100%;
-  cursor: pointer;
-  font-weight: 600;
+  padding: 16px;
+  border: none;
+  border-radius: 999px;
+  background: var(--sw-blue);
+  color: #fff;
   font-size: 16px;
-  transition: background 0.3s ease;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
   margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
-form button:hover {
-  background: #0b5ed7;
+.btn-submit:hover:not(:disabled) {
+  background: var(--sw-blue-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(13, 71, 201, 0.25);
 }
+.btn-submit:disabled { opacity: 0.6; cursor: not-allowed; }
 
-/* Checkbox */
+.btn-secondary {
+  background: transparent;
+  color: var(--sw-text-muted);
+  border: none;
+  padding: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-top: 12px;
+  width: 100%;
+}
+.btn-secondary:hover { color: var(--sw-text-dark); text-decoration: underline; }
+
 .checkbox-group {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 14px;
-  color: #555;
-  text-align: left;
   margin: 4px 0;
-}
-
-.checkbox-group input[type="checkbox"] {
-  width: 18px;
-  height: 18px;
-  margin: 0;
-  cursor: pointer;
-  flex-shrink: 0;
-  accent-color: #0d6efd;
-}
-
-/* Links */
-p {
+  color: var(--sw-text-muted);
   font-size: 14px;
-  margin-top: 18px;
-  color: #555;
+  text-align: left;
+}
+.checkbox-group input[type="checkbox"] {
+  width: 18px; height: 18px;
+  accent-color: var(--sw-blue);
+  cursor: pointer; margin: 0;
 }
 
-p a {
-  color: #0d6efd;
-  text-decoration: none;
-  font-weight: 600;
+p.footer-link {
+  margin-top: 20px;
+  font-size: 14px;
+  color: var(--sw-text-muted);
+  text-align: center;
+}
+p.footer-link a { color: var(--sw-blue); font-weight: 600; text-decoration: none; }
+p.footer-link a:hover { text-decoration: underline; }
+
+.alert-error {
+  background: #fef2f2;
+  color: var(--sw-error);
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  margin-bottom: 16px;
+  text-align: center;
+  border: 1px solid #fecaca;
+}
+.alert-success {
+  background: #ecfdf5;
+  color: var(--sw-success);
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  margin-bottom: 16px;
+  text-align: center;
+  border: 1px solid #a7f3d0;
 }
 
-p a:hover {
-  text-decoration: underline;
-}
-
-/* Responsive */
 @media (max-width: 480px) {
-  .container {
-    padding: 25px 18px 20px;
-  }
+  .auth-scope { padding: 20px 16px; }
+  .container { padding: 24px 20px; }
+  .sw-brand-name { font-size: 24px; }
+}
 
-  .login-wrapper h2 {
-    font-size: 24px;
-  }
+/* ==========================================================
+   MOSTRAR/OCULTAR CONTRASEÑA
+   ========================================================== */
+.input-group-password {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
 
-  .tabs button {
-    font-size: 14px;
-    padding: 8px 10px;
+.input-group-password input {
+  width: 100%;
+  padding-right: 45px;
+}
+
+.btn-toggle-password {
+  position: absolute;
+  right: 12px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--sw-text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  transition: color 0.2s ease;
+}
+
+.btn-toggle-password:hover {
+  color: var(--sw-blue);
+}
+
+/* Fila de 2 columnas para Nombre y Correo */
+.form-row-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+/* En celulares, se vuelve a poner en 1 columna para que no se vea apretado */
+@media (max-width: 600px) {
+  .form-row-2 {
+    grid-template-columns: 1fr;
   }
 }

@@ -5,13 +5,6 @@ import CandidatoShell from "../CandidatoShell";
 import { useCandidato } from "../../lib/useCandidato";
 import { usePerfil, inferirNivelIdioma } from "./usePerfil";
 
-// ---------------------------------------------------------------------------
-// Ubicación: la ciudad se elige de una lista y el texto completo
-// ("Ciudad, Departamento - Colombia") se arma automáticamente, para que
-// el formato guardado en la BD sea siempre consistente.
-// Bogotá es un caso especial: "Bogotá, D.C. - Colombia" (no lleva
-// "Cundinamarca").
-// ---------------------------------------------------------------------------
 const CIUDADES_CO: { label: string; value: string }[] = [
   { label: "Bogotá", value: "Bogotá, D.C. - Colombia" },
   { label: "Medellín", value: "Medellín, Antioquia - Colombia" },
@@ -51,7 +44,17 @@ function formatearTelefonoCO(valorActual: string, nuevo: string): string {
   return `+57 ${[p1, p2, p3].filter(Boolean).join(" ")}`.trim();
 }
 
-// --- Funciones para formatear fecha DD/MM/AAAA ---
+// Asegura que el teléfono se muestre con el prefijo +57 incluso en modo lectura
+function telefonoConPrefijo(tel: string | null | undefined): string {
+  if (!tel || !tel.trim()) return "+57 —";
+  const digitos = tel.replace(/\D/g, "").replace(/^57/, "").slice(0, 10);
+  if (!digitos) return "+57 —";
+  const p1 = digitos.slice(0, 3);
+  const p2 = digitos.slice(3, 6);
+  const p3 = digitos.slice(6, 10);
+  return `+57 ${[p1, p2, p3].filter(Boolean).join(" ")}`.trim();
+}
+
 function formatearFechaDDMMAAAA(fechaISO: string | null | undefined): string {
   if (!fechaISO) return "";
   const [anio, mes, dia] = fechaISO.split("-");
@@ -59,7 +62,6 @@ function formatearFechaDDMMAAAA(fechaISO: string | null | undefined): string {
 }
 
 function parsearFechaDDMMAAAA(fechaStr: string): string {
-  // Convierte DD/MM/AAAA a YYYY-MM-DD para el backend
   const partes = fechaStr.split("/");
   if (partes.length !== 3) return "";
   const [dia, mes, anio] = partes;
@@ -69,7 +71,6 @@ function parsearFechaDDMMAAAA(fechaStr: string): string {
 
 const NIVELES_IDIOMA = ["Nativo", "C2", "C1 (Avanzado)", "B2", "B1 (Intermedio)", "A2", "A1 (Básico)"];
 
-// Redimensiona y comprime la imagen antes de convertirla a base64
 function comprimirImagen(file: File, maxLado = 400, calidad = 0.8): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -106,6 +107,8 @@ export default function PerfilCandidatoPage() {
     perfil,
     loading,
     error,
+    recargar,
+    aplicarCambiosLocales,
     guardarDatos,
     guardarPreferencias,
     guardarSobreMi,
@@ -128,6 +131,7 @@ export default function PerfilCandidatoPage() {
   const [ciudadManual, setCiudadManual] = useState("");
   const [skillsDraft, setSkillsDraft] = useState<string[]>([]);
   const [nuevaSkill, setNuevaSkill] = useState("");
+  const [fechaDisplay, setFechaDisplay] = useState("");
 
   const [showEduForm, setShowEduForm] = useState(false);
   const [eduForm, setEduForm] = useState({ titulo: "", institucion: "", anio: "" });
@@ -159,6 +163,8 @@ export default function PerfilCandidatoPage() {
       modalidadPreferida: perfil.modalidadPreferida || "Presencial",
       disponibilidad: perfil.disponibilidad || "Inmediata",
     });
+    setFechaDisplay(perfil.fechaNacimiento ? formatearFechaDDMMAAAA(perfil.fechaNacimiento) : "");
+
     const match = CIUDADES_CO.find((c) => c.value === perfil.ciudad);
     if (match) {
       setUbicacionSel(match.value);
@@ -175,41 +181,87 @@ export default function PerfilCandidatoPage() {
     setIsEditing(false);
     setDraft(null);
     setNuevaSkill("");
+    setFechaDisplay("");
   }
 
   async function guardarTodo() {
     if (!draft) return;
     setGuardando(true);
-    try {
-      const ciudadFinal = ubicacionSel === "__otra__" ? ciudadManual.trim() : ubicacionSel;
-      await guardarDatos({
-        nombres: draft.nombres,
-        apellidos: draft.apellidos,
-        tituloProfesional: draft.tituloProfesional,
-        correo: draft.correo,
-        ciudad: ciudadFinal,
-        telefono: draft.telefono,
-        fechaNacimiento: draft.fechaNacimiento, // ya está en YYYY-MM-DD
-      });
-      await guardarSobreMi(draft.about);
-      await guardarPreferencias({
-        areaInteres: draft.areaInteres,
-        salarioEsperado: draft.salarioEsperado,
-        tipoContratoPreferido: draft.tipoContratoPreferido,
-        jornadaPreferida: draft.jornadaPreferida,
-        movilidad: draft.movilidad,
-        modalidadPreferida: draft.modalidadPreferida,
-        disponibilidad: draft.disponibilidad,
-      });
-      await guardarHabilidades(skillsDraft);
-      mostrarToast("Perfil actualizado correctamente");
-      setIsEditing(false);
-      setDraft(null);
-    } catch (err: any) {
-      mostrarToast(err.message || "No se pudo guardar el perfil");
-    } finally {
-      setGuardando(false);
+
+    // Guardamos referencias locales para no depender del estado tras limpiarlo
+    const draftLocal = { ...draft };
+    const skillsLocal = [...skillsDraft];
+
+    let ciudadFinal = ubicacionSel === "__otra__" ? ciudadManual.trim() : ubicacionSel;
+    ciudadFinal = ciudadFinal.split(",")[0].trim();
+
+    const body: any = {};
+    if (draftLocal.nombres?.trim()) body.nombres = draftLocal.nombres.trim();
+    if (draftLocal.apellidos?.trim()) body.apellidos = draftLocal.apellidos.trim();
+    if (draftLocal.tituloProfesional?.trim()) body.tituloProfesional = draftLocal.tituloProfesional.trim();
+    if (draftLocal.correo?.trim()) body.correo = draftLocal.correo.trim();
+    if (ciudadFinal) body.ciudad = ciudadFinal;
+    if (draftLocal.telefono?.trim()) body.telefono = draftLocal.telefono.trim();
+    if (draftLocal.fechaNacimiento && /^\d{4}-\d{2}-\d{2}$/.test(draftLocal.fechaNacimiento)) {
+      body.fechaNacimiento = draftLocal.fechaNacimiento;
     }
+
+    // 🚀 ACTUALIZACIÓN OPTIMISTA: aplicamos los cambios localmente al instante
+    aplicarCambiosLocales({
+      nombres: draftLocal.nombres?.trim() || perfil?.nombres || "",
+      apellidos: draftLocal.apellidos?.trim() || perfil?.apellidos || "",
+      tituloProfesional: draftLocal.tituloProfesional?.trim() || perfil?.tituloProfesional || null,
+      correo: draftLocal.correo?.trim() || perfil?.correo || "",
+      ciudad: ciudadFinal || perfil?.ciudad || null,
+      telefono: draftLocal.telefono?.trim() || perfil?.telefono || null,
+      fechaNacimiento: draftLocal.fechaNacimiento || perfil?.fechaNacimiento || null,
+      about: draftLocal.about || perfil?.about || null,
+      areaInteres: draftLocal.areaInteres || perfil?.areaInteres || null,
+      salarioEsperado: draftLocal.salarioEsperado || perfil?.salarioEsperado || null,
+      tipoContratoPreferido: draftLocal.tipoContratoPreferido || perfil?.tipoContratoPreferido || null,
+      jornadaPreferida: draftLocal.jornadaPreferida || perfil?.jornadaPreferida || null,
+      movilidad: draftLocal.movilidad || perfil?.movilidad || null,
+      modalidadPreferida: draftLocal.modalidadPreferida || perfil?.modalidadPreferida || null,
+      disponibilidad: draftLocal.disponibilidad || perfil?.disponibilidad || null,
+      habilidades: skillsLocal.map((n, i) => ({ idHabilidad: -(i + 1), nombre: n })),
+    });
+
+    // 🚀 Salimos de edición y mostramos el toast INMEDIATAMENTE
+    setIsEditing(false);
+    setDraft(null);
+    setFechaDisplay("");
+    mostrarToast("Perfil actualizado correctamente");
+
+    // 🚀 Disparamos las 4 peticiones EN PARALELO (no secuenciales)
+    const resultados = await Promise.allSettled([
+      guardarDatos(body),
+      guardarSobreMi(draftLocal.about || ""),
+      guardarPreferencias({
+        areaInteres: draftLocal.areaInteres,
+        salarioEsperado: draftLocal.salarioEsperado,
+        tipoContratoPreferido: draftLocal.tipoContratoPreferido,
+        jornadaPreferida: draftLocal.jornadaPreferida,
+        movilidad: draftLocal.movilidad,
+        modalidadPreferida: draftLocal.modalidadPreferida,
+        disponibilidad: draftLocal.disponibilidad,
+      }),
+      guardarHabilidades(skillsLocal),
+    ]);
+
+    // Revisamos si alguna falló
+    const errores: string[] = [];
+    const nombres = ["Datos", "Sobre mí", "Preferencias", "Habilidades"];
+    resultados.forEach((r, i) => {
+      if (r.status === "rejected") errores.push(nombres[i]);
+    });
+
+    if (errores.length > 0) {
+      // Si algo falló, revertimos recargando del servidor
+      mostrarToast("No se pudo guardar: " + errores.join(", "));
+      recargar?.();
+    }
+
+    setGuardando(false);
   }
 
   function agregarSkillLocal() {
@@ -294,10 +346,8 @@ export default function PerfilCandidatoPage() {
   const nombreCompleto = perfil ? `${perfil.nombres} ${perfil.apellidos}` : "Candidato";
 
   useEffect(() => {
-    if (isEditing && perfil) {
-      if (!draft) {
-        iniciarEdicion();
-      }
+    if (isEditing && perfil && !draft) {
+      iniciarEdicion();
     }
   }, [perfil, isEditing]);
 
@@ -308,24 +358,12 @@ export default function PerfilCandidatoPage() {
 
       {perfil && (
         <div className="profile-edit-root">
-          {/* Tarjeta principal */}
           <div className="profile-card">
             <div className="profile-photo" style={{ overflow: "hidden", position: "relative" }}>
               {perfil.fotoUrl ? (
                 <img src={perfil.fotoUrl} alt="Foto de perfil" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", borderRadius: "inherit" }} />
               ) : (
-                <div
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background: "#f0f2f5",
-                    color: "#6b7280",
-                    borderRadius: "inherit",
-                  }}
-                >
+                <div className="photo-placeholder-box">
                   <svg viewBox="0 0 24 24" width="56" height="56" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
                     <circle cx="12" cy="7" r="4" />
@@ -457,7 +495,7 @@ export default function PerfilCandidatoPage() {
                       style={inputStyle}
                     />
                   ) : (
-                    <span>{perfil.telefono || "+57 —"}</span>
+                    <span>{telefonoConPrefijo(perfil.telefono)}</span>
                   )}
                 </span>
 
@@ -466,12 +504,13 @@ export default function PerfilCandidatoPage() {
                   {isEditing ? (
                     <input
                       type="text"
-                      value={draft.fechaNacimiento ? formatearFechaDDMMAAAA(draft.fechaNacimiento) : ""}
+                      value={fechaDisplay}
                       onChange={(e) => {
                         let val = e.target.value.replace(/\D/g, "");
                         if (val.length > 8) val = val.slice(0, 8);
                         if (val.length >= 3) val = val.slice(0, 2) + "/" + val.slice(2);
                         if (val.length >= 6) val = val.slice(0, 5) + "/" + val.slice(5);
+                        setFechaDisplay(val);
                         setDraft({ ...draft, fechaNacimiento: parsearFechaDDMMAAAA(val) });
                       }}
                       placeholder="DD/MM/AAAA"
@@ -509,7 +548,6 @@ export default function PerfilCandidatoPage() {
             </div>
           </div>
 
-          {/* Habilidades / Preferencias */}
           <div className="profile-grid-2">
             <div className="info-card">
               <h3 className="info-card-title">
@@ -519,23 +557,14 @@ export default function PerfilCandidatoPage() {
 
               <div className="skills-row">
                 {(isEditing ? skillsDraft : perfil.habilidades.map((h) => h.nombre)).map((nombre) => (
-                  <span className="skill-pill" key={nombre} style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "#e9ecef", padding: "4px 10px", borderRadius: "20px", fontSize: "14px" }}>
+                  <span className="skill-pill" key={nombre}>
                     <span>{nombre}</span>
                     {isEditing && (
                       <button
                         type="button"
                         aria-label="Eliminar habilidad"
                         onClick={() => quitarSkillLocal(nombre)}
-                        style={{
-                          background: "none",
-                          border: "none",
-                          color: "#dc3545",
-                          fontSize: "16px",
-                          cursor: "pointer",
-                          padding: "0 2px",
-                          lineHeight: 1,
-                          fontWeight: "bold",
-                        }}
+                        className="remove-pill"
                       >
                         ×
                       </button>
@@ -586,7 +615,6 @@ export default function PerfilCandidatoPage() {
             </div>
           </div>
 
-          {/* Educación */}
           <div className="info-card">
             <h3 className="info-card-title">
               <svg viewBox="0 0 20 20"><path d="M10 3l8 4-8 4-8-4z" /><path d="M5 9v4c0 1.2 2.2 2.5 5 2.5s5-1.3 5-2.5V9" /></svg>
@@ -615,15 +643,7 @@ export default function PerfilCandidatoPage() {
                           mostrarToast(err.message || "No se pudo eliminar");
                         }
                       }}
-                      style={{
-                        marginLeft: "auto",
-                        background: "none",
-                        border: "none",
-                        color: "#dc3545",
-                        fontSize: 18,
-                        cursor: "pointer",
-                        padding: "0 4px",
-                      }}
+                      className="profile-delete-btn"
                     >
                       ×
                     </button>
@@ -652,7 +672,6 @@ export default function PerfilCandidatoPage() {
             )}
           </div>
 
-          {/* Idiomas / Experiencia */}
           <div className="profile-grid-2">
             <div className="info-card">
               <h3 className="info-card-title">
@@ -684,14 +703,7 @@ export default function PerfilCandidatoPage() {
                                 mostrarToast(err.message || "No se pudo eliminar");
                               }
                             }}
-                            style={{
-                              background: "none",
-                              border: "none",
-                              color: "#dc3545",
-                              fontSize: 16,
-                              cursor: "pointer",
-                              padding: "0 4px",
-                            }}
+                            className="profile-delete-btn"
                           >
                             ×
                           </button>
@@ -749,15 +761,7 @@ export default function PerfilCandidatoPage() {
                             mostrarToast(err.message || "No se pudo eliminar");
                           }
                         }}
-                        style={{
-                          marginLeft: "auto",
-                          background: "none",
-                          border: "none",
-                          color: "#dc3545",
-                          fontSize: 18,
-                          cursor: "pointer",
-                          padding: "0 4px",
-                        }}
+                        className="profile-delete-btn"
                       >
                         ×
                       </button>

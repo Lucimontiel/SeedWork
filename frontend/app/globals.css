@@ -1,7 +1,102 @@
-* {
+*, *::before, *::after {
   box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
+
+html, body {
+  width: 100%;
+  height: 100%; /* 📏 Cambiado de min-height a height */
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow-x: hidden; /* 🚫 Bloquea la barra horizontal en todas las páginas */
+}
+
+body {
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #1e293b;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ============================================================
+   FONDO AZUL PARA EL LOGIN Y REGISTRO (A PANTALLA COMPLETA)
+   ============================================================ */
 html, body {
   margin: 0;
   padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow-x: hidden; /* 🚫 Evita la barra horizontal */
+}
+
+.login-wrapper,
+.auth-scope {
+  position: fixed; /* 🔥 Se escapa de cualquier caja de Next.js */
+  inset: 0;        /* 🔥 top:0, right:0, bottom:0, left:0 */
+  width: 100vw;    /* Ancho total de la ventana */
+  height: 100vh;   /* Alto total de la ventana */
+  overflow-y: auto; /* Permite bajar si el formulario es muy largo */
+  overflow-x: hidden; /* Evita scroll hacia los lados */
+  
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start; /* Alinea al inicio para que no se corte al hacer scroll */
+  padding: 40px 20px;
+  box-sizing: border-box;
+  z-index: 9999; /* Asegura que esté por encima de todo */
+
+  /* El mismo fondo de la landing */
+  background:
+    radial-gradient(ellipse at 10% 40%, rgba(54, 154, 255, 0.6), transparent 40%),
+    radial-gradient(ellipse at 90% 20%, rgba(91, 85, 255, 0.5), transparent 40%),
+    linear-gradient(135deg, #0d47c9 0%, #073593 100%);
+}
+
+/* Círculo superior izquierdo */
+.login-wrapper::before,
+.auth-scope::before {
+  content: "";
+  position: fixed; /* Fixed para que no se mueva al hacer scroll */
+  z-index: -1;
+  pointer-events: none;
+  border-radius: 50%;
+  width: 500px; height: 500px; top: -200px; left: -150px;
+  background: linear-gradient(145deg, rgba(139, 126, 255, 0.3), rgba(70, 127, 255, 0.05));
+}
+
+/* Círculo inferior derecho */
+.login-wrapper::after,
+.auth-scope::after {
+  content: "";
+  position: fixed;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: 50%;
+  width: 600px; height: 600px; right: -250px; bottom: -300px;
+  background: linear-gradient(145deg, rgba(158, 113, 255, 0.4), rgba(90, 104, 255, 0.05));
+}
+
+/* La cajita blanca del formulario */
+.login-wrapper .container,
+.auth-scope .container {
+  position: relative;
+  z-index: 10;
+  width: 100%;
+  max-width: 500px; /* Tamaño máximo de la cajita blanca */
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 40px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  margin-top: auto;    /* Centra la caja verticalmente */
+  margin-bottom: auto; /* Centra la caja verticalmente */
+}
+
+/* Textos de la parte superior (Logo, Bienvenida) */
+.login-wrapper h2,
+.login-wrapper .intro,
+.login-wrapper .sw-brand-header {
+  position: relative;
+  z-index: 10;
+  text-align: center;
 }

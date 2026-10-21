@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import CandidatoShell from "../CandidatoShell";
-import { useCandidato } from "../../lib/useCandidato";
 import GuideModal from "./GuideModal";
 import { GUIDES, GuideKey } from "./guides-data";
 
@@ -13,16 +12,10 @@ const CARD_COLOR: Record<GuideKey, "blue" | "green" | "purple"> = {
 };
 
 export default function ConsejosCandidatoPage() {
-  const { candidato } = useCandidato();
   const [openKey, setOpenKey] = useState<GuideKey | null>(null);
 
   return (
-    <CandidatoShell
-      nombre={candidato ? `${candidato.nombres} ${candidato.apellidos}` : undefined}
-      fotoUrl={candidato?.fotoUrl}
-      pageTitle="Consejos"
-      pageSubtitle="Recursos para impulsar tu búsqueda de empleo"
-    >
+    <CandidatoShell pageTitle="Consejos" pageSubtitle="Recursos para impulsar tu búsqueda de empleo">
       <h2 className="section-title" style={{ fontSize: 22, marginBottom: 6 }}>
         Guías de empleabilidad
       </h2>

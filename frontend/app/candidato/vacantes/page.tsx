@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import CandidatoShell from "../CandidatoShell";
-import { getSession } from "../../lib/session";
-import { API_BASE } from "../../lib/api";
+import { useAuth } from "@/app/lib/auth-context";
+import { apiFetch } from "@/app/lib/api";
 
 interface Oferta {
   idOferta: number;
@@ -36,14 +36,13 @@ function tiempoDesde(fechaISO: string) {
 }
 
 export default function VacantesPage() {
-  const [candidato, setCandidato] = useState<any>(null);
+  const { user } = useAuth();
   const [ofertas, setOfertas] = useState<Oferta[]>([]);
   const [loadingOfertas, setLoadingOfertas] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState<"todas" | "guardadas">("todas");
-
   const [estado, setEstado] = useState("");
   const [area, setArea] = useState("");
   const [modalidad, setModalidad] = useState("");
@@ -52,11 +51,7 @@ export default function VacantesPage() {
   const [guardadas, setGuardadas] = useState<Set<number>>(new Set());
   const [enviando, setEnviando] = useState<number | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-
-  // Estado para el menú de tres puntos
   const [menuAbierto, setMenuAbierto] = useState<number | null>(null);
-
-  // Lista de postulaciones con su ID (para poder eliminarlas)
   const [postulaciones, setPostulaciones] = useState<Postulacion[]>([]);
 
   function mostrarToast(msg: string) {
@@ -64,35 +59,22 @@ export default function VacantesPage() {
     setTimeout(() => setToast(null), 2500);
   }
 
-  // TRAER EL CANDIDATO DESDE LA SESIÓN
-  useEffect(() => {
-    const session = getSession();
-    if (!session) return;
-
-    fetch(`${API_BASE}/api/candidato/${session.id}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data) {
-          setCandidato(data);
-        }
-      })
-      .catch(() => {});
-  }, []);
-
-  const cargarOfertas = useCallback((q: string) => {
+  const cargarOfertas = useCallback(async (q: string) => {
     setLoadingOfertas(true);
-    const params = new URLSearchParams();
-    if (q) params.set("q", q);
-    if (modalidad) params.set("modalidad", modalidad);
-    if (area) params.set("categoria", area);
-    fetch(`${API_BASE}/api/vacantes?${params.toString()}`)
-      .then((r) => {
-        if (!r.ok) throw new Error("No se pudieron cargar las vacantes");
-        return r.json();
-      })
-      .then((data: Oferta[]) => setOfertas(data))
-      .catch((err) => setError(err.message))
-      .finally(() => setLoadingOfertas(false));
+    try {
+      const params = new URLSearchParams();
+      if (q) params.set("q", q);
+      if (modalidad) params.set("modalidad", modalidad);
+      if (area) params.set("categoria", area);
+      
+      const data = await apiFetch<Oferta[]>(`/api/vacantes?${params.toString()}`);
+      setOfertas(data);
+      setError(null);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoadingOfertas(false);
+    }
   }, [modalidad, area]);
 
   useEffect(() => {
@@ -105,28 +87,23 @@ export default function VacantesPage() {
   }, [search, cargarOfertas]);
 
   useEffect(() => {
-    if (!candidato) return;
-    fetch(`${API_BASE}/api/candidato/${candidato.idCandidato}/postulaciones`)
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data: Postulacion[]) => {
+    if (!user?.idCandidato) return;
+    apiFetch<Postulacion[]>(`/api/candidato/${user.idCandidato}/postulaciones`)
+      .then((data) => {
         setPostulaciones(data);
         setAplicadas(new Set(data.map((p) => p.idOferta)));
       })
       .catch(() => {});
-  }, [candidato]);
+  }, [user]);
 
   async function aplicar(idOferta: number) {
+    if (!user?.idCandidato) return;
     setEnviando(idOferta);
     try {
-      const resp = await fetch(`${API_BASE}/api/postulaciones`, {
+      await apiFetch(`/api/postulaciones`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}), // 👈 YA NO MANDAMOS NADA
+        body: { idCandidato: user.idCandidato, idOferta },
       });
-      if (!resp.ok) {
-        const data = await resp.json().catch(() => null);
-        throw new Error(data?.detail || "No se pudo enviar la postulación");
-      }
       setAplicadas((prev) => new Set(prev).add(idOferta));
       mostrarToast("Tu postulación fue enviada");
     } catch (err: any) {
@@ -134,11 +111,10 @@ export default function VacantesPage() {
     } finally {
       setEnviando(null);
     }
-}
+  }
 
-  // Función para salir de la oferta (eliminar postulación)
   async function salirDeOferta(idOferta: number) {
-    if (!candidato) return;
+    if (!user?.idCandidato) return;
     const postulacion = postulaciones.find((p) => p.idOferta === idOferta);
     if (!postulacion) {
       mostrarToast("No estás postulado a esta oferta");
@@ -147,14 +123,9 @@ export default function VacantesPage() {
     }
 
     try {
-      const resp = await fetch(`${API_BASE}/api/postulaciones/${postulacion.idPostulacion}`, {
+      await apiFetch(`/api/postulaciones/${postulacion.idPostulacion}`, {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
       });
-      if (!resp.ok) {
-        const data = await resp.json().catch(() => null);
-        throw new Error(data?.detail || "No se pudo eliminar la postulación");
-      }
       setAplicadas((prev) => {
         const next = new Set(prev);
         next.delete(idOferta);
@@ -169,23 +140,17 @@ export default function VacantesPage() {
     }
   }
 
-  // Función para reportar oferta
   async function reportarOferta(idOferta: number) {
-    if (!candidato) return;
+    if (!user?.idUsuario) return;
     try {
-      const resp = await fetch(`${API_BASE}/api/reportes`, {
+      await apiFetch(`/api/reportes`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          idUsuario: candidato.idUsuario,
+        body: {
+          idUsuario: user.idUsuario,
           idOferta,
           motivo: "Oferta sospechosa o inapropiada",
-        }),
+        },
       });
-      if (!resp.ok) {
-        const data = await resp.json().catch(() => null);
-        throw new Error(data?.detail || "No se pudo reportar la oferta");
-      }
       mostrarToast("Oferta reportada correctamente");
     } catch (err: any) {
       mostrarToast(err.message);
@@ -202,7 +167,7 @@ export default function VacantesPage() {
         mostrarToast("Oferta eliminada de guardadas");
       } else {
         next.add(idOferta);
-        mostrarToast("Oferta guardada (solo en este dispositivo por ahora)");
+        mostrarToast("Oferta guardada (solo en este dispositivo)");
       }
       return next;
     });
@@ -212,12 +177,10 @@ export default function VacantesPage() {
 
   return (
     <CandidatoShell
-      nombre={candidato ? `${candidato.nombres} ${candidato.apellidos}` : undefined}
-      fotoUrl={candidato?.fotoUrl}
+      nombre={user?.correo}
       pageTitle="Vacantes"
       pageSubtitle="Oportunidades pensadas para ti"
     >
-      {/* Tabs */}
       <div className="vacantes-tabs">
         <button className={"vacantes-tab" + (tab === "todas" ? " active" : "")} onClick={() => setTab("todas")}>
           Todas <strong>{ofertas.length}</strong>
@@ -227,7 +190,6 @@ export default function VacantesPage() {
         </button>
       </div>
 
-      {/* Filtros */}
       <div className="vacantes-filters">
         <div className="search-input-wrap">
           <input
@@ -238,37 +200,21 @@ export default function VacantesPage() {
           />
           <svg viewBox="0 0 20 20"><circle cx="9" cy="9" r="6" /><path d="M17 17l-4-4" /></svg>
         </div>
-
-        <select className="filter-select" value={estado} onChange={(e) => setEstado(e.target.value)}>
-          <option value="">Estado</option>
-          <option value="Publicada">Publicada</option>
-          <option value="Pausada">Pausada</option>
-          <option value="Cerrada">Cerrada</option>
-        </select>
-
         <select className="filter-select" value={area} onChange={(e) => setArea(e.target.value)}>
           <option value="">Área</option>
           <option value="Tecnología">Tecnología</option>
           <option value="Administración">Administración</option>
           <option value="Marketing">Marketing</option>
           <option value="Ventas">Ventas</option>
-          <option value="Recursos Humanos">Recursos Humanos</option>
         </select>
-
         <select className="filter-select" value={modalidad} onChange={(e) => setModalidad(e.target.value)}>
           <option value="">Modalidad</option>
           <option value="Presencial">Presencial</option>
           <option value="Remoto">Remoto</option>
           <option value="Híbrido">Híbrido</option>
         </select>
-
-        <button className="btn-filters" onClick={() => mostrarToast("Filtros avanzados: disponible próximamente")}>
-          <svg viewBox="0 0 20 20"><path d="M3 5h14M6 10h8M8.5 15h3" /></svg>
-          Filtros
-        </button>
       </div>
 
-      {/* Layout con panel lateral */}
       <div className="vacantes-layout">
         <div className="vacantes-list">
           {loadingOfertas && <p>Cargando vacantes...</p>}
@@ -301,60 +247,26 @@ export default function VacantesPage() {
                       {yaAplico ? "Aplicado ✓" : enviando === oferta.idOferta ? "Enviando..." : "Aplicar"}
                     </button>
                     <button
-                      className="bookmark-btn"
+                      className={"bookmark-btn" + (guardada ? " bookmark-btn-active" : "")}
                       aria-label="Guardar"
-                      style={guardada ? { color: "var(--brand, #0d6efd)", borderColor: "var(--brand, #0d6efd)" } : undefined}
                       onClick={() => toggleGuardada(oferta.idOferta)}
                     >
                       <svg viewBox="0 0 20 20"><path d="M5 3.5h10v13l-5-3.2-5 3.2z" /></svg>
                     </button>
                   </div>
 
-                  {/* Menú de tres puntos */}
                   <div style={{ position: "relative" }}>
                     <button
                       style={{ background: "none", border: "none", fontSize: 18, color: "#667085", cursor: "pointer", padding: "0 8px" }}
                       onClick={() => setMenuAbierto(menuAbierto === oferta.idOferta ? null : oferta.idOferta)}
-                      aria-label="Opciones"
                     >
                       ...
                     </button>
                     {menuAbierto === oferta.idOferta && (
                       <div style={{ position: "absolute", right: 0, bottom: "100%", marginBottom: 8, background: "#fff", border: "1px solid #E6E9EF", borderRadius: 8, boxShadow: "0 4px 12px rgba(0,0,0,0.1)", padding: 8, zIndex: 10, width: 180 }}>
-                        <button
-                          onClick={() => {
-                            reportarOferta(oferta.idOferta);
-                          }}
-                          style={{ display: "block", width: "100%", background: "none", border: "none", padding: "8px 12px", fontSize: 13, fontWeight: 600, color: "#D0402F", cursor: "pointer" }}
-                        >
-                          Reportar oferta
-                        </button>
-                        <button
-                          onClick={() => {
-                            salirDeOferta(oferta.idOferta);
-                          }}
-                          style={{ display: "block", width: "100%", background: "none", border: "none", padding: "8px 12px", fontSize: 13, fontWeight: 600, color: "#101828", cursor: "pointer" }}
-                        >
-                          Salir de la oferta
-                        </button>
-                        <button
-                          onClick={() => {
-                            toggleGuardada(oferta.idOferta);
-                            setMenuAbierto(null);
-                          }}
-                          style={{ display: "block", width: "100%", background: "none", border: "none", padding: "8px 12px", fontSize: 13, fontWeight: 600, color: "#101828", cursor: "pointer" }}
-                        >
-                          {guardada ? "Quitar de guardadas" : "Guardar oferta"}
-                        </button>
-                        <button
-                          onClick={() => {
-                            mostrarToast("Vista detallada de la oferta: disponible próximamente");
-                            setMenuAbierto(null);
-                          }}
-                          style={{ display: "block", width: "100%", background: "none", border: "none", padding: "8px 12px", fontSize: 13, fontWeight: 600, color: "#101828", cursor: "pointer" }}
-                        >
-                          Ver detalle
-                        </button>
+                        <button onClick={() => reportarOferta(oferta.idOferta)} style={{ display: "block", width: "100%", background: "none", border: "none", padding: "8px 12px", fontSize: 13, fontWeight: 600, color: "#D0402F", cursor: "pointer" }}>Reportar oferta</button>
+                        <button onClick={() => salirDeOferta(oferta.idOferta)} style={{ display: "block", width: "100%", background: "none", border: "none", padding: "8px 12px", fontSize: 13, fontWeight: 600, color: "#101828", cursor: "pointer" }}>Salir de la oferta</button>
+                        <button onClick={() => { toggleGuardada(oferta.idOferta); setMenuAbierto(null); }} style={{ display: "block", width: "100%", background: "none", border: "none", padding: "8px 12px", fontSize: 13, fontWeight: 600, color: "#101828", cursor: "pointer" }}>{guardada ? "Quitar de guardadas" : "Guardar oferta"}</button>
                       </div>
                     )}
                   </div>
@@ -364,44 +276,11 @@ export default function VacantesPage() {
           })}
         </div>
 
-        {/* Panel lateral: Búsquedas guardadas */}
         <div className="vacantes-sidebar">
           <h3 className="sidebar-title">Búsquedas guardadas</h3>
           <div className="saved-search-item">
-            <div className="saved-search-icon">
-              <svg viewBox="0 0 20 20"><path d="M10 2.5a5 5 0 00-3 9c.5.4.8 1 .8 1.6v1h4.4v-1c0-.6.3-1.2.8-1.6a5 5 0 00-3-9z" /></svg>
-            </div>
-            <div className="saved-search-info">
-              <strong>Asistente Administrativo</strong>
-              <span>12 nuevas ofertas</span>
-            </div>
-          </div>
-          <div className="saved-search-item">
-            <div className="saved-search-icon">
-              <svg viewBox="0 0 20 20"><path d="M10 2.5a5 5 0 00-3 9c.5.4.8 1 .8 1.6v1h4.4v-1c0-.6.3-1.2.8-1.6a5 5 0 00-3-9z" /></svg>
-            </div>
-            <div className="saved-search-info">
-              <strong>Practicante Marketing</strong>
-              <span>9 nuevas ofertas</span>
-            </div>
-          </div>
-          <div className="saved-search-item">
-            <div className="saved-search-icon">
-              <svg viewBox="0 0 20 20"><path d="M10 2.5a5 5 0 00-3 9c.5.4.8 1 .8 1.6v1h4.4v-1c0-.6.3-1.2.8-1.6a5 5 0 00-3-9z" /></svg>
-            </div>
-            <div className="saved-search-info">
-              <strong>Desarrollo de software</strong>
-              <span>5 nuevas ofertas</span>
-            </div>
-          </div>
-          <div className="saved-search-item">
-            <div className="saved-search-icon">
-              <svg viewBox="0 0 20 20"><path d="M10 2.5a5 5 0 00-3 9c.5.4.8 1 .8 1.6v1h4.4v-1c0-.6.3-1.2.8-1.6a5 5 0 00-3-9z" /></svg>
-            </div>
-            <div className="saved-search-info">
-              <strong>Trabajo remoto</strong>
-              <span>5 nuevas ofertas</span>
-            </div>
+            <div className="saved-search-icon"><svg viewBox="0 0 20 20"><path d="M10 2.5a5 5 0 00-3 9c.5.4.8 1 .8 1.6v1h4.4v-1c0-.6.3-1.2.8-1.6a5 5 0 00-3-9z" /></svg></div>
+            <div className="saved-search-info"><strong>Desarrollo de software</strong><span>5 nuevas ofertas</span></div>
           </div>
           <a href="#" className="view-all-saved">Ver todas</a>
         </div>

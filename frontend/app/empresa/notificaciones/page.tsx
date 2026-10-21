@@ -2,9 +2,8 @@
 
 import { useEffect, useState } from "react";
 import EmpresaShell from "../EmpresaShell";
-import { getSession } from "../../lib/session";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
+import { useAuth } from "@/app/lib/auth-context";
+import { apiFetch } from "@/app/lib/api";
 
 type Notificacion = {
   idNotificacion: number;
@@ -23,29 +22,26 @@ type Resumen = {
 };
 
 export default function NotificacionesEmpresaPage() {
+  const { user } = useAuth();
   const [notificaciones, setNotificaciones] = useState<Notificacion[]>([]);
   const [resumen, setResumen] = useState<Resumen | null>(null);
   const [filtro, setFiltro] = useState("todas");
 
   useEffect(() => {
-    const session = getSession();
-    if (!session) return;
+    if (!user?.idEmpresa) return;
 
-    fetch(`${API_BASE}/api/empresa/${session.id}/notificaciones`)
-      .then((r) => (r.ok ? r.json() : []))
+    apiFetch<Notificacion[]>(`/api/empresa/${user.idEmpresa}/notificaciones`)
       .then((data) => {
         if (Array.isArray(data)) setNotificaciones(data);
       })
-      .catch(() => {});
+      .catch((err) => console.error("Error al cargar notificaciones:", err));
 
-    // Traer el resumen
-    fetch(`${API_BASE}/api/empresa/${session.id}/resumen`)
-      .then((r) => (r.ok ? r.json() : null))
+    apiFetch<Resumen>(`/api/empresa/${user.idEmpresa}/resumen`)
       .then((data) => {
         if (data) setResumen(data);
       })
-      .catch(() => {});
-  }, []);
+      .catch((err) => console.error("Error al cargar resumen:", err));
+  }, [user]);
 
   // Función para filtrar
   function filtrarNotificaciones() {
@@ -60,11 +56,11 @@ export default function NotificacionesEmpresaPage() {
     <EmpresaShell pageTitle="Notificaciones" pageSubtitle="Tus vacantes y candidatos tienen novedades, revísalas aquí">
       <div className="notif-toolbar-row">
         <div className="notif-tabs">
-          <button className="notif-tab active" onClick={() => setFiltro("todas")}>Todas</button>
-          <button className="notif-tab" onClick={() => setFiltro("no-leidas")}>No leídas</button>
-          <button className="notif-tab" onClick={() => setFiltro("postulaciones")}>Postulaciones</button>
-          <button className="notif-tab" onClick={() => setFiltro("vacantes")}>Vacantes</button>
-          <button className="notif-tab" onClick={() => setFiltro("sistema")}>Sistema</button>
+          <button className={"notif-tab" + (filtro === "todas" ? " active" : "")} onClick={() => setFiltro("todas")}>Todas</button>
+          <button className={"notif-tab" + (filtro === "no-leidas" ? " active" : "")} onClick={() => setFiltro("no-leidas")}>No leídas</button>
+          <button className={"notif-tab" + (filtro === "postulaciones" ? " active" : "")} onClick={() => setFiltro("postulaciones")}>Postulaciones</button>
+          <button className={"notif-tab" + (filtro === "vacantes" ? " active" : "")} onClick={() => setFiltro("vacantes")}>Vacantes</button>
+          <button className={"notif-tab" + (filtro === "sistema" ? " active" : "")} onClick={() => setFiltro("sistema")}>Sistema</button>
         </div>
 
         <button className="notif-mark-all-btn">
@@ -78,22 +74,20 @@ export default function NotificacionesEmpresaPage() {
           {filtrarNotificaciones().length === 0 ? (
             <p style={{ fontSize: 14, color: "#667085", marginTop: 20 }}>No hay notificaciones para esta empresa.</p>
           ) : (
-            <>
-              {filtrarNotificaciones().map((n) => (
-                <div className={"notif-card" + (n.leida ? "" : " is-unread")} key={n.idNotificacion}>
-                  <div className="notif-icon notif-icon-blue">
-                    <svg viewBox="0 0 20 20"><circle cx="8" cy="7" r="3"/><path d="M2.5 17c0-2.9 2.5-4.8 5.5-4.8s5.5 1.9 5.5 4.8"/><path d="M15 8v4M13 10h4"/></svg>
-                  </div>
-                  <div className="notif-body">
-                    <div className="notif-header-row">
-                      <h4>{n.titulo}</h4>
-                      <span className="notif-time">{n.fecha}</span>
-                    </div>
-                    <p>{n.mensaje}</p>
-                  </div>
+            filtrarNotificaciones().map((n) => (
+              <div className={"notif-card" + (n.leida ? "" : " is-unread")} key={n.idNotificacion}>
+                <div className="notif-icon notif-icon-blue">
+                  <svg viewBox="0 0 20 20"><circle cx="8" cy="7" r="3"/><path d="M2.5 17c0-2.9 2.5-4.8 5.5-4.8s5.5 1.9 5.5 4.8"/><path d="M15 8v4M13 10h4"/></svg>
                 </div>
-              ))}
-            </>
+                <div className="notif-body">
+                  <div className="notif-header-row">
+                    <h4>{n.titulo}</h4>
+                    <span className="notif-time">{n.fecha}</span>
+                  </div>
+                  <p>{n.mensaje}</p>
+                </div>
+              </div>
+            ))
           )}
         </div>
 

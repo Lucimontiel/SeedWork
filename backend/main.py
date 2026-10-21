@@ -8,6 +8,7 @@ Incluye:
   - Moderación de vacantes del panel Administrador
   - Gestión completa del perfil y CV del candidato
 """
+
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
@@ -15,6 +16,14 @@ from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from database import get_db
+import os
+import json
+from groq import Groq
+from fastapi import UploadFile, File, Form
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from models import (
     Usuario, Rol, EstadoUsuario, Candidato, Empresa, Municipio, SectorEmpresa,
     Oferta, EstadoOferta, Modalidad, CategoriaOferta,
@@ -26,6 +35,7 @@ from models import (
 )
 from schemas import (
     RegistroCandidatoIn, RegistroEmpresaIn, LoginIn,
+    CambiarContrasenaIn,
     CandidatoOut, EmpresaOut,
     OfertaOut, PostulacionIn, PostulacionOut,
     PerfilOut, PerfilDatosIn, PreferenciasIn,
@@ -46,6 +56,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ============================================================
+# CLIENTE DE GROQ (IA para el simulador de entrevistas)
+# ============================================================
+groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+
 
 
 def _dividir_nombre(nombre_completo: str):
@@ -284,6 +300,25 @@ def login(body: LoginIn, db: Session = Depends(get_db)):
 
     raise HTTPException(400, "Tipo de cuenta inválido")
 
+@app.put("/api/auth/cambiar-contrasena")
+def cambiar_contrasena(body: CambiarContrasenaIn, db: Session = Depends(get_db)):
+    usuario = db.query(Usuario).filter(Usuario.IdUsuario == body.idUsuario).first()
+    if not usuario:
+        raise HTTPException(404, "Usuario no encontrado")
+
+    if not verify_password(body.contrasenaActual, usuario.Contrasena):
+        raise HTTPException(400, "La contraseña actual es incorrecta")
+
+    if len(body.contrasenaNueva) < 8:
+        raise HTTPException(400, "La nueva contraseña debe tener al menos 8 caracteres")
+
+    if body.contrasenaActual == body.contrasenaNueva:
+        raise HTTPException(400, "La nueva contraseña debe ser diferente a la actual")
+
+    usuario.Contrasena = hash_password(body.contrasenaNueva)
+    db.commit()
+
+    return {"message": "Contraseña actualizada correctamente"}
 
 # ============================================================
 # DASHBOARDS (traer los datos del usuario ya creado)
@@ -704,16 +739,36 @@ def listar_vacantes(
 
 @app.post("/api/postulaciones")
 def crear_postulacion(body: dict, db: Session = Depends(get_db)):
-    print("BODY RECIBIDO:", body) # 👈 VE ESTO EN LA TERMINAL
-    candidato = db.query(Candidato).first()
-    if not candidato:
-        raise HTTPException(400, "No hay candidatos en la base de datos")
+    id_candidato = body.get("idCandidato")
+    id_oferta = body.get("idOferta")
+
+    if not id_candidato or not id_oferta:
+        raise HTTPException(400, "Faltan datos obligatorios")
+
+    # Verificar si ya existe
+    existe = db.query(Postulacion).filter(
+        Postulacion.IdCandidato == id_candidato,
+        Postulacion.IdOferta == id_oferta
+    ).first()
+    if existe:
+        raise HTTPException(400, "Ya te has postulado a esta oferta")
+
+    # Obtener estado inicial "Postulado"
+    estado = db.query(EstadoPostulacion).filter(EstadoPostulacion.Nombre == "Postulado").first()
+    if not estado:
+        raise HTTPException(500, "El estado 'Postulado' no existe en la BD")
+
+    nueva_postulacion = Postulacion(
+        IdCandidato=id_candidato,
+        IdOferta=id_oferta,
+        IdEstadoPostulacion=estado.IdEstadoPostulacion,
+        Vista=False
+    )
     
-    print("CANDIDATO ENCONTRADO:", candidato.IdCandidato, candidato.Nombres) # 👈 VE ESTO
-    oferta = db.query(Oferta).first()
-    if not oferta:
-        raise HTTPException(400, "No hay ofertas en la base de datos")
-    print("OFERTA ENCONTRADA:", oferta.IdOferta, oferta.Titulo) # 👈 VE ESTO
+    db.add(nueva_postulacion)
+    db.commit()
+    
+    return {"message": "Postulación enviada exitosamente", "idPostulacion": nueva_postulacion.IdPostulacion}
 
 @app.get("/api/candidato/{id_candidato}/postulaciones", response_model=list[PostulacionOut])
 def listar_postulaciones_candidato(id_candidato: int, db: Session = Depends(get_db)):
@@ -1211,6 +1266,94 @@ def obtener_roles(db: Session = Depends(get_db)):
 def crear_reporte(body: dict, db: Session = Depends(get_db)):
     # Crear un reporte simple (se puede mejorar después)
     return {"message": "Reporte creado correctamente"}
+
+# ============================================================
+# SIMULADOR DE ENTREVISTAS CON IA (Groq)
+# ============================================================
+
+PROMPT_EVALUACION = """
+Eres un reclutador experto y coach de entrevistas. Evalúa la respuesta de un candidato para el puesto de **{cargo}**.
+
+**Pregunta de la entrevista:**
+{pregunta}
+
+**Respuesta del candidato (transcrita o escrita):**
+{respuesta}
+
+**Instrucciones de Evaluación:**
+1. **Análisis de Contenido:** Evalúa la relevancia, profundidad y estructura. ¿Usa el método STAR (Situación, Tarea, Acción, Resultado)? ¿Menciona resultados concretos?
+2. **Análisis de Expresión:**
+   - Si la respuesta fue **por voz** (transcripción): analiza si hay muletillas (eh, este, o sea), fluidez y claridad de ideas. Ignora errores menores de transcripción.
+   - Si la respuesta fue **escrita**: evalúa claridad, ortografía, gramática y estructura de las oraciones.
+3. **Genera Retroalimentación:** Un consejo conciso y accionable (de 2 a 3 frases) que el candidato pueda aplicar en una entrevista real.
+
+**Formato de Salida (JSON estricto):**
+{{
+  "fortalezas": ["Punto fuerte 1", "Punto fuerte 2"],
+  "areas_de_mejora": ["Área de mejora 1", "Área de mejora 2"],
+  "consejo_final": "Aquí va el consejo conciso y accionable.",
+  "puntuacion_general": "Muy bueno | Bueno | Regular | Necesita mejorar"
+}}
+"""
+
+
+@app.post("/api/simulador/evaluar")
+async def evaluar_respuesta_simulador(
+    cargo: str = Form(...),
+    pregunta: str = Form(...),
+    respuesta_texto: str = Form(None),
+    archivo_audio: UploadFile = File(None),
+):
+    """
+    Recibe la respuesta del candidato (texto o audio) y devuelve una
+    evaluación generada por IA con Groq.
+    """
+    if not respuesta_texto and not archivo_audio:
+        raise HTTPException(400, "Debes enviar un texto o un archivo de audio.")
+
+    texto_final_respuesta = respuesta_texto
+
+    # 1. Si hay audio, transcribir con Groq Whisper
+    if archivo_audio:
+        try:
+            transcripcion = groq_client.audio.transcriptions.create(
+                model="whisper-large-v3-turbo",
+                file=(archivo_audio.filename, await archivo_audio.read()),
+                language="es",
+                response_format="text",
+            )
+            texto_final_respuesta = transcripcion
+        except Exception as e:
+            raise HTTPException(500, f"Error en la transcripción: {str(e)}")
+
+    # 2. Evaluar el texto con el LLM de Groq
+    try:
+        respuesta_llm = groq_client.chat.completions.create(
+            model="openai/gpt-oss-120b",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "Eres un coach de entrevistas experto. Siempre respondes en formato JSON válido.",
+                },
+                {
+                    "role": "user",
+                    "content": PROMPT_EVALUACION.format(
+                        cargo=cargo,
+                        pregunta=pregunta,
+                        respuesta=texto_final_respuesta,
+                    ),
+                },
+            ],
+            response_format={"type": "json_object"},
+            temperature=0.5,
+        )
+
+        resultado = json.loads(respuesta_llm.choices[0].message.content)
+        resultado["texto_transcrito"] = texto_final_respuesta
+        return resultado
+
+    except Exception as e:
+        raise HTTPException(500, f"Error en la evaluación: {str(e)}")
 
 # ============================================================
 # Punto de entrada

@@ -1,0 +1,253 @@
+/* ==========================================================
+   SEEDWORK — Estilos de la Landing Page (Tamaño XL)
+   ========================================================== */
+
+.sw-landing {
+  position: fixed;
+  inset: 0;        
+  isolation: isolate;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden; 
+  color: #fff;
+  background:
+    radial-gradient(ellipse at 10% 40%, rgba(54, 154, 255, 0.6), transparent 40%),
+    radial-gradient(ellipse at 90% 20%, rgba(91, 85, 255, 0.5), transparent 40%),
+    linear-gradient(135deg, #0d47c9 0%, #073593 100%);
+  z-index: 100; 
+}
+
+/* Círculos decorativos de fondo */
+.sw-landing::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: 50%;
+  width: 600px; height: 600px; top: -200px; left: -150px;
+  background: linear-gradient(145deg, rgba(139, 126, 255, 0.3), rgba(70, 127, 255, 0.05));
+}
+
+.sw-landing::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: 50%;
+  width: 700px; height: 700px; right: -250px; bottom: -300px;
+  background: linear-gradient(145deg, rgba(158, 113, 255, 0.4), rgba(90, 104, 255, 0.05));
+}
+
+/* Anillos sutiles de fondo */
+.sw-landing-inner {
+  position: relative;
+  width: 100%;
+  max-width: 1100px; /* 🔍 AUMENTADO: Más ancho */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  z-index: 1;
+}
+
+.sw-landing-inner::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  border: 1px solid rgba(155, 205, 255, 0.1);
+  border-radius: 50%;
+  width: 600px; height: 600px; left: -300px; top: 10%;
+}
+
+.sw-landing-inner::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  border: 1px solid rgba(155, 205, 255, 0.1);
+  border-radius: 50%;
+  width: 800px; height: 800px; right: -400px; top: -10%;
+}
+
+/* Header / Logo */
+.sw-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 30px; /* 🔍 AUMENTADO */
+}
+
+.sw-landing-logo {
+  width: 150px !important; /* 🔍 AUMENTADO: Logo mucho más grande */
+  height: auto !important;
+  margin-bottom: 20px;
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.2));
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.sw-landing-logo svg,
+.sw-landing-logo img {
+  width: 100% !important;
+  height: auto !important;
+  max-width: 100% !important;
+  object-fit: contain;
+  display: block;
+}
+
+.sw-title {
+  font-family: "Poppins", "Inter", sans-serif;
+  font-size: clamp(3.5rem, 6vw, 5.5rem); /* 🔍 AUMENTADO */
+  font-weight: 800; 
+  line-height: 1.05; 
+  letter-spacing: 0.035em;
+  margin: 0;
+  text-shadow: 0 5px 24px rgba(0, 20, 90, 0.2);
+}
+
+/* Textos */
+.sw-tagline {
+  margin: 0 0 40px;
+  color: #c4e5ff;
+  font-size: clamp(1rem, 1.8vw, 1.3rem); /* 🔍 AUMENTADO */
+  font-weight: 600; 
+  letter-spacing: 0.4em; /* 🔍 AUMENTADO */
+  text-transform: uppercase;
+}
+.sw-tagline span { 
+  padding: 0 12px; 
+  color: #8ce4ff; 
+}
+
+.sw-headline {
+  max-width: 950px;
+  margin: 0 0 30px; 
+  font-family: "Poppins", "Inter", sans-serif;
+  font-size: clamp(3rem, 5.5vw, 4.8rem); /* 🔍 AUMENTADO */
+  font-weight: 700; 
+  line-height: 1.15; 
+  letter-spacing: -0.02em;
+}
+.sw-headline .accent { 
+  color: #8be6ff; 
+  text-shadow: 0 0 32px rgba(88, 209, 255, 0.2); 
+}
+
+.sw-subtitle {
+  max-width: 800px; /* 🔍 AUMENTADO */
+  margin: 0 0 50px; /* 🔍 AUMENTADO */
+  color: #e1edff;
+  font-size: clamp(1.2rem, 2vw, 1.5rem); /* 🔍 AUMENTADO */
+  line-height: 1.6;
+}
+
+/* Botones */
+.sw-actions {
+  width: 100%; 
+  max-width: 540px; /* 🔍 AUMENTADO: Botones mucho más anchos */
+  display: flex; 
+  flex-direction: column; 
+  gap: 20px; /* 🔍 AUMENTADO */
+}
+
+.sw-btn {
+  position: relative; 
+  display: flex; 
+  align-items: center; 
+  justify-content: center;
+  gap: 14px; 
+  width: 100%; 
+  min-height: 80px; /* 🔍 AUMENTADO: Botones más altos */
+  padding: 18px 32px;
+  border: 2px solid transparent; 
+  border-radius: 999px;
+  font-family: inherit; 
+  font-size: 1.4rem; /* 🔍 AUMENTADO: Texto del botón más grande */
+  font-weight: 700;
+  text-decoration: none; 
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sw-btn-primary { 
+  background: #fff; 
+  color: #0756df; 
+  box-shadow: 0 10px 30px rgba(0, 24, 95, 0.2); 
+}
+.sw-btn-primary:hover { 
+  transform: translateY(-2px); 
+  box-shadow: 0 15px 34px rgba(0, 24, 95, 0.3); 
+  background: #f8fafc; 
+}
+
+.sw-btn-secondary { 
+  background: transparent; 
+  color: #fff; 
+  border-color: rgba(255, 255, 255, 0.8); 
+}
+.sw-btn-secondary:hover { 
+  transform: translateY(-2px); 
+  background: rgba(255, 255, 255, 0.1); 
+  border-color: #fff; 
+}
+
+.sw-btn-arrow { 
+  display: inline-flex; 
+  align-items: center; 
+  font-size: 1.6rem; /* 🔍 AUMENTADO */
+  transition: transform 0.2s ease; 
+}
+.sw-btn:hover .sw-btn-arrow { 
+  transform: translateX(5px); 
+}
+
+/* Footer */
+.sw-footer-quote {
+  display: flex; 
+  align-items: center; 
+  justify-content: center; 
+  gap: 20px;
+  margin: 60px 0 0; /* 🔍 AUMENTADO */
+  color: rgba(230, 241, 255, 0.8);
+  font-size: 1.15rem; /* 🔍 AUMENTADO */
+  letter-spacing: 0.02em;
+}
+.sw-footer-quote::before, 
+.sw-footer-quote::after {
+  content: ""; 
+  flex: 0 0 60px; /* 🔍 AUMENTADO */
+  height: 1px; 
+  background: rgba(210, 235, 255, 0.4);
+}
+
+/* Iconos flotantes en el fondo */
+.sw-float-icon { 
+  position: absolute; 
+  width: 90px; /* 🔍 AUMENTADO */
+  height: 90px; 
+  pointer-events: none; 
+  z-index: 0; 
+}
+.sw-float-icon-1 { top: 15%; left: 10%; }
+.sw-float-icon-2 { bottom: 25%; left: 10%; }
+
+/* 📱 Adaptación para laptops con pantallas más bajas */
+@media (max-height: 850px) {
+  .sw-landing-logo { width: 110px !important; margin-bottom: 10px; }
+  .sw-header { margin-bottom: 15px; }
+  .sw-title { font-size: 3rem; }
+  .sw-tagline { margin-bottom: 15px; font-size: 0.9rem; }
+  .sw-headline { font-size: 2.6rem; margin-bottom: 15px; }
+  .sw-subtitle { margin-bottom: 25px; font-size: 1.1rem; }
+  .sw-actions { gap: 14px; max-width: 460px; }
+  .sw-btn { min-height: 60px; padding: 14px 28px; font-size: 1.15rem; }
+  .sw-footer-quote { margin-top: 35px; font-size: 0.95rem; }
+}
+
+@media (max-width: 768px) {
+  .sw-float-icon { display: none; }
+  .sw-landing-inner::before, .sw-landing-inner::after { display: none; }
+}

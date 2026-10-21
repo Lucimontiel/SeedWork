@@ -4,16 +4,19 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { avatarColorFromName } from "../lib/avatarColor";
+import { useTheme } from "../lib/useTheme";
+import { useLocalization } from "../lib/useLocalization";
+import { useAuth } from "../lib/auth-context";
 
 const NAV_ITEMS = [
-  { href: "/candidato/inicio", label: "Inicio", icon: <><path d="M3 8.5L10 3l7 5.5"/><path d="M5 8v8h10V8"/></> },
-  { href: "/candidato/perfil", label: "Perfil", icon: <><circle cx="10" cy="6.5" r="3"/><path d="M4 17c0-3 2.7-5 6-5s6 2 6 5"/></> },
-  { href: "/candidato/mi-cv", label: "Mi CV", icon: <><path d="M6 2.5h6l3 3v12H6z"/><path d="M9 8h4M9 11h4M9 14h2"/></> },
-  { href: "/candidato/vacantes", label: "Vacantes", icon: <><rect x="2.5" y="7" width="15" height="9" rx="1.5"/><path d="M7 7V5.5A1.5 1.5 0 018.5 4h3A1.5 1.5 0 0113 5.5V7"/></> },
-  { href: "/candidato/postulaciones", label: "Mis postulaciones", icon: <><rect x="4" y="3.5" width="12" height="14" rx="1.5"/><rect x="7" y="2" width="6" height="3" rx="1"/><path d="M7 9h6M7 12h6M7 15h4"/></> },
-  { href: "/candidato/consejos", label: "Consejos", icon: <><path d="M10 2.5a5 5 0 00-3 9c.5.4.8 1 .8 1.6v1h4.4v-1c0-.6.3-1.2.8-1.6a5 5 0 00-3-9z"/><path d="M8.3 17h3.4"/></> },
-  { href: "/candidato/simulador", label: "Simulador", icon: <><path d="M3 4.5h14v8H8l-3 3v-3H3z"/></> },
-  { href: "/candidato/configuracion", label: "Configuración", icon: <><circle cx="10" cy="10" r="2.6"/><path d="M10 3v2M10 15v2M3 10h2M15 10h2M5.3 5.3l1.4 1.4M13.3 13.3l1.4 1.4M5.3 14.7l1.4-1.4M13.3 6.7l1.4-1.4"/></> },
+  { href: "/candidato/inicio", labelKey: "inicio", icon: <><path d="M3 8.5L10 3l7 5.5"/><path d="M5 8v8h10V8"/></> },
+  { href: "/candidato/perfil", labelKey: "perfil", icon: <><circle cx="10" cy="6.5" r="3"/><path d="M4 17c0-3 2.7-5 6-5s6 2 6 5"/></> },
+  { href: "/candidato/mi-cv", labelKey: "miCV", icon: <><path d="M6 2.5h6l3 3v12H6z"/><path d="M9 8h4M9 11h4M9 14h2"/></> },
+  { href: "/candidato/vacantes", labelKey: "vacantes", icon: <><rect x="2.5" y="7" width="15" height="9" rx="1.5"/><path d="M7 7V5.5A1.5 1.5 0 018.5 4h3A1.5 1.5 0 0113 5.5V7"/></> },
+  { href: "/candidato/postulaciones", labelKey: "postulaciones", icon: <><rect x="4" y="3.5" width="12" height="14" rx="1.5"/><rect x="7" y="2" width="6" height="3" rx="1"/><path d="M7 9h6M7 12h6M7 15h4"/></> },
+  { href: "/candidato/consejos", labelKey: "consejos", icon: <><path d="M10 2.5a5 5 0 00-3 9c.5.4.8 1 .8 1.6v1h4.4v-1c0-.6.3-1.2.8-1.6a5 5 0 00-3-9z"/><path d="M8.3 17h3.4"/></> },
+  { href: "/candidato/simulador", labelKey: "simulador", icon: <><path d="M3 4.5h14v8H8l-3 3v-3H3z"/></> },
+  { href: "/candidato/configuracion", labelKey: "configuracion", icon: <><circle cx="10" cy="10" r="2.6"/><path d="M10 3v2M10 15v2M3 10h2M15 10h2M5.3 5.3l1.4 1.4M13.3 13.3l1.4 1.4M5.3 14.7l1.4-1.4M13.3 6.7l1.4-1.4"/></> },
 ];
 
 const NOTIFICACIONES = [
@@ -37,16 +40,27 @@ export default function CandidatoShell({
   pageSubtitle: string;
 }) {
   const pathname = usePathname();
+  const { t } = useLocalization();
+  const { logout } = useAuth();
   const [notifOpen, setNotifOpen] = useState(false);
-  const iniciales = nombre ? nombre.split(" ").filter(Boolean).slice(0, 2).map((p) => p[0]).join("").toUpperCase() : "";
+  const { theme } = useTheme();
+
+  const iniciales = nombre
+    ? nombre.split(" ").filter(Boolean).slice(0, 2).map((p) => p[0]).join("").toUpperCase()
+    : "";
+
+  function handleLogout() {
+    // Quitamos el tema oscuro antes de irnos al login
+    document.documentElement.removeAttribute("data-theme");
+    // Usamos la función logout del contexto de autenticación
+    logout();
+  }
 
   return (
     <div className="app-shell">
       <aside className="sidebar">
         <div className="logo">
-          <svg className="logo-icon" viewBox="0 0 24 24">
-            <path d="M12 21c0-5 0-8 0-10"/><path d="M12 11c0-4-3-6-7-6 0 4 3 6 7 6z"/><path d="M12 14c0-3.5 2.5-5.5 6-5.5 0 3.5-2.5 5.5-6 5.5z"/>
-          </svg>
+          <img src="/logo-seedwork.png" alt="SeedWork Logo" className="logo-icon" style={{ objectFit: "contain" }} />
           <div className="logo-text">
             <strong><span className="logo-seed">Seed</span><span className="logo-work">Work</span></strong>
             <span>Tu próximo empleo, tu futuro</span>
@@ -56,15 +70,23 @@ export default function CandidatoShell({
           {NAV_ITEMS.map((item) => (
             <Link key={item.href} href={item.href} className={"nav-item" + (pathname === item.href ? " active" : "")}>
               <svg viewBox="0 0 20 20">{item.icon}</svg>
-              <span className="label">{item.label}</span>
+              <span className="label">{t(item.labelKey)}</span>
             </Link>
           ))}
         </nav>
         <div className="nav-footer">
-          <Link href="/login" className="nav-item">
-            <svg viewBox="0 0 20 20"><path d="M8 4H4.5A1.5 1.5 0 003 5.5v9A1.5 1.5 0 004.5 16H8"/><path d="M12 10h5.5M15 7l3 3-3 3"/></svg>
-            <span className="label">Cerrar sesión</span>
-          </Link>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="nav-item"
+            style={{ width: "100%", textAlign: "left", background: "transparent", border: "none", cursor: "pointer" }}
+          >
+            <svg viewBox="0 0 20 20">
+              <path d="M8 4H4.5A1.5 1.5 0 003 5.5v9A1.5 1.5 0 004.5 16H8"/>
+              <path d="M12 10h5.5M15 7l3 3-3 3"/>
+            </svg>
+            <span className="label">{t("cerrarSesion")}</span>
+          </button>
         </div>
       </aside>
 
@@ -82,7 +104,7 @@ export default function CandidatoShell({
               </button>
               <div className={"notification-dropdown" + (notifOpen ? " show" : "")}>
                 <div className="notification-title">
-                  <h3>Notificaciones</h3>
+                  <h3>{t("notificaciones")}</h3>
                   <span>{NOTIFICACIONES.length} nuevas</span>
                 </div>
                 {NOTIFICACIONES.map((n, i) => (
@@ -95,7 +117,7 @@ export default function CandidatoShell({
                     </div>
                   </div>
                 ))}
-                <button className="view-all-btn">Ver todas las notificaciones</button>
+                <button className="view-all-btn">{t("verTodasNotif")}</button>
               </div>
             </div>
 
