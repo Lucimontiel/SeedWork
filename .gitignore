@@ -1,0 +1,17 @@
+# Entornos y secretos
+.env
+.env*
+*.pem
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyc
+.venv/
+venv/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+build/
