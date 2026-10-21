@@ -35,6 +35,11 @@ export default function AdministradorShell({
   const { user, cargando: cargandoAuth, logout } = useAuth();
   const [notifOpen, setNotifOpen] = useState(false);
 
+  useEffect(() => {
+    const modo = window.localStorage.getItem("seedwork-admin-theme");
+    document.querySelector(".scope-admin")?.classList.toggle("theme-dark", modo === "oscuro");
+  }, []);
+
   // Protección: solo admin
   useEffect(() => {
     if (cargandoAuth) return;

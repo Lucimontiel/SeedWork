@@ -98,10 +98,22 @@ export default function LegacyAdminContent({ html }: { html: string }) {
     };
 
     w.setTheme = function (el: HTMLElement, mode: string) {
-      el.parentElement?.querySelectorAll(".seg-btn").forEach((b) => b.classList.remove("active"));
-      el.classList.add("active");
-      w.showToast(mode === "oscuro" ? "Modo oscuro seleccionado (vista previa próximamente)" : "Modo claro seleccionado");
+      const tema = mode === "oscuro" ? "oscuro" : "claro";
+      document.querySelector(".scope-admin")?.classList.toggle("theme-dark", tema === "oscuro");
+      window.localStorage.setItem("seedwork-admin-theme", tema);
+      el.parentElement?.querySelectorAll(".seg-btn").forEach((boton) => {
+        boton.classList.toggle("active", boton === el);
+      });
+      w.showToast(tema === "oscuro" ? "Modo oscuro activado" : "Modo claro activado");
     };
+
+    const temaGuardado = window.localStorage.getItem("seedwork-admin-theme") === "oscuro" ? "oscuro" : "claro";
+    document.querySelector(".scope-admin")?.classList.toggle("theme-dark", temaGuardado === "oscuro");
+    document.querySelectorAll<HTMLElement>(".segmented").forEach((grupo) => {
+      grupo.querySelectorAll<HTMLElement>(".seg-btn").forEach((boton) => {
+        boton.classList.toggle("active", boton.textContent?.trim().toLocaleLowerCase() === temaGuardado);
+      });
+    });
   }, []);
 
   // eslint-disable-next-line react/no-danger

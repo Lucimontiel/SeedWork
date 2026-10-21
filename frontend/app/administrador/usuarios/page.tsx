@@ -1,11 +1,10 @@
 import AdministradorShell from "../AdministradorShell";
-import LegacyAdminContent from "../LegacyAdminContent";
-import html from "./content";
+import UsuariosDashboard from "./UsuariosDashboard";
 
 export default function UsuariosAdminPage() {
   return (
     <AdministradorShell pageTitle="Usuarios" pageSubtitle="Gestiona las cuentas de candidatos y empresas registradas en SeedWork">
-      <LegacyAdminContent html={html} />
+      <UsuariosDashboard />
     </AdministradorShell>
   );
 }

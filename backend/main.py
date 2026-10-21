@@ -50,6 +50,7 @@ from audit import registrar_evento, EVENTO_REGISTRO, EVENTO_ACCESO_DENEGADO
 
 # Importar el router de auth (endpoints /api/auth/login, /refresh, /logout, /me, /admin/login, etc.)
 from auth import router as auth_router
+from admin_dashboard import router as admin_dashboard_router
 
 
 # ============================================================
@@ -72,7 +73,7 @@ app.add_middleware(
 
 # Registrar router de autenticación
 app.include_router(auth_router)
-
+app.include_router(admin_dashboard_router)
 
 # ============================================================
 # HELPERS

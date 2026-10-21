@@ -1,11 +1,10 @@
 import AdministradorShell from "../AdministradorShell";
-import LegacyAdminContent from "../LegacyAdminContent";
-import html from "./content";
+import InicioDashboard from "./InicioDashboard";
 
 export default function InicioAdminPage() {
   return (
     <AdministradorShell pageTitle="Panel de control" pageSubtitle="Supervisa candidatos, empresas y vacantes en un solo lugar">
-      <LegacyAdminContent html={html} />
+      <InicioDashboard />
     </AdministradorShell>
   );
 }
