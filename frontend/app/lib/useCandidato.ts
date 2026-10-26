@@ -23,10 +23,8 @@ export function useCandidato() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Esperar a que el AuthProvider cargue
     if (cargandoAuth) return;
 
-    // Sin sesión o no es candidato → redirigir
     if (!user) {
       router.replace("/login");
       return;
@@ -38,12 +36,13 @@ export function useCandidato() {
       return;
     }
 
-    // Cargar datos del candidato con cookies (apiFetch)
-    apiFetch<CandidatoData>(`/api/candidato/${user.idCandidato}`)
+    // ⬅️ CORREGIDO: Agregamos /perfil al final de la ruta
+    apiFetch<CandidatoData>(`/api/candidato/${user.idCandidato}/perfil`)
       .then(setCandidato)
       .catch((err) => {
         console.error("Error cargando candidato:", err);
-        router.replace("/login");
+        // Si falla el perfil, puede ser porque el usuario no existe o se cayó la sesión
+        // router.replace("/login"); // Opcional: descomentar si quieres redirigir en caso de error
       })
       .finally(() => setLoading(false));
   }, [user, cargandoAuth, router]);

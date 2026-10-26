@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "../../lib/api";
 
 export interface Perfil {
+  // ... (tus tipos se mantienen igual)
   idCandidato: number;
   nombres: string;
   apellidos: string;
@@ -32,20 +33,24 @@ export function usePerfil(idCandidato: number | null) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const cargar = useCallback(() => {
+  const cargar = useCallback(async () => {
+    // ⬇️ AQUÍ VA EL CAMBIO ⬇️
     if (!idCandidato) {
       setLoading(false);
       return;
     }
+    // ⬆️ AQUÍ TERMINA EL CAMBIO ⬆️
+
     setLoading(true);
-    setError(null);
-    apiFetch<Perfil>(`/api/candidato/${idCandidato}/perfil`)
-      .then(setPerfil)
-      .catch((err: Error) => {
-        console.error("Error cargando perfil:", err);
-        setError(err.message);
-      })
-      .finally(() => setLoading(false));
+    try {
+      const data = await apiFetch<Perfil>(`/api/candidato/${idCandidato}/perfil`);
+      setPerfil(data);
+      setError(null);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   }, [idCandidato]);
 
   useEffect(() => {
@@ -55,34 +60,33 @@ export function usePerfil(idCandidato: number | null) {
   const mutar = useCallback(
     async (path: string, method: string, body?: unknown): Promise<Perfil> => {
       if (!idCandidato) throw new Error("ID de candidato no disponible");
+      
       const nuevo = await apiFetch<Perfil>(`/api/candidato/${idCandidato}${path}`, {
         method,
         body,
       });
+      
       setPerfil(nuevo);
       return nuevo;
     },
     [idCandidato]
   );
 
-  const mutarYRecargar = useCallback(
-    async (path: string, method: string, body?: unknown): Promise<Perfil> => {
-      const nuevo = await mutar(path, method, body);
-      await cargar();
-      return nuevo;
-    },
-    [mutar, cargar]
-  );
+  const aplicarCambiosLocales = useCallback((cambios: Partial<Perfil>) => {
+    setPerfil((prev) => (prev ? { ...prev, ...cambios } : prev));
+  }, []);
 
   return {
     perfil,
     loading,
     error,
+    recargar: cargar,
+    aplicarCambiosLocales,
     guardarDatos: (body: any) => mutar("/perfil/datos", "PUT", body),
     guardarPreferencias: (body: any) => mutar("/perfil/preferencias", "PUT", body),
     guardarSobreMi: (about: string) => mutar("/cv/sobre-mi", "PUT", { about }),
     guardarHabilidades: (habilidades: string[]) => mutar("/cv/habilidades", "PUT", { habilidades }),
-    guardarFoto: (fotoUrl: string) => mutarYRecargar("/cv/foto", "PUT", { fotoUrl }),
+    guardarFoto: (fotoUrl: string) => mutar("/cv/foto", "PUT", { fotoUrl }),
     agregarEducacion: (body: any) => mutar("/cv/educacion", "POST", body),
     agregarIdioma: (descripcion: string) => mutar("/cv/idiomas", "POST", { descripcion }),
     agregarExperiencia: (body: any) => mutar("/cv/proyectos", "POST", body),
@@ -93,6 +97,7 @@ export function usePerfil(idCandidato: number | null) {
 }
 
 export function inferirNivelIdioma(descripcion: string): { nivel: string; porcentaje: number } {
+  // ... (esto se queda igual)
   const d = descripcion.toLowerCase();
   const partes = descripcion.split(" - ");
   const nivel = partes.length > 1 ? partes[1].trim() : descripcion;

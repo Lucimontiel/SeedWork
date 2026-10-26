@@ -57,7 +57,7 @@ export default function RegistroEmpresaPage() {
       }
 
       setExito(true);
-      setTimeout(() => router.push("/login?registro=ok&tipo=empresa"), 1800);
+      //setTimeout(() => router.push("/login?registro=ok&tipo=empresa"), 1800);
     } catch (err: any) {
       setError(err?.message || "No se pudo crear la cuenta.");
     } finally {
@@ -66,16 +66,25 @@ export default function RegistroEmpresaPage() {
   }
 
   if (exito) {
-    return (
-      <div className="login-wrapper">
-        <div className="container" style={{ padding: 40 }}>
-          <div style={{ fontSize: 48, marginBottom: 16 }}>✅</div>
-          <h2 style={{ color: "var(--sw-blue)" }}>¡Cuenta creada!</h2>
-          <p style={{ color: "var(--sw-text-muted)" }}>Redirigiendo a inicio de sesión...</p>
-        </div>
+  return (
+    <div className="login-wrapper">
+      <div className="container" style={{ padding: 40, textAlign: "center" }}>
+        <div style={{ fontSize: 48, marginBottom: 16 }}>📧</div>
+        <h2 style={{ color: "var(--sw-blue)" }}>¡Cuenta creada!</h2>
+        <p style={{ color: "var(--sw-text-muted)", marginBottom: 12 }}>
+          Enviamos un enlace de verificación a <strong>{form.correo}</strong>.
+        </p>
+        <p style={{ color: "var(--sw-text-muted)", fontSize: 13, marginBottom: 24 }}>
+          Revisa tu bandeja (y spam). Puedes iniciar sesión ahora, pero verificar
+          tu correo desbloquea todas las funciones.
+        </p>
+        <Link href="/login?registro=ok&tipo=candidato" className="btn-submit" style={{ display: "inline-block", textDecoration: "none" }}>
+          Ir al login
+        </Link>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
   return (
     <div className="login-wrapper">
@@ -93,69 +102,81 @@ export default function RegistroEmpresaPage() {
         </div>
 
         <form onSubmit={handleSubmit} noValidate>
-          <div className="input-group">
-            <label>Nombre de la empresa</label>
-            <input type="text" placeholder="Ej. Tech Solutions" value={form.nombreEmpresa} onChange={(e) => update("nombreEmpresa", e.target.value)} />
-          </div>
-          <div className="input-group">
-            <label>Correo corporativo</label>
-            <input type="email" placeholder="contacto@empresa.com" value={form.correo} onChange={(e) => update("correo", e.target.value)} />
-          </div>
           
-          <div className="input-group">
-            <label>Contraseña</label>
-            <div className="input-group-password">
-              <input
-                type={showContrasena ? "text" : "password"}
-                placeholder="Mín. 8 caracteres"
-                value={form.contrasena}
-                onChange={(e) => update("contrasena", e.target.value)}
-              />
-              <button type="button" className="btn-toggle-password" onClick={() => setShowContrasena(!showContrasena)} aria-label={showContrasena ? "Ocultar contraseña" : "Mostrar contraseña"}>
-                {showContrasena ? (
-                  <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
-                ) : (
-                  <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                )}
-              </button>
+          {/* ⬅️ FILA 1: Nombre Empresa y Correo */}
+          <div className="form-row-2">
+            <div className="input-group">
+              <label>Nombre de la empresa</label>
+              <input type="text" placeholder="Ej. Tech Solutions" value={form.nombreEmpresa} onChange={(e) => update("nombreEmpresa", e.target.value)} />
+            </div>
+            <div className="input-group">
+              <label>Correo corporativo</label>
+              <input type="email" placeholder="contacto@empresa.com" value={form.correo} onChange={(e) => update("correo", e.target.value)} />
             </div>
           </div>
 
-          <div className="input-group">
-            <label>Confirmar contraseña</label>
-            <div className="input-group-password">
-              <input
-                type={showConfirmar ? "text" : "password"}
-                placeholder="Repite tu contraseña"
-                value={form.confirmar}
-                onChange={(e) => update("confirmar", e.target.value)}
-              />
-              <button type="button" className="btn-toggle-password" onClick={() => setShowConfirmar(!showConfirmar)} aria-label={showConfirmar ? "Ocultar contraseña" : "Mostrar contraseña"}>
-                {showConfirmar ? (
-                  <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
-                ) : (
-                  <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                )}
-              </button>
+          {/* ⬅️ FILA 2: Contraseña y Confirmar */}
+          <div className="form-row-2">
+            <div className="input-group">
+              <label>Contraseña</label>
+              <div className="input-group-password">
+                <input
+                  type={showContrasena ? "text" : "password"}
+                  placeholder="Mín. 8 caracteres"
+                  value={form.contrasena}
+                  onChange={(e) => update("contrasena", e.target.value)}
+                />
+                <button type="button" className="btn-toggle-password" onClick={() => setShowContrasena(!showContrasena)} aria-label="Mostrar contraseña">
+                  {showContrasena ? (
+                    <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                  ) : (
+                    <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                  )}
+                </button>
+              </div>
+            </div>
+            <div className="input-group">
+              <label>Confirmar contraseña</label>
+              <div className="input-group-password">
+                <input
+                  type={showConfirmar ? "text" : "password"}
+                  placeholder="Repite tu contraseña"
+                  value={form.confirmar}
+                  onChange={(e) => update("confirmar", e.target.value)}
+                />
+                <button type="button" className="btn-toggle-password" onClick={() => setShowConfirmar(!showConfirmar)} aria-label="Mostrar contraseña">
+                  {showConfirmar ? (
+                    <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                  ) : (
+                    <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
 
-          <div className="input-group">
-            <label>NIT / RUT</label>
-            <input type="text" placeholder="900.123.456-7" value={form.nit} onChange={(e) => update("nit", e.target.value)} />
+          {/* ⬅️ FILA 3: NIT y Sector */}
+          <div className="form-row-2">
+            <div className="input-group">
+              <label>NIT / RUT</label>
+              <input type="text" placeholder="900.123.456-7" value={form.nit} onChange={(e) => update("nit", e.target.value)} />
+            </div>
+            <div className="input-group">
+              <label>Sector</label>
+              <select value={form.sector} onChange={(e) => update("sector", e.target.value)}>
+                <option value="">Selecciona un sector</option>
+                {SECTORES.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
           </div>
-          <div className="input-group">
-            <label>Sector</label>
-            <select value={form.sector} onChange={(e) => update("sector", e.target.value)}>
-              <option value="">Selecciona un sector</option>
-              {SECTORES.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
+
+          {/* ⬅️ FILA 4: Ciudad (ocupa el ancho completo si se quiere, o lo dejamos normal) */}
           <div className="input-group">
             <label>Ciudad</label>
             <input type="text" placeholder="Medellín" value={form.ciudad} onChange={(e) => update("ciudad", e.target.value)} />
           </div>
 
+          {/* ⬅️ ESTE ES EL BLOQUE CORREGIDO CON LOS ENLACES */}
           <div className="checkbox-group">
             <input 
               type="checkbox" 

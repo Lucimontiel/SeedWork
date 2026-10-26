@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import CandidatoShell from "../CandidatoShell";
-import { useAuth } from "../../lib/auth-context";
-import { apiFetch } from "../../lib/api";
+import { useAuth } from "@/app/lib/auth-context";
+import { apiFetch } from "@/app/lib/api";
 
 type Candidato = {
   idCandidato: number;
@@ -42,97 +42,102 @@ type Postulacion = {
 
 export default function InicioCandidatoPage() {
   const router = useRouter();
-  const { user, cargando: cargandoAuth } = useAuth();
-
+  const { user } = useAuth();
+  
   const [candidato, setCandidato] = useState<Candidato | null>(null);
   const [ofertas, setOfertas] = useState<Oferta[]>([]);
   const [postulaciones, setPostulaciones] = useState<Postulacion[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [aplicando, setAplicando] = useState<number | null>(null);
 
-  // ============================================================
-  // Protección de la página
-  // ============================================================
-  useEffect(() => {
-    if (cargandoAuth) return;
-
-    if (!user) {
-      router.replace("/login");
-      return;
-    }
-
-    if (user.tipo !== "candidato" || !user.idCandidato) {
-      if (user.tipo === "empresa") router.replace("/empresa/inicio");
-      else if (user.tipo === "administrador") router.replace("/administrador/inicio");
-      else router.replace("/login");
-    }
-  }, [user, cargandoAuth, router]);
-
-  // ============================================================
-  // Carga de datos
-  // ============================================================
   useEffect(() => {
     if (!user || user.tipo !== "candidato" || !user.idCandidato) return;
 
-    // Datos del candidato
-    apiFetch<Candidato>(`/api/candidato/${user.idCandidato}`)
-      .then(setCandidato)
-      .catch((err) => console.error("Error al cargar candidato:", err));
+    const cargarDatos = async () => {
+      try {
+        // ⬅️ CORREGIDO: Ahora usa /perfil en lugar de la ruta que no existía
+        const [dataCandidato, dataOfertas, dataPostulaciones] = await Promise.all([
+          apiFetch<Candidato>(`/api/candidato/${user.idCandidato}/perfil`),
+          apiFetch<Oferta[]>("/api/vacantes"),
+          apiFetch<Postulacion[]>(`/api/candidato/${user.idCandidato}/postulaciones`),
+        ]);
 
-    // Vacantes publicadas (público, pero usamos apiFetch por consistencia)
-    apiFetch<Oferta[]>("/api/vacantes")
-      .then((data) => {
-        if (Array.isArray(data)) setOfertas(data);
-      })
-      .catch((err) => console.error("Error al cargar vacantes:", err));
+        setCandidato(dataCandidato);
+        setOfertas(dataOfertas);
+        setPostulaciones(dataPostulaciones);
+      } catch (error) {
+        console.error("Error al cargar datos de inicio:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-    // Postulaciones del candidato
-    apiFetch<Postulacion[]>(`/api/candidato/${user.idCandidato}/postulaciones`)
-      .then((data) => {
-        if (Array.isArray(data)) setPostulaciones(data);
-      })
-      .catch((err) => console.error("Error al cargar postulaciones:", err));
+    cargarDatos();
   }, [user]);
 
-  if (cargandoAuth) {
+  const aplicarOferta = async (idOferta: number) => {
+    if (!user?.idCandidato) return;
+    
+    setAplicando(idOferta);
+    try {
+      // El backend ya sabe quién eres por la cookie, así que no hace falta mandar idCandidato
+      await apiFetch("/api/postulaciones", {
+        method: "POST",
+        body: { idOferta },
+      });
+      
+      const nuevasPostulaciones = await apiFetch<Postulacion[]>(`/api/candidato/${user.idCandidato}/postulaciones`);
+      setPostulaciones(nuevasPostulaciones);
+      
+    } catch (error: any) {
+      alert(error.message || "No se pudo enviar la postulación");
+    } finally {
+      setAplicando(null);
+    }
+  };
+
+  const yaAplico = (idOferta: number) => {
+    return postulaciones.some((p) => p.idOferta === idOferta);
+  };
+
+  if (loading) {
     return (
-      <CandidatoShell pageTitle="Inicio" pageSubtitle="Cargando...">
-        <p style={{ padding: 40, textAlign: "center" }}>Cargando...</p>
+      <CandidatoShell
+        nombre={candidato ? `${candidato.nombres} ${candidato.apellidos}` : user?.correo}
+        fotoUrl={candidato?.fotoUrl}
+        pageTitle="Inicio"
+        pageSubtitle="Cargando..."
+      >
+        <p>Cargando tu información...</p>
       </CandidatoShell>
     );
   }
 
-  if (!user || user.tipo !== "candidato") {
-    return null;
-  }
-
-  const nombreCompleto = candidato
-    ? `${candidato.nombres} ${candidato.apellidos}`.trim()
-    : "";
-
   return (
     <CandidatoShell
+      nombre={candidato ? `${candidato.nombres} ${candidato.apellidos}` : user?.correo}
+      fotoUrl={candidato?.fotoUrl}
       pageTitle="Inicio"
       pageSubtitle="Cada vez más cerca de tu próxima gran oportunidad"
-      nombre={nombreCompleto}
-      fotoUrl={candidato?.fotoUrl || null}
     >
       {/* Tarjetas de acción */}
       <div className="quick-actions" style={{ marginBottom: 30 }}>
-        <button className="action-card" onClick={() => (window.location.href = "/candidato/perfil")}>
+        <button className="action-card" onClick={() => router.push("/candidato/perfil")}>
           <h4>Completar tu perfil</h4>
           <p>Cuéntanos más sobre ti</p>
           <span className="action-arrow"><svg viewBox="0 0 20 20"><path d="M4 10h12M11 5l5 5-5 5"/></svg></span>
         </button>
-        <button className="action-card" onClick={() => (window.location.href = "/candidato/vacantes")}>
+        <button className="action-card" onClick={() => router.push("/candidato/vacantes")}>
           <h4>Ofertas para ti</h4>
           <p>Encuentra tu próximo empleo</p>
           <span className="action-arrow"><svg viewBox="0 0 20 20"><path d="M4 10h12M11 5l5 5-5 5"/></svg></span>
         </button>
-        <button className="action-card" onClick={() => (window.location.href = "/candidato/simulador")}>
+        <button className="action-card" onClick={() => router.push("/candidato/simulador")}>
           <h4>Simulador</h4>
           <p>Prepárate con IA para las entrevistas</p>
           <span className="action-arrow"><svg viewBox="0 0 20 20"><path d="M4 10h12M11 5l5 5-5 5"/></svg></span>
         </button>
-        <button className="action-card" onClick={() => (window.location.href = "/candidato/consejos")}>
+        <button className="action-card" onClick={() => router.push("/candidato/consejos")}>
           <h4>Consejos para ti</h4>
           <p>Revísalos para que deslumbres</p>
           <span className="action-arrow"><svg viewBox="0 0 20 20"><path d="M4 10h12M11 5l5 5-5 5"/></svg></span>
@@ -145,45 +150,39 @@ export default function InicioCandidatoPage() {
         {postulaciones.length === 0 ? (
           <p style={{ fontSize: 14, color: "#667085" }}>No hay postulaciones para mostrar.</p>
         ) : (
-          <>
-            {postulaciones.map((postulacion) => (
-              <div className="application-card" key={postulacion.idPostulacion}>
-                <div className="application-icon icon-blue">
-                  <svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="3.5"/><path d="M10 3v2M10 15v2M3 10h2M15 10h2"/></svg>
-                </div>
-                <div className="application-info">
-                  <h4>{postulacion.titulo}</h4>
-                  <p>{postulacion.empresa}</p>
-                  <div className="application-meta">
-                    <span><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="3.5"/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2"/></svg>{postulacion.ciudad}</span>
-                    <span><svg viewBox="0 0 20 20"><rect x="2.5" y="4" width="15" height="12" rx="1.5"/><path d="M3 5.5l7 5.5 7-5.5"/></svg>{postulacion.modalidad}</span>
-                    <span><svg viewBox="0 0 20 20"><rect x="3" y="4" width="14" height="12" rx="1.5"/><path d="M7 8h6M7 11h4"/></svg>{new Date(postulacion.fechaPostulacion).toLocaleDateString()}</span>
-                  </div>
-                </div>
-                <div className="application-status">
-                  <div className="status-pill in-progress">
-                    <svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="3"/><path d="M10 6.5V10l2.5 1.5"/></svg>
-                    {postulacion.estado}
-                  </div>
-                </div>
-                <div className="application-actions">
-                  <button className="btn-outline-sm" onClick={() => (window.location.href = "/candidato/postulaciones")}>Ver oferta</button>
-                  <button className="btn-solid-sm" onClick={() => (window.location.href = "/candidato/postulaciones")}>Ver empresa</button>
+          postulaciones.slice(0, 3).map((postulacion) => (
+            <div className="application-card" key={postulacion.idPostulacion}>
+              <div className="application-icon icon-blue">
+                <svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="3.5"/><path d="M10 3v2M10 15v2M3 10h2M15 10h2"/></svg>
+              </div>
+              <div className="application-info">
+                <h4>{postulacion.titulo}</h4>
+                <p>{postulacion.empresa}</p>
+                <div className="application-meta">
+                  <span><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="3.5"/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2"/></svg>{postulacion.ciudad}</span>
+                  <span><svg viewBox="0 0 20 20"><rect x="2.5" y="4" width="15" height="12" rx="1.5"/><path d="M3 5.5l7 5.5 7-5.5"/></svg>{postulacion.modalidad}</span>
                 </div>
               </div>
-            ))}
-          </>
+              <div className="application-status">
+                <div className="status-pill in-progress">
+                  <svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="3"/><path d="M10 6.5V10l2.5 1.5"/></svg>
+                  {postulacion.estado}
+                </div>
+              </div>
+            </div>
+          ))
         )}
       </div>
 
       {/* Oportunidades pensadas para ti */}
-      <h2 className="section-title">Oportunidades pensadas para ti</h2>
+      <h2 className="section-title" style={{ marginTop: 30 }}>Oportunidades pensadas para ti</h2>
       <div className="opportunity-list">
         {ofertas.length === 0 ? (
           <p style={{ fontSize: 14, color: "#667085" }}>No hay ofertas disponibles.</p>
         ) : (
-          <>
-            {ofertas.slice(0, 5).map((oferta) => (
+          ofertas.slice(0, 5).map((oferta) => {
+            const aplico = yaAplico(oferta.idOferta);
+            return (
               <div className="opportunity-card" key={oferta.idOferta}>
                 <div className="opportunity-avatar avatar-purple">
                   <svg viewBox="0 0 20 20" style={{ width: "100%", height: "100%", fill: "#fff" }}>
@@ -195,22 +194,26 @@ export default function InicioCandidatoPage() {
                   <p>{oferta.empresa}</p>
                   <div className="opportunity-desc">{oferta.descripcion}</div>
                   <div className="tag-row">
-                    <span className="tag">Sin experiencia</span>
-                    <span className="tag">Tiempo completo</span>
+                    <span className="tag">{oferta.experienciaMinima === 0 ? "Sin experiencia" : `${oferta.experienciaMinima}+ años`}</span>
+                    <span className="tag">{oferta.modalidad}</span>
                   </div>
                 </div>
                 <div className="opportunity-meta">
                   <span><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="3.5"/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2"/></svg>{oferta.ciudad}</span>
-                  <span><svg viewBox="0 0 20 20"><rect x="2.5" y="4" width="15" height="12" rx="1.5"/><path d="M3 5.5l7 5.5 7-5.5"/></svg>{oferta.modalidad}</span>
-                  <span><svg viewBox="0 0 20 20"><rect x="3" y="4" width="14" height="12" rx="1.5"/><path d="M7 8h6M7 11h4"/></svg>{new Date(oferta.fechaPublicacion).toLocaleDateString()}</span>
                 </div>
                 <div className="opportunity-actions">
-                  <button className="btn-solid-sm" onClick={() => alert("Postulándote a: " + oferta.titulo)}>Aplicar</button>
-                  <button className="btn-outline-sm" onClick={() => (window.location.href = "/candidato/vacantes")}>Ver más</button>
+                  <button 
+                    className="btn-solid-sm" 
+                    onClick={() => aplicarOferta(oferta.idOferta)}
+                    disabled={aplico || aplicando === oferta.idOferta}
+                  >
+                    {aplico ? "Aplicado ✓" : aplicando === oferta.idOferta ? "Enviando..." : "Aplicar"}
+                  </button>
+                  <button className="btn-outline-sm" onClick={() => router.push("/candidato/vacantes")}>Ver más</button>
                 </div>
               </div>
-            ))}
-          </>
+            );
+          })
         )}
       </div>
     </CandidatoShell>

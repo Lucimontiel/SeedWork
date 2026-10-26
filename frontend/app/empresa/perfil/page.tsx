@@ -25,17 +25,9 @@ type Empresa = {
 };
 
 const SECTORES = [
-  "Tecnología",
-  "Educación",
-  "Salud",
-  "Finanzas",
-  "Construcción",
-  "Otro",
+  "Tecnología", "Educación", "Salud", "Finanzas", "Construcción", "Otro",
 ];
 
-// ============================================================
-// Compresión de imagen (evita payloads gigantes)
-// ============================================================
 function comprimirImagen(file: File, maxLado = 400, calidad = 0.8): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -66,9 +58,6 @@ function comprimirImagen(file: File, maxLado = 400, calidad = 0.8): Promise<stri
   });
 }
 
-// ============================================================
-// Componente principal
-// ============================================================
 export default function PerfilEmpresaPage() {
   const { user, cargando: cargandoAuth } = useAuth();
 
@@ -80,18 +69,29 @@ export default function PerfilEmpresaPage() {
   const [guardando, setGuardando] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
-  // Estado del formulario en modo edición
   const [draft, setDraft] = useState<Empresa | null>(null);
   const [logoDraft, setLogoDraft] = useState<string | null>(null);
+
+  // ⬇️ STATS REALES ⬇️
+  const [stats, setStats] = useState({ ofertas: 0, candidatos: 0 });
+  
+  useEffect(() => {
+    if (empresa) {
+      apiFetch<any>(`/api/empresa/${empresa.idEmpresa}/resumen`)
+        .then(data => setStats({ 
+          ofertas: data.rendimiento || 0, 
+          candidatos: data.nuevosCandidatos || 0 
+        }))
+        .catch(() => {});
+    }
+  }, [empresa]);
+  // ⬆️ FIN DE STATS REALES ⬆️
 
   function mostrarToast(msg: string) {
     setToast(msg);
     setTimeout(() => setToast(null), 2800);
   }
 
-  // ============================================================
-  // Carga inicial
-  // ============================================================
   useEffect(() => {
     if (cargandoAuth) return;
     if (!user || user.tipo !== "empresa" || !user.idEmpresa) {
@@ -112,9 +112,6 @@ export default function PerfilEmpresaPage() {
       .finally(() => setCargando(false));
   }, [user, cargandoAuth]);
 
-  // ============================================================
-  // Modo edición
-  // ============================================================
   function iniciarEdicion() {
     if (!empresa) return;
     setDraft({ ...empresa });
@@ -151,8 +148,6 @@ export default function PerfilEmpresaPage() {
 
     setGuardando(true);
     try {
-      // ⚠️ CRÍTICO: enviamos null cuando borran el logo, string cuando lo suben.
-      // Así el backend distingue "borrar" de "no tocar".
       const body: Record<string, any> = {
         nombreEmpresa: draft.nombreEmpresa?.trim() || undefined,
         nit: draft.nit?.trim() || undefined,
@@ -169,7 +164,6 @@ export default function PerfilEmpresaPage() {
         correoCorporativo: draft.correoCorporativo?.trim() || undefined,
       };
 
-      // El logo se manda SIEMPRE (aunque sea null) para poder borrarlo
       body.logoUrl = logoDraft;
 
       await apiFetch(`/api/empresa/${user.idEmpresa}`, {
@@ -177,7 +171,6 @@ export default function PerfilEmpresaPage() {
         body,
       });
 
-      // Recargar datos actualizados del servidor
       const actualizado = await apiFetch<Empresa>(`/api/empresa/${user.idEmpresa}`);
       setEmpresa(actualizado);
       setDraft(null);
@@ -191,9 +184,6 @@ export default function PerfilEmpresaPage() {
     }
   }
 
-  // ============================================================
-  // Estilos
-  // ============================================================
   const inputStyle: React.CSSProperties = {
     border: "1px solid #E6E9EF",
     borderRadius: 8,
@@ -206,9 +196,6 @@ export default function PerfilEmpresaPage() {
 
   const logoActual = editando ? logoDraft : empresa?.logoUrl;
 
-  // ============================================================
-  // Render
-  // ============================================================
   return (
     <EmpresaShell pageTitle="Perfil" pageSubtitle="Información de tu empresa">
       {cargando && <p style={{ fontSize: 14, color: "#667085" }}>Cargando tu perfil...</p>}
@@ -513,14 +500,14 @@ export default function PerfilEmpresaPage() {
             </div>
           </div>
 
-          {/* Bloque 3: Estadísticas */}
+          {/* Bloque 3: Estadísticas (Datos Reales) */}
           <div className="empresa-stats-card">
             <div className="empresa-stat-item">
               <div className="empresa-stat-icon">
                 <svg viewBox="0 0 20 20"><path d="M10 4v12M4 10h12"/></svg>
               </div>
               <div className="empresa-stat-info">
-                <strong>12</strong>
+                <strong>{stats.ofertas}</strong>
                 <span className="empresa-stat-title">Ofertas activas</span>
                 <span className="empresa-stat-sub">Publicadas</span>
               </div>
@@ -530,7 +517,7 @@ export default function PerfilEmpresaPage() {
                 <svg viewBox="0 0 20 20"><circle cx="7" cy="6.5" r="2.3"/><path d="M2.8 15.5c0-2.4 1.9-4 4.2-4s4.2 1.6 4.2 4"/></svg>
               </div>
               <div className="empresa-stat-info">
-                <strong>128</strong>
+                <strong>{stats.candidatos}</strong>
                 <span className="empresa-stat-title">Candidatos</span>
                 <span className="empresa-stat-sub">En proceso</span>
               </div>
@@ -540,9 +527,9 @@ export default function PerfilEmpresaPage() {
                 <svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="2.6"/><path d="M2.5 10s3-5 7.5-5 7.5 5 7.5 5-3 5-7.5 5-7.5-5-7.5-5z"/></svg>
               </div>
               <div className="empresa-stat-info">
-                <strong>5.4K</strong>
+                <strong>0</strong>
                 <span className="empresa-stat-title">Visualizaciones</span>
-                <span className="empresa-stat-sub">Último 1 hora</span>
+                <span className="empresa-stat-sub">Próximamente</span>
               </div>
             </div>
           </div>

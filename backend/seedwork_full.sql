@@ -8,6 +8,7 @@ SET NAMES utf8mb4;
 SET SQL_SAFE_UPDATES = 0;
 SET FOREIGN_KEY_CHECKS = 0;
 
+DROP DATABASE IF EXISTS seedwork;
 CREATE DATABASE seedwork CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE seedwork;
 
@@ -487,3 +488,74 @@ VALUES
 
 SET FOREIGN_KEY_CHECKS = 1;
 SET SQL_SAFE_UPDATES = 1;
+
+USE seedwork;
+SELECT u.IdUsuario, u.Correo, u.TotpHabilitado, a.Nombres, a.Apellidos
+FROM Usuario u
+LEFT JOIN Administrador a ON a.IdUsuario = u.IdUsuario
+WHERE u.IdRol = 1;
+
+USE seedwork;
+
+-- Ver el candidato 1
+SELECT IdCandidato, Nombres, Apellidos, Telefono, TituloProfesional, Ciudad_FK
+FROM Candidato WHERE IdCandidato = 1;
+
+-- O más específico:
+SELECT * FROM Candidato WHERE IdCandidato = 1 \G
+
+CREATE TABLE PasswordResetToken (
+    IdPasswordResetToken INT AUTO_INCREMENT PRIMARY KEY,
+    IdUsuario INT NOT NULL,
+    TokenHash VARCHAR(64) NOT NULL UNIQUE,
+    ExpiraEn DATETIME NOT NULL,
+    Usado BOOLEAN NOT NULL DEFAULT FALSE,
+    UsadoEn DATETIME NULL,
+    IP VARCHAR(45) NULL,
+    FechaCreacion DATETIME NOT NULL,
+    CONSTRAINT FK_PRT_Usuario FOREIGN KEY (IdUsuario) REFERENCES Usuario(IdUsuario) ON DELETE CASCADE,
+    INDEX IDX_PRT_Usuario (IdUsuario),
+    INDEX IDX_PRT_Token (TokenHash)
+);
+
+-- 1. Agregar columna para saber si el correo está verificado
+ALTER TABLE Usuario ADD COLUMN EmailVerificado BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- 2. (Opcional pero recomendado) Marcar a todos tus usuarios actuales como verificados para que no pierdan acceso
+UPDATE Usuario SET EmailVerificado = TRUE;
+
+-- 3. Crear la tabla para los tokens de verificación
+CREATE TABLE EmailVerificationToken (
+    IdEmailVerificationToken INT AUTO_INCREMENT PRIMARY KEY,
+    IdUsuario INT NOT NULL,
+    TokenHash VARCHAR(64) NOT NULL UNIQUE,
+    ExpiraEn DATETIME NOT NULL,
+    Usado BOOLEAN NOT NULL DEFAULT FALSE,
+    FechaCreacion DATETIME NOT NULL,
+    CONSTRAINT FK_EVT_Usuario FOREIGN KEY (IdUsuario) REFERENCES Usuario(IdUsuario) ON DELETE CASCADE
+);
+
+UPDATE Usuario SET EmailVerificado = TRUE WHERE Correo = 'vivianalaverdegil@gmail.com';
+UPDATE Usuario SET EmailVerificado = TRUE WHERE Correo = 'nikolerojas2006@gmail.com';
+
+USE seedwork;
+
+-- 1. Agregar la columna EmailVerificado (si no la tienes aún)
+ALTER TABLE Usuario 
+ADD COLUMN EmailVerificado BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- 2. Marcar como verificados a los usuarios que ya existían (opcional, para no bloquearlos)
+UPDATE Usuario SET EmailVerificado = TRUE WHERE EmailVerificado = FALSE;
+
+-- 3. Crear la tabla que falta
+CREATE TABLE EmailVerificationToken (
+    IdEmailVerificationToken INT AUTO_INCREMENT PRIMARY KEY,
+    IdUsuario INT NOT NULL,
+    TokenHash VARCHAR(64) NOT NULL UNIQUE,
+    ExpiraEn DATETIME NOT NULL,
+    Usado BOOLEAN NOT NULL DEFAULT FALSE,
+    FechaCreacion DATETIME NOT NULL,
+    CONSTRAINT FK_EVT_Usuario FOREIGN KEY (IdUsuario) REFERENCES Usuario(IdUsuario) ON DELETE CASCADE
+);
+
+UPDATE Usuario SET EmailVerificado = TRUE;

@@ -1,4 +1,4 @@
-# notif_utils.py
+# notificaciones.py
 from typing import Optional
 from sqlalchemy.orm import Session
 from models import Notificacion, TipoNotificacion

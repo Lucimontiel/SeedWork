@@ -1,13 +1,11 @@
-# --- Core ---
 fastapi
 uvicorn[standard]
 sqlalchemy
 pymysql
 python-dotenv
-
-# --- Validación ---
 pydantic[email]
 email-validator
+python-multipart
 
 # --- Seguridad / Hashing ---
 passlib[argon2]
@@ -17,15 +15,14 @@ bcrypt
 # --- JWT ---
 python-jose[cryptography]
 resend
+cryptography
 
-# --- 2FA ---
+# --- 2FA (Autenticación en dos pasos) ---
 pyotp
 qrcode[pil]
 
 # --- Rate Limiting ---
 slowapi
 
-# --- Utilidades ---
-python-multipart
-
-cryptography
+# --- Inteligencia Artificial (Simulador) ---
+groq

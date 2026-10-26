@@ -284,7 +284,7 @@ export default function MiCVPage() {
           )}
 
           {previewVisible && (
-            <div className="cv-preview" data-template={cv.plantilla !== "clasico" ? cv.plantilla : undefined}>
+            <div id="cvPreview" className="cv-preview" data-template={cv.plantilla !== "clasico" ? cv.plantilla : undefined}>
               <div className="cv-preview-sidebar">
                 <div className="cv-preview-photo">
                   {cv.fotoUrl ? (

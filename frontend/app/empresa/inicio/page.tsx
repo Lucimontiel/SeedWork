@@ -199,7 +199,9 @@ export default function InicioEmpresaPage() {
   // ============================================================
   // Acciones
   // ============================================================
-  async function crearOferta(form: { titulo: string; descripcion: string; ciudad: string; modalidad: string }) {
+    async function crearOferta(form: { titulo: string; descripcion: string; ciudad: string; modalidad: string;
+      categoria: string;tipoContrato: string;jornada: string;
+  }) {
     try {
       await apiFetch("/api/ofertas", {
         method: "POST",
@@ -208,6 +210,9 @@ export default function InicioEmpresaPage() {
           descripcion: form.descripcion.trim(),
           ciudad: form.ciudad.trim(),
           modalidad: form.modalidad,
+          categoria: form.categoria,         // ⬅️ AÑADIDO
+          tipoContrato: form.tipoContrato,   // ⬅️ AÑADIDO
+          jornada: form.jornada              // ⬅️ AÑADIDO
         },
       });
       setModalNuevaOferta(false);
@@ -258,9 +263,10 @@ export default function InicioEmpresaPage() {
     }
   }
 
-  async function verPerfilCandidato(idCandidato: number) {
+    async function verPerfilCandidato(idCandidato: number) {
     try {
       const data = await apiFetch<PerfilCandidato>(`/api/candidato/${idCandidato}/perfil`);
+      setModalCandidatosOferta(null); // ⬅️ ESTO CIERRA EL MODAL ANTERIOR
       setModalPerfilCandidato(data);
     } catch (err: any) {
       mostrarToast(err?.message || "Error al cargar el perfil");
@@ -407,6 +413,7 @@ export default function InicioEmpresaPage() {
                 <button className="btn-outline-sm" onClick={() => abrirEditarOferta(oferta.idOferta)}>
                   Editar
                 </button>
+                {oferta.estado === "Publicada" && (
                 <select
                   className="empresa-status-select"
                   value=""
@@ -414,11 +421,24 @@ export default function InicioEmpresaPage() {
                     if (e.target.value) cambiarEstadoOferta(oferta.idOferta, e.target.value);
                   }}
                 >
-                  <option value="">Estado</option>
-                  <option value="Pausada">Pausada</option>
-                  <option value="Cerrada">Cerrada</option>
-                  <option value="Publicada">Publicada</option>
+                  <option value="">Cambiar estado</option>
+                  <option value="Pausada">Pausar</option>
+                  <option value="Cerrada">Cerrar</option>
                 </select>
+              )}
+
+              {oferta.estado === "Pausada" && (
+                <select
+                  className="empresa-status-select"
+                  value=""
+                  onChange={(e) => {
+                    if (e.target.value) cambiarEstadoOferta(oferta.idOferta, e.target.value);
+                  }}
+                >
+                  <option value="">Cambiar estado</option>
+                  <option value="Cerrada">Cerrar</option>
+                </select>
+              )}
               </div>
             </div>
           ))
@@ -525,13 +545,24 @@ function ModalNuevaOferta({
   onCrear,
 }: {
   onCancel: () => void;
-  onCrear: (form: { titulo: string; descripcion: string; ciudad: string; modalidad: string }) => Promise<void>;
+  onCrear: (form: { 
+    titulo: string; 
+    descripcion: string; 
+    ciudad: string; 
+    modalidad: string;
+    categoria: string;
+    tipoContrato: string;
+    jornada: string;
+  }) => Promise<void>;
 }) {
   const [form, setForm] = useState({
     titulo: "",
     descripcion: "",
     ciudad: "Medellín",
     modalidad: "Híbrido",
+    categoria: "Desarrollo de Software",
+    tipoContrato: "Término Indefinido",
+    jornada: "Tiempo Completo"
   });
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -553,14 +584,16 @@ function ModalNuevaOferta({
     }
   }
 
-  const inputStyle: React.CSSProperties = {
-    border: "1px solid #E6E9EF",
+    const inputStyle: React.CSSProperties = {
+    border: "1px solid var(--line)", // ⬅️ Usar variable
     borderRadius: 8,
     padding: 10,
     fontFamily: "inherit",
     fontSize: 14,
     width: "100%",
     boxSizing: "border-box",
+    background: "var(--white)",      // ⬅️ Cambiado
+    color: "var(--ink)",             // ⬅️ Añadido
   };
 
   return (
@@ -583,6 +616,7 @@ function ModalNuevaOferta({
             />
           </div>
 
+          {/* FILA 1: Ciudad y Modalidad */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
             <input
               type="text"
@@ -600,6 +634,45 @@ function ModalNuevaOferta({
               <option value="Híbrido">Híbrido</option>
               <option value="Presencial">Presencial</option>
               <option value="Remoto">Remoto</option>
+            </select>
+          </div>
+
+          {/* FILA 2: Categoría y Contrato (NUEVO) */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+            <select
+              value={form.categoria}
+              onChange={(e) => setForm({ ...form, categoria: e.target.value })}
+              style={inputStyle}
+            >
+              <option value="Desarrollo de Software">Desarrollo de Software</option>
+              <option value="Diseño Gráfico">Diseño Gráfico</option>
+              <option value="Marketing">Marketing</option>
+              <option value="Administración">Administración</option>
+              <option value="Recursos Humanos">Recursos Humanos</option>
+              <option value="Ventas">Ventas</option>
+            </select>
+            <select
+              value={form.tipoContrato}
+              onChange={(e) => setForm({ ...form, tipoContrato: e.target.value })}
+              style={inputStyle}
+            >
+              <option value="Término Indefinido">Término Indefinido</option>
+              <option value="Término Fijo">Término Fijo</option>
+              <option value="Prestación de Servicios">Prestación de Servicios</option>
+            </select>
+          </div>
+
+          {/* FILA 3: Jornada (NUEVO) */}
+          <div style={{ marginBottom: 12 }}>
+            <select
+              value={form.jornada}
+              onChange={(e) => setForm({ ...form, jornada: e.target.value })}
+              style={inputStyle}
+            >
+              <option value="Tiempo Completo">Tiempo Completo</option>
+              <option value="Medio Tiempo">Medio Tiempo</option>
+              <option value="Por Horas">Por Horas</option>
+              <option value="Flexible">Flexible</option>
             </select>
           </div>
 
@@ -999,7 +1072,8 @@ const overlayStyle: React.CSSProperties = {
 };
 
 const modalStyle: React.CSSProperties = {
-  background: "#fff",
+  background: "var(--white)", // ⬅️ Cambiado
+  color: "var(--ink)",        // ⬅️ Añadido para que el texto sea visible
   borderRadius: 16,
   padding: 24,
   width: "100%",
@@ -1020,7 +1094,7 @@ const closeButtonStyle: React.CSSProperties = {
   border: "none",
   fontSize: 24,
   cursor: "pointer",
-  color: "#667085",
+  color: "var(--muted)",
   padding: 0,
   lineHeight: 1,
 };

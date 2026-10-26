@@ -317,31 +317,33 @@ function ModalPerfilCandidato({
 
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {perfil.correo && (
-                  <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, color: "#475467" }}>
-                    <svg viewBox="0 0 20 20" style={{ width: 15, height: 15, stroke: "#667085", fill: "none", strokeWidth: 1.6 }}>
+                <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, color: "var(--muted)" }}>
+                  <svg viewBox="0 0 20 20" style={{ width: 15, height: 15, stroke: "var(--muted)", fill: "none", strokeWidth: 1.6 }}>
+                    <rect x="2.5" y="4.5" width="15" height="11" rx="1.5" />
+                    <path d="M3 5.5l7 5.5 7-5.5" />
+                  </svg>
+                  {perfil.correo}
+                </span>
+              )}
+            
+                {perfil.telefono && (
+                  <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, color: "var(--muted)" }}>
+                    <svg viewBox="0 0 20 20" style={{ width: 15, height: 15, stroke: "var(--muted)", fill: "none", strokeWidth: 1.6 }}>
                       <rect x="2.5" y="4.5" width="15" height="11" rx="1.5" />
                       <path d="M3 5.5l7 5.5 7-5.5" />
                     </svg>
-                    {perfil.correo}
-                  </span>
-                )}
-                {perfil.telefono && (
-                  <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, color: "#475467" }}>
-                    <svg viewBox="0 0 20 20" style={{ width: 15, height: 15, stroke: "#667085", fill: "none", strokeWidth: 1.6 }}>
-                      <path d="M4 3.5h3l1.5 3.5-2 1.5a10 10 0 005 5l1.5-2 3.5 1.5v3a1 1 0 01-1 1A12.5 12.5 0 013 4.5a1 1 0 011-1z" />
-                    </svg>
                     {perfil.telefono}
                   </span>
-                )}
+              )}
                 {perfil.ciudad && (
-                  <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, color: "#475467" }}>
-                    <svg viewBox="0 0 20 20" style={{ width: 15, height: 15, stroke: "#667085", fill: "none", strokeWidth: 1.6 }}>
-                      <path d="M10 17s5.5-5 5.5-9A5.5 5.5 0 004.5 8c0 4 5.5 9 5.5 9z" />
-                      <circle cx="10" cy="8" r="1.8" />
+                  <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, color: "var(--muted)" }}>
+                    <svg viewBox="0 0 20 20" style={{ width: 15, height: 15, stroke: "var(--muted)", fill: "none", strokeWidth: 1.6 }}>
+                      <rect x="2.5" y="4.5" width="15" height="11" rx="1.5" />
+                      <path d="M3 5.5l7 5.5 7-5.5" />
                     </svg>
                     {perfil.ciudad}
                   </span>
-                )}
+              )}
               </div>
             </div>
           </div>
@@ -441,7 +443,7 @@ function ModalPerfilCandidato({
         </div>
 
         {/* Footer */}
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20, paddingTop: 16, borderTop: "1px solid #E6E9EF" }}>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--line)" }}>
           <button type="button" className="btn-empresa-outline" onClick={onCerrar}>
             Cerrar
           </button>
@@ -489,14 +491,14 @@ const overlayStyle: React.CSSProperties = {
 };
 
 const modalStyle: React.CSSProperties = {
-  background: "#fff",
+  background: "var(--white)", // ⬅️ Cambiado
+  color: "var(--ink)",        // ⬅️ Añadido para que el texto sea visible
   borderRadius: 16,
   padding: 24,
   width: "100%",
   maxWidth: 520,
   maxHeight: "90vh",
   overflowY: "auto",
-  boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
 };
 
 const modalHeaderStyle: React.CSSProperties = {
@@ -509,9 +511,9 @@ const modalHeaderStyle: React.CSSProperties = {
 const closeButtonStyle: React.CSSProperties = {
   background: "none",
   border: "none",
-  fontSize: 26,
+  fontSize: 24,
   cursor: "pointer",
-  color: "#667085",
+  color: "var(--muted)",
   padding: 0,
   lineHeight: 1,
 };

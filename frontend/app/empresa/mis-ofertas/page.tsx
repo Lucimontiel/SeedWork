@@ -31,6 +31,7 @@ type ConteoEstados = {
   en_revision: number;
   pausadas: number;
   cerradas: number;
+  rechazadas: number;  // ⬅️ NUEVO
 };
 
 export default function MisOfertasEmpresaPage() {
@@ -65,6 +66,9 @@ export default function MisOfertasEmpresaPage() {
     descripcion: "",
     ciudad: "Medellín",
     modalidad: "Híbrido",
+    categoria: "Desarrollo de Software",  // ⬅️ AÑADIR
+    tipoContrato: "Término Indefinido",   // ⬅️ AÑADIR
+    jornada: "Tiempo Completo"            // ⬅️ AÑADIR
   });
 
   function mostrarToast(msg: string) {
@@ -108,10 +112,11 @@ export default function MisOfertasEmpresaPage() {
 
       let coincideTab = true;
       if (tabActivo === "todas") coincideTab = true;
-      if (tabActivo === "activas") coincideTab = oferta.estado === "Publicada" || oferta.estado === "Activa";
-      if (tabActivo === "en_revision") coincideTab = oferta.estado === "Por aprobar" || oferta.estado === "En revisión";
+      if (tabActivo === "activas") coincideTab = oferta.estado === "Publicada";
+      if (tabActivo === "en_revision") coincideTab = oferta.estado === "Por aprobar";
       if (tabActivo === "pausadas") coincideTab = oferta.estado === "Pausada";
       if (tabActivo === "cerradas") coincideTab = oferta.estado === "Cerrada";
+      if (tabActivo === "rechazadas") coincideTab = oferta.estado === "Rechazada";  // ⬅️ NUEVO
 
       return coincideTitulo && coincideModalidad && coincideEstado && coincideArea && coincideTab;
     });
@@ -170,9 +175,8 @@ export default function MisOfertasEmpresaPage() {
     }
   }
 
-  async function handleCreate(e: React.FormEvent) {
+    async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
-
     try {
       await apiFetch(`/api/ofertas`, {
         method: "POST",
@@ -181,10 +185,13 @@ export default function MisOfertasEmpresaPage() {
           descripcion: form.descripcion.trim(),
           ciudad: form.ciudad.trim(),
           modalidad: form.modalidad,
+          categoria: form.categoria,       // ⬅️ AÑADIR
+          tipoContrato: form.tipoContrato, // ⬅️ AÑADIR
+          jornada: form.jornada            // ⬅️ AÑADIR
         },
       });
       setCrearNueva(false);
-      setForm({ titulo: "", descripcion: "", ciudad: "Medellín", modalidad: "Híbrido" });
+      setForm({ titulo: "", descripcion: "", ciudad: "Medellín", modalidad: "Híbrido", categoria: "Desarrollo de Software", tipoContrato: "Término Indefinido", jornada: "Tiempo Completo" });
       mostrarToast("Oferta creada");
       await recargar();
     } catch (err: any) {
@@ -192,14 +199,16 @@ export default function MisOfertasEmpresaPage() {
     }
   }
 
-  const inputStyle: React.CSSProperties = {
-    border: "1px solid #E6E9EF",
+   const inputStyle: React.CSSProperties = {
+    border: "1px solid var(--line)", // ⬅️ Usar variable
     borderRadius: 8,
     padding: 10,
     fontFamily: "inherit",
     fontSize: 14,
     width: "100%",
     boxSizing: "border-box",
+    background: "var(--white)",      // ⬅️ Cambiado
+    color: "var(--ink)",             // ⬅️ Añadido
   };
 
   return (
@@ -218,8 +227,11 @@ export default function MisOfertasEmpresaPage() {
           <button className={"misofertas-tab" + (tabActivo === "pausadas" ? " active" : "")} onClick={() => setTabActivo("pausadas")}>
             <strong>Pausadas {conteo?.pausadas ?? 0}</strong>
           </button>
-          <button className={"misofertas-tab" + (tabActivo === "cerradas" ? " active" : "")} onClick={() => setTabActivo("cerradas")}>
+            <button className={"misofertas-tab" + (tabActivo === "cerradas" ? " active" : "")} onClick={() => setTabActivo("cerradas")}>
             <strong>Cerradas {conteo?.cerradas ?? 0}</strong>
+          </button>
+          <button className={"misofertas-tab" + (tabActivo === "rechazadas" ? " active" : "")} onClick={() => setTabActivo("rechazadas")}>
+            <strong>Rechazadas {conteo?.rechazadas ?? 0}</strong>
           </button>
         </div>
         <button className="btn-empresa-solid" onClick={() => setCrearNueva(true)}>
@@ -257,16 +269,30 @@ export default function MisOfertasEmpresaPage() {
       </div>
 
       {/* Formulario crear */}
+            {/* Formulario crear */}
       {crearNueva && (
-        <form onSubmit={handleCreate} style={{ background: "#fff", border: "1px solid #E6E9EF", borderRadius: 14, padding: 20, marginBottom: 20 }}>
-          <h3 style={{ marginTop: 0 }}>Nueva Oferta</h3>
+        <form 
+          onSubmit={handleCreate} 
+          style={{ 
+            background: "var(--white)",      // ⬅️ Usar variable
+            border: "1px solid var(--line)", // ⬅️ Usar variable
+            borderRadius: 14, 
+            padding: 20, 
+            marginBottom: 20,
+            color: "var(--ink)"              // ⬅️ Asegurar que el texto se vea
+          }}
+        >
+          <h3 style={{ marginTop: 0, color: "var(--ink)" }}>Nueva Oferta</h3>
+          
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <input type="text" placeholder="Título de la oferta" value={form.titulo} onChange={(e) => setForm({ ...form, titulo: e.target.value })} required style={inputStyle} />
             <input type="text" placeholder="Ciudad" value={form.ciudad} onChange={(e) => setForm({ ...form, ciudad: e.target.value })} required style={inputStyle} />
           </div>
+          
           <div style={{ marginTop: 12 }}>
             <textarea placeholder="Descripción" value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} required rows={4} style={{ ...inputStyle, resize: "vertical" }} />
           </div>
+          
           <div style={{ marginTop: 12 }}>
             <select value={form.modalidad} onChange={(e) => setForm({ ...form, modalidad: e.target.value })} style={inputStyle}>
               <option value="Híbrido">Híbrido</option>
@@ -274,6 +300,7 @@ export default function MisOfertasEmpresaPage() {
               <option value="Remoto">Remoto</option>
             </select>
           </div>
+          
           <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
             <button type="submit" className="btn-empresa-solid">Crear oferta</button>
             <button type="button" className="btn-empresa-outline" onClick={() => setCrearNueva(false)}>Cancelar</button>
@@ -297,7 +324,7 @@ export default function MisOfertasEmpresaPage() {
                 <div className="misofertas-offer-cell" style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
                   <div className="misofertas-avatar">DM</div>
                   <div style={{ minWidth: 0 }}>
-                    <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: "#101828" }}>{oferta.titulo}</h4>
+                    <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: "var(--ink)" }}>{oferta.titulo}</h4>
                     <p style={{ margin: "2px 0 8px", fontSize: 12.5, color: "#667085" }}>{oferta.empresa}</p>
                     <span className="tag tag-blue-soft">Sin experiencia</span>
                   </div>
@@ -317,18 +344,54 @@ export default function MisOfertasEmpresaPage() {
                 <div className="misofertas-publicada">
                   {oferta.fechaPublicacion ? new Date(oferta.fechaPublicacion).toLocaleDateString() : "—"}
                 </div>
-                <div className="misofertas-actions-btn" style={{ position: "relative" }}>
-                  <button onClick={() => setMenuAbierto(menuAbierto === oferta.idOferta ? null : oferta.idOferta)} style={{ background: "none", border: "none", fontSize: 18, color: "#667085", cursor: "pointer" }}>
+                                <div className="misofertas-actions-btn" style={{ position: "relative" }}>
+                  <button 
+                    onClick={() => setMenuAbierto(menuAbierto === oferta.idOferta ? null : oferta.idOferta)} 
+                    style={{ background: "var(--white)", border: "1px solid var(--line)", borderRadius: 6, fontSize: 18, color: "var(--muted)", cursor: "pointer", padding: "2px 10px" }}
+                  >
                     ...
                   </button>
                   {menuAbierto === oferta.idOferta && (
-                    <div style={{ position: "absolute", right: 0, bottom: "100%", marginBottom: 8, background: "#fff", border: "1px solid #E6E9EF", borderRadius: 8, boxShadow: "0 4px 12px rgba(0,0,0,0.1)", padding: 8, zIndex: 10, width: 150 }}>
-                      <button onClick={() => abrirEdicion(oferta.idOferta)} style={{ display: "block", width: "100%", background: "none", border: "none", padding: "8px 12px", fontSize: 13, fontWeight: 600, color: "#101828", cursor: "pointer", textAlign: "left" }}>Editar</button>
-                      <button onClick={() => cambiarEstado(oferta.idOferta, "Pausada")} style={{ display: "block", width: "100%", background: "none", border: "none", padding: "8px 12px", fontSize: 13, fontWeight: 600, color: "#101828", cursor: "pointer", textAlign: "left" }}>Pausar</button>
-                      <button onClick={() => cambiarEstado(oferta.idOferta, "Cerrada")} style={{ display: "block", width: "100%", background: "none", border: "none", padding: "8px 12px", fontSize: 13, fontWeight: 600, color: "#D0402F", cursor: "pointer", textAlign: "left" }}>Cerrar</button>
-                      <button onClick={() => cambiarEstado(oferta.idOferta, "Publicada")} style={{ display: "block", width: "100%", background: "none", border: "none", padding: "8px 12px", fontSize: 13, fontWeight: 600, color: "#2FA360", cursor: "pointer", textAlign: "left" }}>Publicar</button>
-                    </div>
-                  )}
+                  <div style={{ position: "absolute", right: 0, bottom: "100%", marginBottom: 8, background: "var(--white)", border: "1px solid var(--line)", borderRadius: 8, boxShadow: "0 4px 12px rgba(0,0,0,0.3)", padding: 8, zIndex: 10, width: 170 }}>
+                    {/* Editar: mientras no esté Cerrada/Rechazada */}
+                    {(oferta.estado === "Publicada" || oferta.estado === "Pausada" || oferta.estado === "Por aprobar") && (
+                      <button onClick={() => abrirEdicion(oferta.idOferta)}
+                        style={{ display: "block", width: "100%", background: "none", border: "none", padding: "8px 12px", fontSize: 13, fontWeight: 600, color: "var(--ink)", cursor: "pointer", textAlign: "left" }}
+                      >Editar</button>
+                    )}
+
+                    {/* Pausar: solo si está Publicada */}
+                    {oferta.estado === "Publicada" && (
+                      <button
+                        onClick={() => cambiarEstado(oferta.idOferta, "Pausada")}
+                        style={{ display: "block", width: "100%", background: "none", border: "none", padding: "8px 12px", fontSize: 13, fontWeight: 600, color: "var(--ink)", cursor: "pointer", textAlign: "left" }}
+                      >
+                        Pausar
+                      </button>
+                    )}
+
+                    {/* Cerrar: si está Publicada o Pausada */}
+                    {(oferta.estado === "Publicada" || oferta.estado === "Pausada") && (
+                      <button
+                        onClick={() => cambiarEstado(oferta.idOferta, "Cerrada")}
+                        style={{ display: "block", width: "100%", background: "none", border: "none", padding: "8px 12px", fontSize: 13, fontWeight: 600, color: "#D0402F", cursor: "pointer", textAlign: "left" }}
+                      >
+                        Cerrar oferta
+                      </button>
+                    )}
+
+                    {/* Por aprobar / Rechazada / Cerrada: solo lectura */}
+                    {(oferta.estado === "Por aprobar" || oferta.estado === "Rechazada" || oferta.estado === "Cerrada") && (
+                      <p style={{ margin: 0, padding: "8px 12px", fontSize: 12.5, color: "var(--muted)", fontStyle: "italic" }}>
+                        {oferta.estado === "Por aprobar"
+                          ? "En revisión por el administrador"
+                          : oferta.estado === "Rechazada"
+                          ? "Rechazada por el administrador"
+                          : "Oferta cerrada"}
+                      </p>
+                    )}
+                  </div>
+                )}
                 </div>
               </div>
             ))
@@ -337,12 +400,12 @@ export default function MisOfertasEmpresaPage() {
       </div>
 
       {/* Modal de edición */}
-      {editando && ofertaEditar && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
-          <div style={{ background: "#fff", borderRadius: 16, padding: 24, width: "90%", maxWidth: 500 }}>
+            {editando && ofertaEditar && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
+          <div style={{ background: "var(--white)", color: "var(--ink)", borderRadius: 16, padding: 24, width: "90%", maxWidth: 500, boxShadow: "0 20px 60px rgba(0,0,0,0.4)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <h3 style={{ margin: 0, fontSize: 18 }}>Editar Oferta</h3>
-              <button onClick={() => setEditando(false)} style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", color: "#667085" }}>×</button>
+              <h3 style={{ margin: 0, fontSize: 18, color: "var(--ink)" }}>Editar Oferta</h3>
+              <button onClick={() => setEditando(false)} style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", color: "var(--muted)" }}>×</button>
             </div>
             <form onSubmit={guardarEdicion}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>

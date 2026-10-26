@@ -120,8 +120,14 @@ export default function EmpresaShell({ children, pageTitle, pageSubtitle, varian
   }, [user, cargandoAuth, router]);
 
   function handleLogout() {
+  // Limpiar tema y accesibilidad al cerrar sesión
+    const html = document.documentElement;
+    html.removeAttribute("data-theme");
+    html.removeAttribute("data-contrast");
+    html.removeAttribute("data-reduce-motion");
+    html.removeAttribute("data-keyboard-nav");
     logout();
-  }
+}
 
   const inicial = nombreEmpresa.trim().charAt(0).toUpperCase() || "E";
 
@@ -147,11 +153,7 @@ export default function EmpresaShell({ children, pageTitle, pageSubtitle, varian
     <div className="app-shell">
       <aside className="sidebar">
         <div className="logo">
-          <svg className="logo-icon" viewBox="0 0 24 24">
-            <path d="M12 21c0-5 0-8 0-10" />
-            <path d="M12 11c0-4-3-6-7-6 0 4 3 6 7 6z" />
-            <path d="M12 14c0-3.5 2.5-5.5 6-5.5 0 3.5-2.5 5.5-6 5.5z" />
-          </svg>
+          <img src="/logo_azul.png" alt="SeedWork Logo" className="logo-icon" />
           <div className="logo-text">
             <strong>
               <span className="logo-seed">Seed</span>

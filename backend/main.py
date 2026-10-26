@@ -2,6 +2,7 @@
 Backend de SeedWork (FastAPI).
 """
 import os
+import json
 import secrets
 import hashlib
 from datetime import datetime, timedelta, timezone
@@ -9,10 +10,14 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
-from fastapi import FastAPI, Depends, HTTPException, Request
+from fastapi import FastAPI, Depends, HTTPException, Request, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
+from groq import Groq 
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from database import get_db
 from models import (
@@ -22,7 +27,7 @@ from models import (
     TipoContrato, JornadaLaboral, Disponibilidad,
     CandidatoHabilidad, CandidatoEducacion, CandidatoProyecto, CandidatoIdioma,
     CandidatoReferencia, CandidatoSeccionCV,
-    Notificacion, EmailVerificationToken, # ⬅️ Añadido EmailVerificationToken
+    Notificacion, EmailVerificationToken, PasswordResetToken,  Reporte,
 )
 from schemas import (
     RegistroCandidatoIn, RegistroEmpresaIn,
@@ -46,20 +51,28 @@ from dependencies import (
     get_current_admin,
 )
 from audit import registrar_evento, EVENTO_REGISTRO, EVENTO_ACCESO_DENEGADO
-from email_service import enviar_correo_verificacion # ⬅️ Añadido
+from email_service import enviar_correo_verificacion
 
 # Importar el router de auth
 from auth import router as auth_router
 
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
 # ============================================================
 # APP
 # ============================================================
 app = FastAPI(title="SeedWork API")
 
+# Inicializar Groq (IA)
+#groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+ #groq_client = None  # Temporal para que arranque sin IA
+
+# Rate limiting
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
+# CORS
 ALLOWED_ORIGINS = [
     o.strip()
     for o in os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
@@ -232,7 +245,6 @@ def registrar_candidato(body: RegistroCandidatoIn, request: Request, db: Session
     db.add(candidato)
     db.flush()
     
-    # 1. Crear notificación de bienvenida
     from notificaciones import crear_notificacion, TIPO_SISTEMA
     crear_notificacion(
         db,
@@ -242,10 +254,8 @@ def registrar_candidato(body: RegistroCandidatoIn, request: Request, db: Session
         id_candidato=candidato.IdCandidato,
     )
 
-    # 2. Generar y guardar el token de verificación de correo
     token_plano = secrets.token_urlsafe(32)
     token_hash = hashlib.sha256(token_plano.encode("utf-8")).hexdigest()
-    
     nuevo_token = EmailVerificationToken(
         IdUsuario=usuario.IdUsuario,
         TokenHash=token_hash,
@@ -254,15 +264,21 @@ def registrar_candidato(body: RegistroCandidatoIn, request: Request, db: Session
     )
     db.add(nuevo_token)
 
-    # 3. Enviar el correo
-    enlace = f"http://localhost:3000/verificar-correo?token={token_plano}"
+    enlace = f"{FRONTEND_URL}/verificar-correo?token={token_plano}"
     enviar_correo_verificacion(usuario.Correo, enlace)
 
     registrar_evento(db, EVENTO_REGISTRO, exito=True, id_usuario=usuario.IdUsuario,
-                     correo_intentado=body.correo, request=request, detalles="candidato", commit=False)
-
-    db.commit()
+                 correo_intentado=body.correo, request=request, detalles="candidato",
+                 commit=False)
+    db.commit()             # ← commit PRIMERO
     db.refresh(candidato)
+
+    # Email best-effort DESPUÉS del commit
+    try:
+        enviar_correo_verificacion(usuario.Correo, enlace)
+    except Exception as e:
+        print(f"[EMAIL] Falló envío de verificación: {e}")
+        # No fallar el registro por un email roto
 
     return CandidatoOut(
         idCandidato=candidato.IdCandidato,
@@ -315,7 +331,7 @@ def registrar_empresa(body: RegistroEmpresaIn, request: Request, db: Session = D
     db.add(empresa)
     db.flush()
 
-    from notif_utils import crear_notificacion, TIPO_SISTEMA
+    from notificaciones import crear_notificacion, TIPO_SISTEMA
     crear_notificacion(
         db,
         titulo="¡Bienvenido/a a SeedWork!",
@@ -324,10 +340,8 @@ def registrar_empresa(body: RegistroEmpresaIn, request: Request, db: Session = D
         id_empresa=empresa.IdEmpresa,
     )
 
-    # Generar y guardar el token de verificación de correo
     token_plano = secrets.token_urlsafe(32)
     token_hash = hashlib.sha256(token_plano.encode("utf-8")).hexdigest()
-    
     nuevo_token = EmailVerificationToken(
         IdUsuario=usuario.IdUsuario,
         TokenHash=token_hash,
@@ -336,13 +350,10 @@ def registrar_empresa(body: RegistroEmpresaIn, request: Request, db: Session = D
     )
     db.add(nuevo_token)
 
-    # Enviar el correo
-    enlace = f"http://localhost:3000/verificar-correo?token={token_plano}"
+    enlace = f"{FRONTEND_URL}/verificar-correo?token={token_plano}"
     enviar_correo_verificacion(usuario.Correo, enlace)
 
-    registrar_evento(db, EVENTO_REGISTRO, exito=True, id_usuario=usuario.IdUsuario,
-                     correo_intentado=body.correo, request=request, detalles="empresa", commit=False)
-
+    registrar_evento(db, EVENTO_REGISTRO, exito=True, id_usuario=usuario.IdUsuario, correo_intentado=body.correo, request=request, detalles="empresa", commit=False)
     db.commit()
     db.refresh(empresa)
 
@@ -358,7 +369,7 @@ def registrar_empresa(body: RegistroEmpresaIn, request: Request, db: Session = D
 
 
 # ============================================================
-# (El resto de tus endpoints de perfiles, ofertas, postulaciones, etc.)
+# PERFIL DEL CANDIDATO
 # ============================================================
 @app.get("/api/candidato/{id_candidato}/perfil", response_model=PerfilOut)
 def obtener_perfil(
@@ -386,6 +397,10 @@ def obtener_perfil(
     candidato = _obtener_candidato_completo(id_candidato, db)
     return _armar_perfil(candidato)
 
+
+# ============================================================
+# PERFIL DE EMPRESA
+# ============================================================
 @app.get("/api/empresa/{id_empresa}")
 def obtener_empresa(
     id_empresa: int,
@@ -420,6 +435,7 @@ def obtener_empresa(
         "vision": empresa.Vision,
         "logoUrl": empresa.LogoUrl,
     }
+
 
 @app.put("/api/empresa/{id_empresa}")
 def actualizar_empresa(
@@ -469,6 +485,10 @@ def actualizar_empresa(
     db.refresh(empresa)
     return {"message": "Empresa actualizada correctamente"}
 
+
+# ============================================================
+# CANDIDATOS DE UNA EMPRESA
+# ============================================================
 @app.get("/api/empresa/{id_empresa}/candidatos")
 def obtener_candidatos_empresa(
     id_empresa: int,
@@ -506,6 +526,7 @@ def obtener_candidatos_empresa(
         }
         for p in postulaciones
     ]
+
 
 @app.get("/api/empresa/ofertas/{id_oferta}/candidatos")
 def obtener_candidatos_de_oferta(
@@ -552,25 +573,30 @@ def contar_ofertas_por_estado(
     _verificar_ownership_empresa(usuario, id_empresa)
     total = db.query(Oferta).filter(Oferta.IdEmpresa == id_empresa).count()
 
-    estado_publicada = db.query(EstadoOferta).filter(EstadoOferta.Nombre == "Publicada").first()
-    estado_por_aprobar = db.query(EstadoOferta).filter(EstadoOferta.Nombre == "Por aprobar").first()
-    estado_pausada = db.query(EstadoOferta).filter(EstadoOferta.Nombre == "Pausada").first()
-    estado_cerrada = db.query(EstadoOferta).filter(EstadoOferta.Nombre == "Cerrada").first()
+    # Una sola query para todos los estados
+    estados = {e.Nombre: e.IdEstadoOferta for e in db.query(EstadoOferta).all()}
+    requeridos = {"Publicada", "Por aprobar", "Pausada", "Cerrada", "Rechazada"}
+    faltantes = requeridos - estados.keys()
+    if faltantes:
+        raise HTTPException(500, f"Faltan estados de oferta en la base de datos: {faltantes}")
 
-    if not estado_publicada or not estado_por_aprobar or not estado_pausada or not estado_cerrada:
-        raise HTTPException(500, "Faltan estados de oferta en la base de datos")
-
-    activas = db.query(Oferta).filter(Oferta.IdEmpresa == id_empresa, Oferta.IdEstadoOferta == estado_publicada.IdEstadoOferta).count()
-    en_revision = db.query(Oferta).filter(Oferta.IdEmpresa == id_empresa, Oferta.IdEstadoOferta == estado_por_aprobar.IdEstadoOferta).count()
-    pausadas = db.query(Oferta).filter(Oferta.IdEmpresa == id_empresa, Oferta.IdEstadoOferta == estado_pausada.IdEstadoOferta).count()
-    cerradas = db.query(Oferta).filter(Oferta.IdEmpresa == id_empresa, Oferta.IdEstadoOferta == estado_cerrada.IdEstadoOferta).count()
+    def cuenta(nombre: str) -> int:
+        return (
+            db.query(Oferta)
+            .filter(
+                Oferta.IdEmpresa == id_empresa,
+                Oferta.IdEstadoOferta == estados[nombre],
+            )
+            .count()
+        )
 
     return {
         "total": total,
-        "activas": activas,
-        "en_revision": en_revision,
-        "pausadas": pausadas,
-        "cerradas": cerradas,
+        "activas": cuenta("Publicada"),
+        "en_revision": cuenta("Por aprobar"),
+        "pausadas": cuenta("Pausada"),
+        "cerradas": cuenta("Cerrada"),
+        "rechazadas": cuenta("Rechazada"),  # ⬅️ NUEVO
     }
 
 @app.patch("/api/empresa/ofertas/{id_oferta}/estado")
@@ -586,16 +612,40 @@ def cambiar_estado_oferta_empresa(
     _verificar_ownership_empresa(usuario, oferta.IdEmpresa)
 
     nuevo_estado_nombre = body.get("nuevoEstado")
-    if nuevo_estado_nombre not in ["Publicada", "Pausada", "Cerrada"]:
-        raise HTTPException(400, f"Estado no permitido: {nuevo_estado_nombre}")
+    if not nuevo_estado_nombre:
+        raise HTTPException(400, "Falta 'nuevoEstado'.")
 
-    nuevo_estado = db.query(EstadoOferta).filter(EstadoOferta.Nombre == nuevo_estado_nombre).first()
+    # Transiciones permitidas SOLO para la empresa (el admin aprueba/publica)
+    TRANSICIONES_EMPRESA = {
+        "Publicada": {"Pausada", "Cerrada"},
+        "Pausada":   {"Cerrada"},
+    }
+
+    estado_actual = oferta.estado.Nombre if oferta.estado else None
+    permitidos = TRANSICIONES_EMPRESA.get(estado_actual, set())
+
+    if nuevo_estado_nombre not in permitidos:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                f"No puedes cambiar una oferta de '{estado_actual}' "
+                f"a '{nuevo_estado_nombre}'. "
+                f"La publicación de ofertas requiere aprobación del administrador."
+            ),
+        )
+
+    nuevo_estado = (
+        db.query(EstadoOferta)
+        .filter(EstadoOferta.Nombre == nuevo_estado_nombre)
+        .first()
+    )
     if not nuevo_estado:
-        raise HTTPException(400, f"Estado '{nuevo_estado_nombre}' no encontrado en la base de datos")
+        raise HTTPException(400, f"Estado '{nuevo_estado_nombre}' no encontrado.")
 
     oferta.IdEstadoOferta = nuevo_estado.IdEstadoOferta
     db.commit()
     return {"idOferta": oferta.IdOferta, "estado": nuevo_estado_nombre}
+
 
 @app.patch("/api/empresa/postulaciones/{id_postulacion}/estado")
 def cambiar_estado_postulacion_empresa(
@@ -624,7 +674,7 @@ def cambiar_estado_postulacion_empresa(
 
     ESTADOS_PERMITIDOS_EMPRESA = {
         "En revisión", "Entrevista", "Preseleccionado",
-        "Contratado", "Rechazado", "Prueba Técnica", "Postulado",
+        "Contratado", "Rechazado", "Prueba Técnica"
     }
     nuevo_estado_nombre = body.get("nuevoEstado")
     if nuevo_estado_nombre not in ESTADOS_PERMITIDOS_EMPRESA:
@@ -642,7 +692,7 @@ def cambiar_estado_postulacion_empresa(
     postulacion.IdEstadoPostulacion = nuevo_estado.IdEstadoPostulacion
 
     if estado_anterior != nuevo_estado.IdEstadoPostulacion:
-        from notif_utils import crear_notificacion, TIPO_SISTEMA
+        from notificaciones import crear_notificacion, TIPO_SISTEMA
         crear_notificacion(
             db,
             titulo="Actualización de postulación",
@@ -658,6 +708,10 @@ def cambiar_estado_postulacion_empresa(
         "estado": nuevo_estado_nombre,
     }
 
+
+# ============================================================
+# OFERTAS
+# ============================================================
 @app.get("/api/ofertas/{id_oferta}")
 def obtener_oferta(id_oferta: int, db: Session = Depends(get_db)):
     oferta = (
@@ -680,6 +734,7 @@ def obtener_oferta(id_oferta: int, db: Session = Depends(get_db)):
         "ciudad": oferta.municipio.Nombre,
         "modalidad": oferta.modalidad.Nombre,
     }
+
 
 @app.put("/api/ofertas/{id_oferta}")
 def actualizar_oferta(
@@ -708,6 +763,7 @@ def actualizar_oferta(
     db.commit()
     db.refresh(oferta)
     return {"message": "Oferta actualizada correctamente"}
+
 
 @app.get("/api/empresa/{id_empresa}/ofertas")
 def listar_ofertas_de_empresa(
@@ -755,6 +811,7 @@ def listar_ofertas_de_empresa(
         for o in ofertas
     ]
 
+
 @app.post("/api/ofertas")
 def crear_oferta(
     body: dict,
@@ -766,18 +823,32 @@ def crear_oferta(
 
     empresa = usuario.empresa
 
-    modalidad = db.query(Modalidad).filter(func.lower(Modalidad.Nombre) == body.get("modalidad", "").strip().lower()).first()
+    # ⬇️ AHORA LEEMOS DEL BODY EN VEZ DE HARDCODEAR ⬇️
+    modalidad_nombre = body.get("modalidad", "Presencial")
+    categoria_nombre = body.get("categoria", "Desarrollo de Software")
+    contrato_nombre = body.get("tipoContrato", "Término Indefinido")
+    jornada_nombre = body.get("jornada", "Tiempo Completo")
+
+    modalidad = db.query(Modalidad).filter(func.lower(Modalidad.Nombre) == modalidad_nombre.strip().lower()).first()
+    categoria = db.query(CategoriaOferta).filter(func.lower(CategoriaOferta.Nombre) == categoria_nombre.strip().lower()).first()
+    tipo_contrato = db.query(TipoContrato).filter(func.lower(TipoContrato.Nombre) == contrato_nombre.strip().lower()).first()
+    jornada = db.query(JornadaLaboral).filter(func.lower(JornadaLaboral.Nombre) == jornada_nombre.strip().lower()).first()
+
     if not modalidad:
-        raise HTTPException(400, f"Modalidad '{body.get('modalidad')}' no encontrada")
+        raise HTTPException(400, f"Modalidad '{modalidad_nombre}' no encontrada")
+    if not categoria:
+        raise HTTPException(400, f"Categoría '{categoria_nombre}' no encontrada")
+    if not tipo_contrato:
+        raise HTTPException(400, f"Tipo de contrato '{contrato_nombre}' no encontrado")
+    if not jornada:
+        raise HTTPException(400, f"Jornada '{jornada_nombre}' no encontrada")
 
     municipio = _buscar_municipio(db, body.get("ciudad", "Medellín"))
-    categoria = db.query(CategoriaOferta).filter(CategoriaOferta.Nombre == "Desarrollo de Software").first()
-    tipo_contrato = db.query(TipoContrato).filter(TipoContrato.Nombre == "Término Indefinido").first()
-    jornada = db.query(JornadaLaboral).filter(JornadaLaboral.Nombre == "Tiempo Completo").first()
-    estado = db.query(EstadoOferta).filter(EstadoOferta.Nombre == "Publicada").first()
-
-    if not (categoria, tipo_contrato, jornada, estado):
-        raise HTTPException(500, "Faltan catálogos obligatorios en la base de datos")
+    
+    # ⬇️ CAMBIAR A "POR APROBAR" EN VEZ DE "PUBLICADA" ⬇️
+    estado = db.query(EstadoOferta).filter(EstadoOferta.Nombre == "Por aprobar").first()
+    if not estado:
+        raise HTTPException(500, "Falta el estado 'Por aprobar' en la base de datos")
 
     oferta = Oferta(
         IdEmpresa=empresa.IdEmpresa,
@@ -801,8 +872,12 @@ def crear_oferta(
         "titulo": oferta.Titulo,
         "ciudad": municipio.Nombre,
         "modalidad": modalidad.Nombre,
+        "estado": estado.Nombre
     }
 
+# ============================================================
+# VACANTES (público)
+# ============================================================
 @app.get("/api/vacantes", response_model=list[OfertaOut])
 def listar_vacantes(
     q: str | None = None,
@@ -854,6 +929,10 @@ def listar_vacantes(
         for o in ofertas
     ]
 
+
+# ============================================================
+# POSTULACIONES
+# ============================================================
 @app.post("/api/postulaciones")
 def crear_postulacion(
     body: dict,
@@ -897,7 +976,7 @@ def crear_postulacion(
     db.add(postulacion)
     db.flush()
 
-    from notif_utils import crear_notificacion, TIPO_NUEVA_POSTULACION
+    from notificaciones import crear_notificacion, TIPO_NUEVA_POSTULACION
     crear_notificacion(
         db,
         titulo="Nueva postulación",
@@ -915,6 +994,7 @@ def crear_postulacion(
         "idCandidato": candidato.IdCandidato,
         "estado": estado_inicial.Nombre,
     }
+
 
 @app.get("/api/candidato/{id_candidato}/postulaciones", response_model=list[PostulacionOut])
 def listar_postulaciones_candidato(
@@ -947,9 +1027,11 @@ def listar_postulaciones_candidato(
             estado=p.estado.Nombre,
             vista=p.Vista,
             fechaPostulacion=p.FechaPostulacion,
+             categoria=p.oferta.categoria.Nombre  
         )
         for p in postulaciones
     ]
+
 
 @app.put("/api/candidato/{id_candidato}/perfil/datos", response_model=PerfilOut)
 def actualizar_datos_perfil(
@@ -978,6 +1060,7 @@ def actualizar_datos_perfil(
         candidato.IdMunicipio = _buscar_municipio(db, body.ciudad).IdMunicipio
     db.commit()
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
+
 
 @app.put("/api/candidato/{id_candidato}/perfil/preferencias", response_model=PerfilOut)
 def actualizar_preferencias(
@@ -1013,6 +1096,7 @@ def actualizar_preferencias(
     db.commit()
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
 
+
 @app.put("/api/candidato/{id_candidato}/cv/sobre-mi", response_model=PerfilOut)
 def actualizar_sobre_mi(
     id_candidato: int,
@@ -1025,6 +1109,7 @@ def actualizar_sobre_mi(
     candidato.AcercaDe = body.about
     db.commit()
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
+
 
 @app.put("/api/candidato/{id_candidato}/cv/foto", response_model=PerfilOut)
 def actualizar_foto(
@@ -1039,6 +1124,7 @@ def actualizar_foto(
     db.commit()
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
 
+
 @app.get("/api/candidato/{id_candidato}/cv/habilidades", response_model=list[HabilidadOut])
 def obtener_habilidades(
     id_candidato: int,
@@ -1047,6 +1133,7 @@ def obtener_habilidades(
 ):
     _verificar_ownership_candidato(usuario, id_candidato)
     return db.query(CandidatoHabilidad).filter(CandidatoHabilidad.IdCandidato == id_candidato).all()
+
 
 @app.put("/api/candidato/{id_candidato}/cv/habilidades", response_model=PerfilOut)
 def actualizar_habilidades(
@@ -1062,6 +1149,7 @@ def actualizar_habilidades(
         db.add(CandidatoHabilidad(IdCandidato=id_candidato, Nombre=nombre.strip()))
     db.commit()
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
+
 
 @app.post("/api/candidato/{id_candidato}/cv/educacion", response_model=PerfilOut)
 def crear_educacion(
@@ -1081,6 +1169,7 @@ def crear_educacion(
     db.commit()
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
 
+
 @app.delete("/api/candidato/{id_candidato}/cv/educacion/{id_educacion}", response_model=PerfilOut)
 def eliminar_educacion(
     id_candidato: int,
@@ -1089,12 +1178,16 @@ def eliminar_educacion(
     usuario: Usuario = Depends(get_current_user),
 ):
     _verificar_ownership_candidato(usuario, id_candidato)
-    educacion = db.query(CandidatoEducacion).filter(CandidatoEducacion.IdEducacion == id_educacion).first()
+    educacion = db.query(CandidatoEducacion).filter(
+        CandidatoEducacion.IdEducacion == id_educacion,
+        CandidatoEducacion.IdCandidato == id_candidato,  # ⬅️ AÑADIDO
+    ).first()
     if not educacion:
         raise HTTPException(404, "Educación no encontrada")
     db.delete(educacion)
     db.commit()
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
+
 
 @app.put("/api/candidato/{id_candidato}/cv/educacion/{id_educacion}", response_model=PerfilOut)
 def actualizar_educacion(
@@ -1118,6 +1211,7 @@ def actualizar_educacion(
     db.commit()
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
 
+
 @app.post("/api/candidato/{id_candidato}/cv/proyectos", response_model=PerfilOut)
 def crear_proyecto(
     id_candidato: int,
@@ -1136,6 +1230,7 @@ def crear_proyecto(
     db.commit()
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
 
+
 @app.delete("/api/candidato/{id_candidato}/cv/proyectos/{id_proyecto}", response_model=PerfilOut)
 def eliminar_proyecto(
     id_candidato: int,
@@ -1144,7 +1239,10 @@ def eliminar_proyecto(
     usuario: Usuario = Depends(get_current_user),
 ):
     _verificar_ownership_candidato(usuario, id_candidato)
-    proyecto = db.query(CandidatoProyecto).filter(CandidatoProyecto.IdProyecto == id_proyecto).first()
+    proyecto = db.query(CandidatoProyecto).filter(
+        CandidatoProyecto.IdProyecto == id_proyecto,
+        CandidatoProyecto.IdCandidato == id_candidato,  # ⬅️ AÑADIDO
+    ).first()
     if not proyecto:
         raise HTTPException(404, "Proyecto no encontrado")
     db.delete(proyecto)
@@ -1173,6 +1271,7 @@ def actualizar_proyecto(
     db.commit()
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
 
+
 @app.post("/api/candidato/{id_candidato}/cv/idiomas", response_model=PerfilOut)
 def crear_idioma(
     id_candidato: int,
@@ -1186,6 +1285,7 @@ def crear_idioma(
     db.commit()
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
 
+
 @app.delete("/api/candidato/{id_candidato}/cv/idiomas/{id_idioma}", response_model=PerfilOut)
 def eliminar_idioma(
     id_candidato: int,
@@ -1194,12 +1294,16 @@ def eliminar_idioma(
     usuario: Usuario = Depends(get_current_user),
 ):
     _verificar_ownership_candidato(usuario, id_candidato)
-    idioma = db.query(CandidatoIdioma).filter(CandidatoIdioma.IdIdioma == id_idioma).first()
+    idioma = db.query(CandidatoIdioma).filter(
+        CandidatoIdioma.IdIdioma == id_idioma,
+        CandidatoIdioma.IdCandidato == id_candidato,  # ⬅️ AÑADIDO
+    ).first()
     if not idioma:
         raise HTTPException(404, "Idioma no encontrado")
     db.delete(idioma)
     db.commit()
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
+
 
 @app.put("/api/candidato/{id_candidato}/cv/idiomas/{id_idioma}", response_model=PerfilOut)
 def actualizar_idioma(
@@ -1221,6 +1325,7 @@ def actualizar_idioma(
     db.commit()
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
 
+
 @app.get("/api/candidato/{id_candidato}/cv", response_model=PerfilOut)
 def obtener_cv(
     id_candidato: int,
@@ -1230,6 +1335,7 @@ def obtener_cv(
     _verificar_ownership_candidato(usuario, id_candidato)
     candidato = _obtener_candidato_completo(id_candidato, db)
     return _armar_perfil(candidato)
+
 
 @app.put("/api/candidato/{id_candidato}/cv/datos-personales", response_model=PerfilOut)
 def actualizar_datos_personales_cv(
@@ -1253,6 +1359,7 @@ def actualizar_datos_personales_cv(
     db.commit()
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
 
+
 @app.put("/api/candidato/{id_candidato}/cv/plantilla", response_model=PerfilOut)
 def actualizar_plantilla(
     id_candidato: int,
@@ -1265,6 +1372,7 @@ def actualizar_plantilla(
     candidato.PlantillaCV = body.plantilla
     db.commit()
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
+
 
 @app.post("/api/candidato/{id_candidato}/cv/referencias", response_model=PerfilOut)
 def crear_referencia(
@@ -1284,6 +1392,7 @@ def crear_referencia(
     db.commit()
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
 
+
 @app.delete("/api/candidato/{id_candidato}/cv/referencias/{id_referencia}", response_model=PerfilOut)
 def eliminar_referencia(
     id_candidato: int,
@@ -1292,12 +1401,16 @@ def eliminar_referencia(
     usuario: Usuario = Depends(get_current_user),
 ):
     _verificar_ownership_candidato(usuario, id_candidato)
-    referencia = db.query(CandidatoReferencia).filter(CandidatoReferencia.IdReferencia == id_referencia).first()
+    referencia = db.query(CandidatoReferencia).filter(
+        CandidatoReferencia.IdReferencia == id_referencia,
+        CandidatoReferencia.IdCandidato == id_candidato,  # ⬅️ AÑADIDO
+    ).first()
     if not referencia:
         raise HTTPException(404, "Referencia no encontrada")
     db.delete(referencia)
     db.commit()
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
+
 
 @app.put("/api/candidato/{id_candidato}/cv/referencias/{id_referencia}", response_model=PerfilOut)
 def actualizar_referencia(
@@ -1321,6 +1434,7 @@ def actualizar_referencia(
     db.commit()
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
 
+
 @app.post("/api/candidato/{id_candidato}/cv/secciones", response_model=PerfilOut)
 def crear_seccion(
     id_candidato: int,
@@ -1339,6 +1453,7 @@ def crear_seccion(
     ))
     db.commit()
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
+
 
 @app.put("/api/candidato/{id_candidato}/cv/secciones/{id_seccion}", response_model=PerfilOut)
 def actualizar_seccion(
@@ -1363,6 +1478,7 @@ def actualizar_seccion(
     db.commit()
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
 
+
 @app.delete("/api/candidato/{id_candidato}/cv/secciones/{id_seccion}", response_model=PerfilOut)
 def eliminar_seccion(
     id_candidato: int,
@@ -1371,12 +1487,16 @@ def eliminar_seccion(
     usuario: Usuario = Depends(get_current_user),
 ):
     _verificar_ownership_candidato(usuario, id_candidato)
-    seccion = db.query(CandidatoSeccionCV).filter(CandidatoSeccionCV.IdSeccion == id_seccion).first()
+    seccion = db.query(CandidatoSeccionCV).filter(
+        CandidatoSeccionCV.IdSeccion == id_seccion,
+        CandidatoSeccionCV.IdCandidato == id_candidato,  # ⬅️ AÑADIDO
+    ).first()
     if not seccion:
         raise HTTPException(404, "Sección no encontrada")
     db.delete(seccion)
     db.commit()
     return _armar_perfil(_obtener_candidato_completo(id_candidato, db))
+
 
 @app.get("/api/candidato/{id_candidato}/notificaciones")
 def obtener_notificaciones_candidato(
@@ -1405,6 +1525,7 @@ def obtener_notificaciones_candidato(
         for n in notificaciones
     ]
 
+
 @app.patch("/api/candidato/{id_candidato}/notificaciones/{id_notificacion}/leer")
 def marcar_notificacion_leida_candidato(
     id_candidato: int,
@@ -1427,6 +1548,7 @@ def marcar_notificacion_leida_candidato(
     db.commit()
     return {"idNotificacion": noti.IdNotificacion, "leida": True}
 
+
 @app.patch("/api/candidato/{id_candidato}/notificaciones/leer-todas")
 def marcar_todas_leidas_candidato(
     id_candidato: int,
@@ -1445,7 +1567,12 @@ def marcar_todas_leidas_candidato(
     db.commit()
     return {"actualizadas": actualizadas}
 
+
+# ============================================================
+# ADMINISTRADOR
+# ============================================================
 ESTADOS_PERMITIDOS = {"Publicada", "Rechazada", "Pausada"}
+
 
 @app.get("/api/admin/vacantes")
 def listar_vacantes_admin(
@@ -1495,7 +1622,7 @@ def cambiar_estado_vacante(
     nuevo_estado = db.query(EstadoOferta).filter(EstadoOferta.Nombre == nuevo_estado_nombre).first()
     oferta.IdEstadoOferta = nuevo_estado.IdEstadoOferta
 
-    from notif_utils import crear_notificacion, TIPO_SISTEMA
+    from notificaciones import crear_notificacion, TIPO_SISTEMA
     verbo = {
         "Publicada": "aprobada y publicada",
         "Rechazada": "rechazada",
@@ -1512,6 +1639,7 @@ def cambiar_estado_vacante(
 
     db.commit()
     return {"idOferta": oferta.IdOferta, "estado": nuevo_estado_nombre}
+
 
 @app.get("/api/empresa/{id_empresa}/notificaciones")
 def obtener_notificaciones_empresa(
@@ -1564,6 +1692,7 @@ def marcar_notificacion_leida(
     db.commit()
     return {"idNotificacion": noti.IdNotificacion, "leida": True}
 
+
 @app.patch("/api/empresa/{id_empresa}/notificaciones/leer-todas")
 def marcar_todas_leidas(
     id_empresa: int,
@@ -1612,6 +1741,7 @@ def obtener_resumen_empresa(
         "rendimiento": rendimiento,
     }
 
+
 @app.delete("/api/postulaciones/{id_postulacion}")
 def eliminar_postulacion(
     id_postulacion: int,
@@ -1622,9 +1752,10 @@ def eliminar_postulacion(
     if not postulacion:
         raise HTTPException(404, "Postulación no encontrada")
 
-    if usuario.rol and usuario.rol.Nombre == "Administrador":
-        pass
-    elif not usuario.candidato or usuario.candidato.IdCandidato != postulacion.IdCandidato:
+    es_admin = usuario.rol and usuario.rol.Nombre == "Administrador"
+    es_dueno = usuario.candidato and usuario.candidato.IdCandidato == postulacion.IdCandidato
+
+    if not (es_admin or es_dueno):
         raise HTTPException(403, "No tienes permiso.")
 
     db.delete(postulacion)
@@ -1650,9 +1781,11 @@ def obtener_busquedas_guardadas(
         busquedas.append({"titulo": categoria.Nombre, "total": total})
     return busquedas
 
+
 @app.get("/api/municipios/")
 def obtener_municipios(db: Session = Depends(get_db)):
     return db.query(Municipio).all()
+
 
 @app.get("/api/roles/")
 def obtener_roles(
@@ -1661,14 +1794,153 @@ def obtener_roles(
 ):
     return db.query(Rol).all()
 
-@app.post("/api/reportes")
-def crear_reporte(
-    body: dict,
-    db: Session = Depends(get_db),
-    usuario: Usuario = Depends(require_role("Administrador")),
-):
-    return {"message": "Reporte creado correctamente"}
+# ============================================================
+# SIMULADOR DE ENTREVISTAS CON IA (Groq)
+# ============================================================
+PROMPT_EVALUACION = """
+Eres un reclutador experto y coach de entrevistas. Evalúa la respuesta de un candidato para el puesto de **{cargo}**.
 
+**Pregunta de la entrevista:**
+{pregunta}
+
+**Respuesta del candidato (transcrita o escrita):**
+{respuesta}
+
+**Instrucciones de Evaluación:**
+1. **Análisis de Contenido:** Evalúa la relevancia, profundidad y estructura. ¿Usa el método STAR (Situación, Tarea, Acción, Resultado)? ¿Menciona resultados concretos?
+2. **Análisis de Expresión:**
+   - Si la respuesta fue **por voz** (transcripción): analiza si hay muletillas (eh, este, o sea), fluidez y claridad de ideas. Ignora errores menores de transcripción.
+   - Si la respuesta fue **escrita**: evalúa claridad, ortografía, gramática y estructura de las oraciones.
+3. **Genera Retroalimentación:** Un consejo conciso y accionable (de 2 a 3 frases) que el candidato pueda aplicar en una entrevista real.
+
+**Formato de Salida (JSON estricto):**
+{{
+  "fortalezas": ["Punto fuerte 1", "Punto fuerte 2"],
+  "areas_de_mejora": ["Área de mejora 1", "Área de mejora 2"],
+  "consejo_final": "Aquí va el consejo conciso y accionable.",
+  "puntuacion_general": "Muy bueno | Bueno | Regular | Necesita mejorar"
+}}
+"""
+
+@app.post("/api/simulador/evaluar")
+async def evaluar_respuesta_simulador(
+    cargo: str = Form(...),
+    pregunta: str = Form(...),
+    respuesta_texto: str = Form(None),
+    archivo_audio: UploadFile = File(None),
+    usuario: Usuario = Depends(get_current_user), # ⬅️ SEGURIDAD: Solo usuarios logueados
+):
+    if not respuesta_texto and not archivo_audio:
+        raise HTTPException(400, "Debes enviar un texto o un archivo de audio.")
+
+    texto_final_respuesta = respuesta_texto
+
+    if archivo_audio:
+        try:
+            transcripcion = groq_client.audio.transcriptions.create(
+                model="whisper-large-v3-turbo",
+                file=(archivo_audio.filename, await archivo_audio.read()),
+                language="es",
+                response_format="text",
+            )
+            texto_final_respuesta = transcripcion
+        except Exception as e:
+            raise HTTPException(500, f"Error en la transcripción: {str(e)}")
+
+    try:
+        respuesta_llm = groq_client.chat.completions.create(
+            model="openai/gpt-oss-120b",
+            messages=[
+                {"role": "system", "content": "Eres un coach de entrevistas experto. Siempre respondes en formato JSON válido."},
+                {"role": "user", "content": PROMPT_EVALUACION.format(cargo=cargo, pregunta=pregunta, respuesta=texto_final_respuesta)},
+            ],
+            response_format={"type": "json_object"},
+            temperature=0.5,
+        )
+        resultado = json.loads(respuesta_llm.choices[0].message.content)
+        resultado["texto_transcrito"] = texto_final_respuesta
+        return resultado
+    except Exception as e:
+        raise HTTPException(500, f"Error en la evaluación: {str(e)}")
+
+# --- ENDPOINTS DE ADMINISTRADOR: USUARIOS ---
+@app.get("/api/admin/usuarios")
+def listar_usuarios_admin(db: Session = Depends(get_db), usuario: Usuario = Depends(require_role("Administrador"))):
+    print("⚠️ EJECUTANDO NUEVA VERSIÓN DE LISTAR_USUARIOS ⚠️")
+    usuarios = db.query(Usuario).filter(Usuario.IdRol != 1).all()
+    resultado = []
+    for u in usuarios:
+        nombre = u.Correo  # ⬅️ MAYÚSCULA (así está en models.py)
+        id_perfil = None
+        if u.candidato: 
+            nombre = f"{u.candidato.Nombres} {u.candidato.Apellidos}"
+            id_perfil = u.candidato.IdCandidato
+        elif u.empresa: 
+            nombre = u.empresa.NombreEmpresa
+            id_perfil = u.empresa.IdEmpresa
+        
+        estado_nombre = u.estado.Nombre if u.estado else "Activo"
+        
+        resultado.append({
+            "idUsuario": u.IdUsuario,
+            "idPerfil": id_perfil,
+            "nombre": nombre,
+            "correo": u.Correo,  # ⬅️ MAYÚSCULA
+            "tipo": "candidato" if u.candidato else "empresa",
+            "estado": estado_nombre,
+            "fechaRegistro": str(u.FechaCreacion) if u.FechaCreacion else None
+        })
+    return resultado
+
+@app.patch("/api/admin/usuarios/{id_usuario}/estado")
+def cambiar_estado_usuario(id_usuario: int, body: dict, db: Session = Depends(get_db), usuario: Usuario = Depends(require_role("Administrador"))):
+    user = db.query(Usuario).filter(Usuario.IdUsuario == id_usuario).first()
+    if not user: raise HTTPException(404, "Usuario no encontrado")
+    
+    nuevo_estado_nombre = body.get("estado") # "Activo" o "Suspendido"
+    estado = db.query(EstadoUsuario).filter(EstadoUsuario.Nombre == nuevo_estado_nombre).first()
+    if not estado: raise HTTPException(400, "Estado no válido")
+    
+    user.IdEstadoUsuario = estado.IdEstadoUsuario
+    db.commit()
+    return {"message": "Estado actualizado"}
+
+# --- ENDPOINTS DE REPORTES ---
+@app.post("/api/reportes")
+def crear_reporte(body: dict, db: Session = Depends(get_db), usuario: Usuario = Depends(get_current_user)):
+    # Permitimos que cualquier usuario logueado (Candidato) reporte
+    nuevo = Reporte(
+        IdUsuario=usuario.IdUsuario,
+        IdOferta=body.get("idOferta"),
+        Motivo=body.get("motivo", "Reporte general")
+    )
+    db.add(nuevo)
+    db.commit()
+    return {"message": "Reporte enviado"}
+
+@app.get("/api/admin/reportes")
+def listar_reportes_admin(db: Session = Depends(get_db), usuario: Usuario = Depends(require_role("Administrador"))):
+    reportes = db.query(Reporte).order_by(Reporte.Fecha.desc()).all()
+    return [{
+        "idReporte": r.IdReporte,
+        "reportadoPor": r.usuario.Correo,
+        "motivo": r.Motivo,
+        "estado": r.Estado,
+        "oferta": r.oferta.Titulo if r.oferta else "Oferta eliminada"
+    } for r in reportes]
+
+@app.patch("/api/admin/reportes/{id_reporte}/resolver")
+def resolver_reporte(id_reporte: int, db: Session = Depends(get_db), usuario: Usuario = Depends(require_role("Administrador"))):
+    rep = db.query(Reporte).filter(Reporte.IdReporte == id_reporte).first()
+    if not rep: raise HTTPException(404, "No encontrado")
+    rep.Estado = "Cerrado"
+    db.commit()
+    return {"message": "Reporte cerrado"}
+
+    
+# ============================================================
+# Punto de entrada
+# ============================================================
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

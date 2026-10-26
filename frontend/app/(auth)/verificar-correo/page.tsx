@@ -1,89 +1,87 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { API_BASE } from "../../lib/api";
+import { apiFetch } from "../../lib/api";
+
+type Estado = "verificando" | "exito" | "error";
 
 function VerificarContent() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const token = searchParams.get("token");
-  
-  const [estado, setEstado] = useState<"cargando" | "exito" | "error">("cargando");
+
+  const [estado, setEstado] = useState<Estado>("verificando");
   const [mensaje, setMensaje] = useState("");
 
   useEffect(() => {
     if (!token) {
       setEstado("error");
-      setMensaje("No se encontró un token de verificación.");
+      setMensaje("El enlace no contiene un token.");
       return;
     }
 
-    async function verificar() {
-      try {
-        const resp = await fetch(`${API_BASE}/api/auth/verificar-correo?token=${token}`);
-        const data = await resp.json();
-
-        if (resp.ok) {
-          setEstado("exito");
-        } else {
-          setEstado("error");
-          setMensaje(data.detail || "El enlace es inválido o ha expirado.");
-        }
-      } catch (err) {
+    let activo = true;
+    apiFetch<{ message: string }>("/api/auth/verificar-correo", {
+      method: "POST",
+      body: { token },
+    })
+      .then((data) => {
+        if (!activo) return;
+        setEstado("exito");
+        setMensaje(data.message);
+      })
+      .catch((err: any) => {
+        if (!activo) return;
         setEstado("error");
-        setMensaje("Error de conexión con el servidor.");
-      }
-    }
-    verificar();
+        setMensaje(err?.message || "No se pudo verificar el correo.");
+      });
+
+    return () => { activo = false; };
   }, [token]);
+
+  if (estado === "verificando") {
+    return (
+      <div className="login-wrapper">
+        <div className="container" style={{ padding: 40, textAlign: "center" }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>⏳</div>
+          <h2 style={{ color: "var(--sw-blue)" }}>Verificando tu correo...</h2>
+          <p style={{ color: "var(--sw-text-muted)" }}>Un momento por favor.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (estado === "exito") {
+    return (
+      <div className="login-wrapper">
+        <div className="container" style={{ padding: 40, textAlign: "center" }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>✅</div>
+          <h2 style={{ color: "var(--sw-success)" }}>¡Correo verificado!</h2>
+          <p style={{ color: "var(--sw-text-muted)", marginBottom: 24 }}>{mensaje}</p>
+          <Link href="/login" className="btn-submit" style={{ display: "inline-block", textDecoration: "none" }}>
+            Ir al login
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="login-wrapper">
-      <div className="sw-brand-header">
-        <img src="/logo-blanco.png" alt="SeedWork Logo" className="sw-logo-icon" />
-        <h1 className="sw-brand-name">SEEDWORK</h1>
-      </div>
-
       <div className="container" style={{ padding: 40, textAlign: "center" }}>
-        {estado === "cargando" && (
-          <>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>⏳</div>
-            <h2 style={{ color: "var(--sw-blue)" }}>Verificando...</h2>
-            <p style={{ color: "var(--sw-text-muted)" }}>Estamos validando tu correo electrónico.</p>
-          </>
-        )}
-
-        {estado === "exito" && (
-          <>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>🎉</div>
-            <h2 style={{ color: "var(--sw-success)" }}>¡Correo verificado!</h2>
-            <p style={{ color: "var(--sw-text-muted)", marginBottom: 24 }}>
-              Tu cuenta está activa. Ya puedes iniciar sesión y empezar a crecer.
-            </p>
-            <Link href="/login" className="btn-submit" style={{ display: "inline-block", textDecoration: "none" }}>
-              Ir al inicio de sesión
-            </Link>
-          </>
-        )}
-
-        {estado === "error" && (
-          <>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>❌</div>
-            <h2 style={{ color: "var(--sw-error)" }}>Error de verificación</h2>
-            <p style={{ color: "var(--sw-text-muted)", marginBottom: 24 }}>{mensaje}</p>
-            <Link href="/login" className="btn-secondary" style={{ display: "inline-block", textDecoration: "none" }}>
-              Volver al login
-            </Link>
-          </>
-        )}
+        <div style={{ fontSize: 48, marginBottom: 16 }}>⚠️</div>
+        <h2 style={{ color: "var(--sw-error)" }}>Enlace inválido</h2>
+        <p style={{ color: "var(--sw-text-muted)", marginBottom: 24 }}>{mensaje}</p>
+        <Link href="/login" className="btn-submit" style={{ display: "inline-block", textDecoration: "none" }}>
+          Volver al login
+        </Link>
       </div>
     </div>
   );
 }
 
-export default function VerificarPage() {
+export default function VerificarCorreoPage() {
   return (
     <Suspense fallback={<div className="auth-scope"><div className="container">Cargando...</div></div>}>
       <VerificarContent />

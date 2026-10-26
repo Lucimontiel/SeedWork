@@ -36,17 +36,15 @@ function tiempoDesde(fechaISO: string) {
 }
 
 export default function VacantesPage() {
-  const { user, cargando: cargandoAuth } = useAuth();
-
+  const { user } = useAuth();
   const [ofertas, setOfertas] = useState<Oferta[]>([]);
   const [loadingOfertas, setLoadingOfertas] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Filtros
   const [search, setSearch] = useState("");
-  const [ciudad, setCiudad] = useState("");
+  const [searchCiudad, setSearchCiudad] = useState("");
   const [tab, setTab] = useState<"todas" | "guardadas">("todas");
-
-  const [estado, setEstado] = useState("");
   const [area, setArea] = useState("");
   const [modalidad, setModalidad] = useState("");
 
@@ -54,89 +52,76 @@ export default function VacantesPage() {
   const [guardadas, setGuardadas] = useState<Set<number>>(new Set());
   const [enviando, setEnviando] = useState<number | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-
   const [menuAbierto, setMenuAbierto] = useState<number | null>(null);
   const [postulaciones, setPostulaciones] = useState<Postulacion[]>([]);
-  const [ofertaDetalle, setOfertaDetalle] = useState<Oferta | null>(null);
-  const [busquedasGuardadas, setBusquedasGuardadas] = useState<{ titulo: string; total: number }[]>([]);
+
+  // Estados para el modal de reporte
+  const [reporteOfertaId, setReporteOfertaId] = useState<number | null>(null);
+  const [motivoReporte, setMotivoReporte] = useState("");
+  const [enviandoReporte, setEnviandoReporte] = useState(false);
 
   function mostrarToast(msg: string) {
     setToast(msg);
-    setTimeout(() => setToast(null), 2500);
+    setTimeout(() => setToast(null), 3000);
   }
 
-  const idCandidato = user?.tipo === "candidato" ? user.idCandidato : null;
-
-  // BÚSQUEDAS GUARDADAS (público o protegido, no importa)
-  useEffect(() => {
-    apiFetch<{ titulo: string; total: number }[]>("/api/candidato/busquedas-guardadas")
-      .then((data) => {
-        if (Array.isArray(data)) setBusquedasGuardadas(data);
-      })
-      .catch(() => {});
-  }, []);
-
-  // CARGAR OFERTAS
-  const cargarOfertas = useCallback((q: string) => {
+  const cargarOfertas = useCallback(async (q: string, ciudad: string) => {
     setLoadingOfertas(true);
-    const params = new URLSearchParams();
-    if (q) params.set("q", q);
-    if (ciudad) params.set("ciudad", ciudad);
-    if (modalidad) params.set("modalidad", modalidad);
-    if (area) params.set("categoria", area);
-
-    apiFetch<Oferta[]>(`/api/vacantes?${params.toString()}`)
-      .then((data) => setOfertas(data))
-      .catch((err) => setError(err.message))
-      .finally(() => setLoadingOfertas(false));
-  }, [ciudad, modalidad, area]);
+    try {
+      const params = new URLSearchParams();
+      if (q) params.set("q", q);
+      if (ciudad) params.set("ciudad", ciudad);
+      if (modalidad) params.set("modalidad", modalidad);
+      if (area) params.set("categoria", area);
+      
+      const data = await apiFetch<Oferta[]>(`/api/vacantes?${params.toString()}`);
+      setOfertas(data);
+      setError(null);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoadingOfertas(false);
+    }
+  }, [modalidad, area]);
 
   useEffect(() => {
-    cargarOfertas("");
-  }, [cargarOfertas]);
+    cargarOfertas(search, searchCiudad);
+  }, [cargarOfertas]); // Al montar o cambiar filtros select
 
   useEffect(() => {
-    const t = setTimeout(() => cargarOfertas(search), 400);
+    const t = setTimeout(() => cargarOfertas(search, searchCiudad), 400);
     return () => clearTimeout(t);
-  }, [search, cargarOfertas]);
+  }, [search, searchCiudad, cargarOfertas]);
 
-  // CARGAR POSTULACIONES DEL CANDIDATO
   useEffect(() => {
-    if (cargandoAuth) return;
-    if (!idCandidato) return;
-
-    apiFetch<Postulacion[]>(`/api/candidato/${idCandidato}/postulaciones`)
+    if (!user?.idCandidato) return;
+    apiFetch<Postulacion[]>(`/api/candidato/${user.idCandidato}/postulaciones`)
       .then((data) => {
-        if (Array.isArray(data)) {
-          setPostulaciones(data);
-          setAplicadas(new Set(data.map((p) => p.idOferta)));
-        }
+        setPostulaciones(data);
+        setAplicadas(new Set(data.map((p) => p.idOferta)));
       })
       .catch(() => {});
-  }, [idCandidato, cargandoAuth]);
+  }, [user]);
 
   async function aplicar(idOferta: number) {
-    if (!idCandidato) {
-      mostrarToast("Debes iniciar sesión como candidato para postularte");
-      return;
-    }
+    if (!user?.idCandidato) return;
     setEnviando(idOferta);
     try {
-      await apiFetch("/api/postulaciones", {
+      await apiFetch(`/api/postulaciones`, {
         method: "POST",
         body: { idOferta },
       });
       setAplicadas((prev) => new Set(prev).add(idOferta));
       mostrarToast("Tu postulación fue enviada");
     } catch (err: any) {
-      mostrarToast(err?.message || "No se pudo enviar la postulación");
+      mostrarToast(err.message);
     } finally {
       setEnviando(null);
     }
   }
 
   async function salirDeOferta(idOferta: number) {
-    if (!idCandidato) return;
+    if (!user?.idCandidato) return;
     const postulacion = postulaciones.find((p) => p.idOferta === idOferta);
     if (!postulacion) {
       mostrarToast("No estás postulado a esta oferta");
@@ -156,7 +141,7 @@ export default function VacantesPage() {
       setPostulaciones((prev) => prev.filter((p) => p.idOferta !== idOferta));
       mostrarToast("Has salido de la oferta");
     } catch (err: any) {
-      mostrarToast(err?.message || "No se pudo eliminar la postulación");
+      mostrarToast(err.message);
     } finally {
       setMenuAbierto(null);
     }
@@ -170,79 +155,129 @@ export default function VacantesPage() {
         mostrarToast("Oferta eliminada de guardadas");
       } else {
         next.add(idOferta);
-        mostrarToast("Oferta guardada (solo en este dispositivo por ahora)");
+        mostrarToast("Oferta guardada (solo en este dispositivo)");
       }
       return next;
     });
+  }
+
+  function abrirModalReporte(idOferta: number) {
+    setReporteOfertaId(idOferta);
+    setMotivoReporte("");
+    setMenuAbierto(null);
+  }
+
+  async function enviarReporte() {
+    if (!reporteOfertaId || !motivoReporte.trim()) return;
+
+    setEnviandoReporte(true);
+    try {
+      await apiFetch(`/api/reportes`, {
+        method: "POST",
+        body: {
+          idOferta: reporteOfertaId,
+          motivo: motivoReporte.trim(),
+        },
+      });
+      mostrarToast("Oferta reportada correctamente al administrador");
+      setReporteOfertaId(null);
+      setMotivoReporte("");
+    } catch (err: any) {
+      mostrarToast(err.message || "No se pudo enviar el reporte");
+    } finally {
+      setEnviandoReporte(false);
+    }
   }
 
   const listaVisible = tab === "guardadas" ? ofertas.filter((o) => guardadas.has(o.idOferta)) : ofertas;
 
   return (
     <CandidatoShell
+      nombre={user?.correo}
       pageTitle="Vacantes"
       pageSubtitle="Oportunidades pensadas para ti"
     >
-      {/* Tabs */}
-      <div className="vacantes-tabs">
-        <button className={"vacantes-tab" + (tab === "todas" ? " active" : "")} onClick={() => setTab("todas")}>
-          Todas <strong>{ofertas.length}</strong>
-        </button>
-        <button className={"vacantes-tab" + (tab === "guardadas" ? " active" : "")} onClick={() => setTab("guardadas")}>
-          Guardadas <strong>{guardadas.size}</strong>
-        </button>
-      </div>
+      {/* CONTENEDOR CENTRADO PARA BUSCADOR, FILTROS Y TABS */}
+      <div className="vacantes-top-controls">
+        
+        {/* ⬇️ NUEVA FILA: BUSCADOR Y FILTROS ⬇️ */}
+        <div className="search-row">
+          
+          {/* BUSCADOR PÍLDORA */}
+          <div className="custom-search-bar">
+            <div className="search-field">
+              <svg viewBox="0 0 24 24">
+                <rect x="3" y="7" width="18" height="14" rx="2" />
+                <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+              </svg>
+              <input
+                type="text"
+                placeholder="Cargo o categoría"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
 
-      {/* Buscador + filtros */}
-      <div className="search-filters-row">
-        <div className="buscador-dividido">
-          <div className="buscador-seccion">
-            <svg className="buscador-icono" viewBox="0 0 20 20"><circle cx="9" cy="9" r="6" /><path d="M17 17l-4-4" /></svg>
-            <input
-              type="text"
-              className="buscador-input"
-              placeholder="Buscar oferta o empresa..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+            <div className="search-divider"></div>
+
+            <div className="search-field">
+              <svg viewBox="0 0 24 24">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                <circle cx="12" cy="10" r="3" />
+              </svg>
+              <input
+                type="text"
+                placeholder="Lugar"
+                value={searchCiudad}
+                onChange={(e) => setSearchCiudad(e.target.value)}
+              />
+            </div>
+
+            <button 
+              className="search-submit-btn" 
+              onClick={() => cargarOfertas(search, searchCiudad)}
+              title="Buscar"
+            >
+              <svg viewBox="0 0 24 24">
+                <circle cx="11" cy="11" r="7" />
+                <path d="m21 21-4.3-4.3" />
+              </svg>
+            </button>
           </div>
-          <div className="buscador-seccion">
-            <svg className="buscador-icono" viewBox="0 0 20 20"><circle cx="10" cy="10" r="3.5" /><path d="M10 17s5.5-5 5.5-9A5.5 5.5 0 004.5 8c0 4 5.5 9 5.5 9z" /></svg>
-            <input
-              type="text"
-              className="buscador-input"
-              placeholder="Buscar por ciudad (ej: Medellín)"
-              value={ciudad}
-              onChange={(e) => setCiudad(e.target.value)}
-            />
+
+          {/* FILTROS SECUNDARIOS (Ahora al lado derecho) */}
+          <div className="vacantes-filters">
+            <select className="filter-select" value={area} onChange={(e) => setArea(e.target.value)}>
+              <option value="">Todas las áreas</option>
+              <option value="Desarrollo de Software">Desarrollo de Software</option>
+              <option value="Diseño Gráfico">Diseño Gráfico</option>
+              <option value="Marketing">Marketing</option>
+              <option value="Administración">Administración</option>
+              <option value="Ventas">Ventas</option>
+              <option value="Recursos Humanos">Recursos Humanos</option>
+            </select>
+            <select className="filter-select" value={modalidad} onChange={(e) => setModalidad(e.target.value)}>
+              <option value="">Todas las modalidades</option>
+              <option value="Presencial">Presencial</option>
+              <option value="Remoto">Remoto</option>
+              <option value="Híbrido">Híbrido</option>
+            </select>
           </div>
+
         </div>
 
-        <div className="vacantes-filters">
-          <select className="filter-select" value={estado} onChange={(e) => setEstado(e.target.value)}>
-            <option value="">Estado</option>
-            <option value="Publicada">Publicada</option>
-            <option value="Pausada">Pausada</option>
-            <option value="Cerrada">Cerrada</option>
-          </select>
-          <select className="filter-select" value={area} onChange={(e) => setArea(e.target.value)}>
-            <option value="">Área</option>
-            <option value="Tecnología">Tecnología</option>
-            <option value="Administración">Administración</option>
-            <option value="Marketing">Marketing</option>
-            <option value="Ventas">Ventas</option>
-            <option value="Recursos Humanos">Recursos Humanos</option>
-          </select>
-          <select className="filter-select" value={modalidad} onChange={(e) => setModalidad(e.target.value)}>
-            <option value="">Modalidad</option>
-            <option value="Presencial">Presencial</option>
-            <option value="Remoto">Remoto</option>
-            <option value="Híbrido">Híbrido</option>
-          </select>
+        {/* 3. TABS (TODAS / GUARDADAS) */}
+        <div className="vacantes-tabs">
+          <button className={"vacantes-tab" + (tab === "todas" ? " active" : "")} onClick={() => setTab("todas")}>
+            Todas <strong>{ofertas.length}</strong>
+          </button>
+          <button className={"vacantes-tab" + (tab === "guardadas" ? " active" : "")} onClick={() => setTab("guardadas")}>
+            Guardadas <strong>{guardadas.size}</strong>
+          </button>
         </div>
       </div>
+      {/* FIN DEL CONTENEDOR */}
 
-      {/* Layout con panel lateral */}
       <div className="vacantes-layout">
         <div className="vacantes-list">
           {loadingOfertas && <p>Cargando vacantes...</p>}
@@ -275,35 +310,26 @@ export default function VacantesPage() {
                       {yaAplico ? "Aplicado ✓" : enviando === oferta.idOferta ? "Enviando..." : "Aplicar"}
                     </button>
                     <button
-                      className="bookmark-btn"
+                      className={"bookmark-btn" + (guardada ? " bookmark-btn-active" : "")}
                       aria-label="Guardar"
-                      style={guardada ? { color: "var(--brand, #0d6efd)", borderColor: "var(--brand, #0d6efd)" } : undefined}
                       onClick={() => toggleGuardada(oferta.idOferta)}
                     >
                       <svg viewBox="0 0 20 20"><path d="M5 3.5h10v13l-5-3.2-5 3.2z" /></svg>
                     </button>
                   </div>
 
-                  <button className="btn-outline-sm" onClick={() => setOfertaDetalle(oferta)}>
-                    Ver más
-                  </button>
-
                   <div style={{ position: "relative" }}>
                     <button
-                      style={{ background: "none", border: "none", fontSize: 18, color: "#667085", cursor: "pointer", padding: "0 8px" }}
+                      style={{ background: "none", border: "none", fontSize: 18, color: "var(--muted)", cursor: "pointer", padding: "0 8px" }}
                       onClick={() => setMenuAbierto(menuAbierto === oferta.idOferta ? null : oferta.idOferta)}
-                      aria-label="Opciones"
                     >
                       ...
                     </button>
                     {menuAbierto === oferta.idOferta && (
-                      <div style={{ position: "absolute", right: 0, bottom: "100%", marginBottom: 8, background: "#fff", border: "1px solid #E6E9EF", borderRadius: 8, boxShadow: "0 4px 12px rgba(0,0,0,0.1)", padding: 8, zIndex: 1000, width: 180 }}>
-                        <button
-                          onClick={() => salirDeOferta(oferta.idOferta)}
-                          style={{ display: "block", width: "100%", background: "none", border: "none", padding: "8px 12px", fontSize: 13, fontWeight: 600, color: "#101828", cursor: "pointer", textAlign: "left" }}
-                        >
-                          Salir de la oferta
-                        </button>
+                      <div style={{ position: "absolute", right: 0, bottom: "100%", marginBottom: 8, background: "var(--white)", border: "1px solid var(--line)", borderRadius: 8, boxShadow: "0 4px 12px rgba(0,0,0,0.1)", padding: 8, zIndex: 10, width: 180 }}>
+                        <button onClick={() => abrirModalReporte(oferta.idOferta)} style={{ display: "block", width: "100%", background: "none", border: "none", padding: "8px 12px", fontSize: 13, fontWeight: 600, color: "#D0402F", cursor: "pointer", textAlign: "left" }}>Reportar oferta</button>
+                        <button onClick={() => salirDeOferta(oferta.idOferta)} style={{ display: "block", width: "100%", background: "none", border: "none", padding: "8px 12px", fontSize: 13, fontWeight: 600, color: "var(--ink)", cursor: "pointer", textAlign: "left" }}>Salir de la oferta</button>
+                        <button onClick={() => { toggleGuardada(oferta.idOferta); setMenuAbierto(null); }} style={{ display: "block", width: "100%", background: "none", border: "none", padding: "8px 12px", fontSize: 13, fontWeight: 600, color: "var(--ink)", cursor: "pointer", textAlign: "left" }}>{guardada ? "Quitar de guardadas" : "Guardar oferta"}</button>
                       </div>
                     )}
                   </div>
@@ -313,49 +339,74 @@ export default function VacantesPage() {
           })}
         </div>
 
-        {/* Panel lateral */}
         <div className="vacantes-sidebar">
           <h3 className="sidebar-title">Búsquedas guardadas</h3>
-          {busquedasGuardadas.length === 0 ? (
-            <p style={{ fontSize: 13, color: "#667085" }}>No hay búsquedas guardadas.</p>
-          ) : (
-            <>
-              {busquedasGuardadas.map((busqueda) => (
-                <div className="saved-search-item" key={busqueda.titulo}>
-                  <div className="saved-search-icon">
-                    <svg viewBox="0 0 20 20"><path d="M10 2.5a5 5 0 00-3 9c.5.4.8 1 .8 1.6v1h4.4v-1c0-.6.3-1.2.8-1.6a5 5 0 00-3-9z" /></svg>
-                  </div>
-                  <div className="saved-search-info">
-                    <strong>{busqueda.titulo}</strong>
-                    <span>{busqueda.total} nuevas ofertas</span>
-                  </div>
-                </div>
-              ))}
-            </>
-          )}
+          <div className="saved-search-item">
+            <div className="saved-search-icon"><svg viewBox="0 0 20 20"><path d="M10 2.5a5 5 0 00-3 9c.5.4.8 1 .8 1.6v1h4.4v-1c0-.6.3-1.2.8-1.6a5 5 0 00-3-9z" /></svg></div>
+            <div className="saved-search-info"><strong>Desarrollo de software</strong><span>5 nuevas ofertas</span></div>
+          </div>
+          <a href="#" className="view-all-saved">Ver todas</a>
         </div>
       </div>
 
-      {/* Modal de detalle */}
-      {ofertaDetalle && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
-          <div style={{ background: "#fff", borderRadius: 16, padding: 24, width: "90%", maxWidth: 600, maxHeight: "90vh", overflowY: "auto" }}>
+      {/* MODAL DE REPORTE DE OFERTA */}
+      {reporteOfertaId !== null && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: "rgba(0,0,0,0.6)", zIndex: 9999,
+          display: "flex", alignItems: "center", justifyContent: "center", padding: 20
+        }} onClick={() => !enviandoReporte && setReporteOfertaId(null)}>
+          
+          <div style={{
+            background: "var(--white)", color: "var(--ink)", borderRadius: 16, 
+            width: "100%", maxWidth: 450, padding: 24, boxShadow: "0 20px 60px rgba(0,0,0,0.3)"
+          }} onClick={(e) => e.stopPropagation()}>
+            
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <h3 style={{ margin: 0, fontSize: 18 }}>{ofertaDetalle.titulo}</h3>
-              <button onClick={() => setOfertaDetalle(null)} style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", color: "#667085" }}>
-                ×
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Reportar oferta</h3>
+              <button 
+                onClick={() => setReporteOfertaId(null)} 
+                disabled={enviandoReporte}
+                style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", color: "var(--muted)" }}
+              >×</button>
+            </div>
+
+            <p style={{ margin: "0 0 16px", fontSize: 14, color: "var(--muted)", lineHeight: 1.5 }}>
+              Cuéntanos por qué consideras que esta oferta es sospechosa o inapropiada. Nuestro equipo de moderación la revisará.
+            </p>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 24 }}>
+              <label style={{ fontSize: 12.5, fontWeight: 600, color: "var(--muted)" }}>Motivo del reporte</label>
+              <textarea
+                rows={4}
+                placeholder="Ej. Piden dinero para aplicar, el salario es falso, la empresa no existe..."
+                value={motivoReporte}
+                onChange={(e) => setMotivoReporte(e.target.value)}
+                autoFocus
+                style={{
+                  width: "100%", border: "1px solid var(--line)", background: "var(--white)",
+                  color: "var(--ink)", borderRadius: 8, padding: "10px 12px", fontSize: 14,
+                  fontFamily: "inherit", resize: "vertical", boxSizing: "border-box"
+                }}
+              />
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
+              <button 
+                type="button" 
+                className="btn-cancel-edit" 
+                onClick={() => setReporteOfertaId(null)} 
+                disabled={enviandoReporte}
+              >
+                Cancelar
               </button>
-            </div>
-            <div style={{ marginBottom: 16 }}>
-              <strong style={{ fontSize: 16 }}>{ofertaDetalle.empresa}</strong>
-              <p style={{ margin: "4px 0", fontSize: 13, color: "#667085" }}>
-                {ofertaDetalle.ciudad} · {ofertaDetalle.modalidad} · {ofertaDetalle.tipoContrato}
-              </p>
-            </div>
-            <p style={{ fontSize: 14, lineHeight: 1.6, color: "#101828" }}>{ofertaDetalle.descripcion}</p>
-            <div style={{ marginTop: 16 }}>
-              <button className="btn-solid-sm" disabled={aplicadas.has(ofertaDetalle.idOferta)} onClick={() => aplicar(ofertaDetalle.idOferta)}>
-                {aplicadas.has(ofertaDetalle.idOferta) ? "Aplicado ✓" : "Aplicar"}
+              <button 
+                type="button" 
+                className="cv-btn-solid" 
+                onClick={enviarReporte} 
+                disabled={enviandoReporte || !motivoReporte.trim()}
+              >
+                {enviandoReporte ? "Enviando..." : "Enviar reporte"}
               </button>
             </div>
           </div>

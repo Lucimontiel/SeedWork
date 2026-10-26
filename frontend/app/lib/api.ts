@@ -3,11 +3,12 @@
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
 
-type ResultadoRefresh = "ok" | "carrera" | "fallo";
+// ============================================================
+// Refresh automático
+// ============================================================
+let refreshPromise: Promise<boolean> | null = null;
 
-let refreshPromise: Promise<ResultadoRefresh> | null = null;
-
-async function intentarRefresh(): Promise<ResultadoRefresh> {
+async function intentarRefresh(): Promise<boolean> {
   if (refreshPromise) return refreshPromise;
 
   refreshPromise = (async () => {
@@ -16,10 +17,9 @@ async function intentarRefresh(): Promise<ResultadoRefresh> {
         method: "POST",
         credentials: "include",
       });
-      if (resp.ok) return "ok";
-      return resp.status === 409 ? "carrera" : "fallo";
+      return resp.ok;
     } catch {
-      return "fallo";
+      return false;
     }
   })();
 
@@ -30,6 +30,9 @@ async function intentarRefresh(): Promise<ResultadoRefresh> {
   }
 }
 
+// ============================================================
+// Eventos de auth
+// ============================================================
 export const AUTH_LOGOUT_EVENT = "auth:logout";
 
 function dispararLogout() {
@@ -38,6 +41,24 @@ function dispararLogout() {
   }
 }
 
+// ============================================================
+// Helper para extraer mensajes de error
+// ============================================================
+function extraerMensajeError(data: any, status: number): string {
+  if (!data) return `Error ${status}`;
+  const detail = data.detail;
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail) && detail.length > 0) {
+    const primero = detail[0];
+    const campo = Array.isArray(primero.loc) ? primero.loc.slice(-1)[0] : "";
+    return campo ? `Campo '${campo}': ${primero.msg}` : primero.msg;
+  }
+  return `Error ${status}`;
+}
+
+// ============================================================
+// Fetch con manejo de refresh automático
+// ============================================================
 export interface ApiOptions extends Omit<RequestInit, "body"> {
   body?: unknown;
   silencioso?: boolean;
@@ -49,8 +70,11 @@ export async function apiFetch<T = unknown>(
 ): Promise<T> {
   const { body, headers, silencioso = false, ...rest } = options;
 
+  // ⬅️ SOPORTE PARA ARCHIVOS (FormData)
+  const isFormData = body instanceof FormData;
+
   const finalHeaders: HeadersInit = {
-    ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+    ...(body !== undefined && !isFormData ? { "Content-Type": "application/json" } : {}),
     ...(headers || {}),
   };
 
@@ -61,7 +85,8 @@ export async function apiFetch<T = unknown>(
       ...rest,
       headers: finalHeaders,
       credentials: "include",
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      // Si es FormData, lo enviamos tal cual. Si no, lo pasamos a JSON.
+      body: isFormData ? body : (body !== undefined ? JSON.stringify(body) : undefined),
     });
 
   let resp = await makeRequest();
@@ -72,21 +97,14 @@ export async function apiFetch<T = unknown>(
     path.includes("/api/auth/admin/login");
 
   if (resp.status === 401 && !esEndpointAuth) {
-    const resultado = await intentarRefresh();
-
-    if (resultado === "fallo") {
-      if (!silencioso) dispararLogout();
-      throw new ApiError("Sesión expirada. Por favor, inicia sesión de nuevo.", 401);
-    }
-
-    if (resultado === "carrera") {
-      await new Promise((r) => setTimeout(r, 400));
-    }
-
-    resp = await makeRequest();
-    if (resp.status === 401) {
-      if (!silencioso) dispararLogout();
-      throw new ApiError("Sesión expirada.", 401);
+    const ok = await intentarRefresh();
+    if (ok) {
+      resp = await makeRequest();
+    } else {
+      if (!silencioso) {
+        dispararLogout();
+      }
+      throw new ApiError("No autenticado.", 401);
     }
   }
 
@@ -101,6 +119,9 @@ export async function apiFetch<T = unknown>(
   return (await resp.json()) as T;
 }
 
+// ============================================================
+// Error tipado
+// ============================================================
 export class ApiError extends Error {
   status: number;
   data: unknown;
@@ -113,6 +134,9 @@ export class ApiError extends Error {
   }
 }
 
+// ============================================================
+// Helpers específicos de auth
+// ============================================================
 export interface LoginPayload {
   correo: string;
   contrasena: string;
@@ -125,7 +149,6 @@ export interface TokenResponse {
   expires_in: number;
 }
 
-// ⬅️ NUEVO: Interfaz para el paso 1 del admin
 export interface AdminChallengeResponse {
   dos_fa_requerido: boolean;
   challenge_token: string;
@@ -143,18 +166,6 @@ export interface MeResponse {
   totpHabilitado: boolean;
 }
 
-function extraerMensajeError(data: any, status: number): string {
-  if (!data) return `Error ${status}`;
-  const detail = data.detail;
-  if (typeof detail === "string") return detail;
-  if (Array.isArray(detail) && detail.length > 0) {
-    const primero = detail[0];
-    const campo = Array.isArray(primero.loc) ? primero.loc.slice(-1)[0] : "";
-    return campo ? `Campo '${campo}': ${primero.msg}` : primero.msg;
-  }
-  return `Error ${status}`;
-}
-
 export const authApi = {
   login: (payload: LoginPayload) =>
     apiFetch<TokenResponse>("/api/auth/login", {
@@ -162,14 +173,12 @@ export const authApi = {
       body: payload,
     }),
 
-  // ⬅️ ACTUALIZADO: Ahora tipa la respuesta del Challenge
   adminLogin: (payload: { correo: string; contrasena: string }) =>
     apiFetch<AdminChallengeResponse | TokenResponse>(
       "/api/auth/admin/login",
       { method: "POST", body: payload }
     ),
 
-  // ⬅️ ACTUALIZADO: Recibe el challenge_token
   adminLogin2FA: (payload: { challenge_token: string; codigo: string }) =>
     apiFetch<TokenResponse>("/api/auth/admin/login/2fa", {
       method: "POST",

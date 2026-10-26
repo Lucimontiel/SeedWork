@@ -1386,51 +1386,66 @@ textarea#answerInput::placeholder {
     display:block;
 }
 
-.logo {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+/* ================= LOGO (TAMAÑO GRANDE Y DEFINITIVO) ================= */
+.sidebar .logo {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 12px !important;
+    padding: 4px 10px 28px !important;
+    font-size: 21px; /* Para que no herede cosas raras */
 }
 
-.logo-icon {
-    width: 26px;
-    height: 26px;
-    stroke: var(--blue);
-    fill: none;
-    stroke-width: 1.6;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    flex-shrink: 0;
+.sidebar .logo .logo-icon {
+    display: block !important;
+    width: 42px !important;
+    height: 42px !important;
+    object-fit: contain;
 }
 
-.logo-text {
-    display: flex;
-    flex-direction: column;
-    line-height: 1.2;
+.sidebar .logo .logo-text {
+    display: flex !important;
+    flex-direction: column !important;
+    line-height: 1.2 !important;
 }
 
-.logo-text strong {
-    font-size: 17px;
-    font-weight: 700;
-    color: var(--blue);
+.sidebar .logo .logo-text strong {
+    font-family: 'Poppins', sans-serif !important;
+    font-size: 24px !important; 
+    font-weight: 800 !important;
+    letter-spacing: -0.5px !important;
+    color: var(--ink) !important;
+    margin-bottom: 2px !important;
+    display: block;
 }
 
-.logo-text span {
-    font-size: 9.5px;
-    color: var(--muted);
-    white-space: normal;
-    line-height: 1.35;
+.sidebar .logo .logo-text strong .logo-work {
+    color: var(--blue) !important;
 }
 
-.logo-seed {
-    color: var(--ink);
+.sidebar .logo .logo-text > span {
+    font-family: 'Inter', sans-serif !important;
+    font-size: 11px !important;
+    color: var(--muted) !important;
+    font-weight: 500 !important;
+    line-height: 1.3 !important;
+    max-width: 160px !important;
+    white-space: normal !important;
 }
 
-.logo-work {
-    color: var(--blue);
+/* Anular la regla de pantalla pequeña que lo achicaba */
+@media (max-width: 760px) {
+    .sidebar .logo {
+        font-size: 21px !important;
+    }
+    .sidebar .logo .logo-icon,
+    .sidebar .logo .logo-text {
+        display: flex !important;
+    }
+    .sidebar .logo::after {
+        display: none !important;
+    }
 }
-
-
 
 .section-title {
     font-size: 18px;
@@ -6745,4 +6760,183 @@ textarea#answerInput::placeholder {
     font-weight: 600;
     padding: 6px 13px;
     border-radius: 20px;
+}
+
+/* ============================================================ */
+/* MODO OSCURO — DASHBOARD DE EMPRESA                           */
+/* ============================================================ */
+
+html[data-theme="dark"] {
+  --blue: #4A8CFF;
+  --blue-dark: #3B7AEC;
+  --blue-bg-soft: #1E3A5F;
+  --blue-card: #1E3A5F;
+  --blue-card-text: #DCE8FF;
+  --ink: #F1F5F9;
+  --muted: #94A3B8;
+  --line: #334155;
+  --sidebar-bg: #1E293B;
+  --app-bg: #0F172A;
+  --white: #1E293B;
+  --danger-soft: #4A1E24;
+}
+
+html[data-theme="dark"] body,
+html[data-theme="dark"] .app-shell {
+  background-color: var(--app-bg);
+  color: var(--ink);
+}
+
+html[data-theme="dark"] input,
+html[data-theme="dark"] select,
+html[data-theme="dark"] textarea {
+  background-color: #0F172A;
+  color: var(--ink);
+  border-color: var(--line);
+}
+
+html[data-theme="dark"] input::placeholder,
+html[data-theme="dark"] textarea::placeholder {
+  color: #64748B;
+}
+
+/* Arreglos del modo oscuro para la campana y menús */
+html[data-theme="dark"] .notification-dropdown {
+    background-color: var(--white);
+    border-color: var(--line);
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.5);
+}
+
+html[data-theme="dark"] .notification-info strong,
+html[data-theme="dark"] .notification-title h3 {
+    color: var(--ink);
+}
+
+html[data-theme="dark"] .notification-info p {
+    color: var(--muted);
+}
+
+/* Iconos de notificación en modo oscuro (menos brillantes) */
+html[data-theme="dark"] .notification-icon.blue { background: #1E3A5F; color: #60A5FA; }
+html[data-theme="dark"] .notification-icon.green { background: #064E3B; color: #34D399; }
+html[data-theme="dark"] .notification-icon.yellow { background: #78350F; color: #FBBF24; }
+
+/* Arreglo para el título de Estado "Cerrada" y similares en Mis Ofertas */
+html[data-theme="dark"] .misofertas-status-pill {
+    color: var(--ink);
+}
+html[data-theme="dark"] .misofertas-publicada {
+    color: var(--muted);
+}
+
+/* ============================================================ */
+/* ARREGLOS EXTRA DEL MODO OSCURO PARA EMPRESA                  */
+/* ============================================================ */
+
+/* 1. Barra de búsqueda del Inicio */
+html[data-theme="dark"] .empresa-search-wrap {
+    background: #1E293B;
+}
+html[data-theme="dark"] .empresa-search-wrap input {
+    color: var(--ink);
+}
+html[data-theme="dark"] .empresa-search-wrap svg {
+    stroke: var(--muted);
+}
+
+/* 2. Notificaciones (Tarjetas) */
+html[data-theme="dark"] .notif-card {
+    background: var(--white);
+    border-color: var(--line);
+}
+html[data-theme="dark"] .notif-card.is-unread {
+    background: #1E3A5F; /* Un azul oscuro para las no leídas */
+    border-color: #4A8CFF;
+}
+html[data-theme="dark"] .notif-header-row h4 {
+    color: var(--ink);
+}
+html[data-theme="dark"] .notif-body p {
+    color: var(--muted);
+}
+html[data-theme="dark"] .notif-time, 
+html[data-theme="dark"] .notif-meta {
+    color: var(--muted);
+}
+html[data-theme="dark"] .notif-icon-blue { background: #172B4D; }
+html[data-theme="dark"] .notif-icon-purple { background: #2A1F47; }
+
+/* 3. Hover de la Configuración (cuando pasas el mouse) */
+html[data-theme="dark"] .settings-row-link:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+html[data-theme="dark"] .settings-row-link {
+    color: var(--ink);
+}
+html[data-theme="dark"] .settings-row-toggle span {
+    color: var(--ink);
+}
+
+/* Arreglar los tags de estado en modo oscuro */
+html[data-theme="dark"] .tag {
+    background-color: #1E3A5F; /* Fondo azul oscuro */
+    color: #93B9FF;            /* Texto celeste claro */
+}
+
+/* ============================================================ */
+/* ARREGLO DEFINITIVO DE LOS SELECTS (FILTROS) EN MODO OSCURO   */
+/* ============================================================ */
+
+/* Fuerza el fondo oscuro cuando el select está enfocado o con el mouse encima */
+html[data-theme="dark"] select:focus,
+html[data-theme="dark"] select:active,
+html[data-theme="dark"] select:hover,
+html[data-theme="dark"] .filter-select:focus,
+html[data-theme="dark"] .filter-select:hover {
+    background-color: #1E293B !important;
+    color: #F1F5F9 !important;
+    border-color: #4A8CFF !important;
+    outline: none;
+}
+
+/* Asegura que las opciones de la lista desplegable también sean oscuras */
+html[data-theme="dark"] select option {
+    background-color: #1E293B;
+    color: #F1F5F9;
+}
+
+/* ============================================================ */
+/* ARREGLO DE LA BARRA DE BÚSQUEDA EN MODO OSCURO               */
+/* ============================================================ */
+
+/* 1. El contenedor principal se vuelve oscuro */
+html[data-theme="dark"] .empresa-search-wrap {
+    background-color: #1E293B;
+    border: 1px solid #334155; /* Un borde sutil para que resalte */
+}
+
+/* 2. El input de adentro se vuelve transparente para fusionarse */
+html[data-theme="dark"] .empresa-search-wrap input {
+    background-color: transparent !important;
+    color: #F1F5F9 !important;
+}
+
+/* 3. El texto gris del placeholder */
+html[data-theme="dark"] .empresa-search-wrap input::placeholder {
+    color: #94A3B8 !important;
+}
+
+/* 4. El icono de la lupa */
+html[data-theme="dark"] .empresa-search-wrap svg {
+    stroke: #94A3B8 !important;
+}
+
+/* Arreglar los tags de estado (Pills) en modo oscuro */
+html[data-theme="dark"] .tag {
+    background-color: #1E3A5F !important; /* Azul oscuro elegante */
+    color: #93B9FF !important;            /* Texto celeste */
+}
+html[data-theme="dark"] .status-pill {
+    background-color: #334155 !important;
+    color: #F1F5F9 !important;
 }

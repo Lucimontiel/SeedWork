@@ -1,5 +1,7 @@
 import os
 import resend
+import logging
+logger = logging.getLogger(__name__)
 
 # Configuración de Resend
 resend.api_key = os.getenv("RESEND_API_KEY")
@@ -24,7 +26,8 @@ def enviar_correo_recuperacion(destinatario: str, enlace: str):
         })
         print(f"✅ Correo de recuperación enviado a {destinatario}")
     except Exception as e:
-        print(f"❌ Error al enviar correo de recuperación: {e}")
+        logger.error(f"Error al enviar correo de recuperación a {destinatario}: {e}", exc_info=True)
+        raise   # ← propagar para que el caller pueda decidir
 
 
 def enviar_correo_verificacion(destinatario: str, enlace: str):

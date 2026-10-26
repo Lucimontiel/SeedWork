@@ -6,6 +6,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,          // ⬅️ AÑADIDO
   useState,
 } from "react";
 import { useRouter, usePathname } from "next/navigation";
@@ -41,6 +42,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<MeResponse | null>(null);
   const [cargando, setCargando] = useState(true);
 
+  // ⬅️ FIX #1: ref que siempre apunta al user más reciente
+  // Sirve para leer el rol dentro del handler sin re-suscribir el evento
+  const userRef = useRef<MeResponse | null>(null);
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+
   const actualizarSesion = useCallback((me: MeResponse) => {
     setUser(me);
     saveSession({
@@ -50,6 +58,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  // Carga inicial de /me
   useEffect(() => {
     let activo = true;
     (async () => {
@@ -65,20 +74,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (activo) setCargando(false);
       }
     })();
-    return () => { activo = false; };
+    return () => {
+      activo = false;
+    };
   }, [actualizarSesion]);
 
+  // ⬅️ FIX #2: limpiar el tema oscuro cuando no hay sesión
+  // Evita que el dark mode "sangre" al login/registro tras logout
+  useEffect(() => {
+    if (!cargando && !user) {
+      document.documentElement.removeAttribute("data-theme");
+    }
+  }, [user, cargando]);
+
+  // ⬅️ FIX #1 + #2 combinados: handler del evento de logout
+  // Ya no depende de `user`, así que no se re-suscribe en cada cambio
   useEffect(() => {
     const handler = () => {
+      const tipo = userRef.current?.tipo;   // leer rol ANTES de limpiar
       setUser(null);
       clearSession();
-      if (!pathname.startsWith("/login") && !pathname.startsWith("/registro")) {
-        router.push("/login");
+      document.documentElement.removeAttribute("data-theme");
+
+      // Redirigir al login correcto según el rol
+      const loginPath = tipo === "administrador" ? "/administrador/login" : "/login";
+      const yaEnAuth =
+        pathname.includes("/login") || pathname.startsWith("/registro");
+      if (!yaEnAuth) {
+        router.push(loginPath);
       }
     };
     window.addEventListener(AUTH_LOGOUT_EVENT, handler);
     return () => window.removeEventListener(AUTH_LOGOUT_EVENT, handler);
-  }, [router, pathname]);
+  }, [router, pathname]);   // ⬅️ sin `user` en deps
 
   const login = useCallback(
     async (correo: string, contrasena: string, tipo: "candidato" | "empresa") => {
@@ -90,7 +118,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [actualizarSesion]
   );
 
-  // ⬅️ ACTUALIZADO: Devuelve el token
   const adminLoginStep1 = useCallback(
     async (correo: string, contrasena: string) => {
       const resp = await authApi.adminLogin({ correo, contrasena });
@@ -106,7 +133,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [actualizarSesion]
   );
 
-  // ⬅️ ACTUALIZADO: Recibe el token
   const adminLoginStep2 = useCallback(
     async (challengeToken: string, codigo: string) => {
       await authApi.adminLogin2FA({ challenge_token: challengeToken, codigo });
@@ -117,14 +143,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [actualizarSesion]
   );
 
+  // ⬅️ MODIFICADO: logout con redirect condicional al login correcto
   const logout = useCallback(async () => {
+    const tipo = userRef.current?.tipo;   // leer rol ANTES de limpiar
     try {
       await authApi.logout();
     } catch {}
     setUser(null);
     clearSession();
-    if (!pathname.startsWith("/login")) {
-      router.replace("/login");
+    document.documentElement.removeAttribute("data-theme");
+
+    const loginPath = tipo === "administrador" ? "/administrador/login" : "/login";
+    const yaEnAuth = pathname.includes("/login") || pathname.startsWith("/registro");
+    if (!yaEnAuth) {
+      router.replace(loginPath);
     }
   }, [router, pathname]);
 
@@ -162,3 +194,4 @@ export function useAuth(): AuthContextValue {
   }
   return ctx;
 }
+

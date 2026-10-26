@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useState, useEffect, JSX } from "react";
+import { useEffect, useMemo, useState, JSX } from "react";
 import CandidatoShell from "../CandidatoShell";
-import { useCandidato } from "../../lib/useCandidato";
-import { API_BASE } from "../../lib/api";
+import { useAuth } from "@/app/lib/auth-context";
+import { apiFetch } from "@/app/lib/api";
 
 interface Postulacion {
   idPostulacion: number;
@@ -15,14 +15,21 @@ interface Postulacion {
   estado: string;
   vista: boolean;
   fechaPostulacion: string;
+  categoria?: string;
 }
 
 type TabKey = "todas" | "postulado" | "vistas" | "proceso" | "cerradas";
 
 function estadoVisual(p: Postulacion): { label: string; className: string } {
-  if (p.estado === "Cerrada") return { label: "Cerrada", className: "closed" };
-  if (p.estado === "En proceso") return { label: "En proceso", className: "in-progress" };
-  if (p.vista) return { label: "Vista por la empresa", className: "viewed" };
+  const est = p.estado || "Postulado";
+  
+  if (est === "Rechazado") return { label: "Rechazado", className: "closed" };
+  if (est === "Contratado") return { label: "Contratado", className: "in-progress" };
+  if (est === "Entrevista" || est === "Prueba Técnica" || est === "Preseleccionado") {
+    return { label: est, className: "in-progress" };
+  }
+  if (est === "En revisión") return { label: "En revisión", className: "viewed" };
+  
   return { label: "Postulado", className: "" };
 }
 
@@ -46,24 +53,25 @@ const STATUS_ICON: Record<string, JSX.Element> = {
 };
 
 export default function PostulacionesPage() {
-  const { candidato } = useCandidato();
+  const { user } = useAuth();
   const [postulaciones, setPostulaciones] = useState<Postulacion[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Filtros
   const [tab, setTab] = useState<TabKey>("todas");
   const [search, setSearch] = useState("");
+  const [searchCiudad, setSearchCiudad] = useState(""); // ⬅️ Nuevo estado para el buscador
+  const [filtroEstado, setFiltroEstado] = useState("");
+  const [filtroArea, setFiltroArea] = useState("");
 
   useEffect(() => {
-    if (!candidato) return;
-    fetch(`${API_BASE}/api/candidato/${candidato.idCandidato}/postulaciones`)
-      .then((r) => {
-        if (!r.ok) throw new Error("No se pudieron cargar tus postulaciones");
-        return r.json();
-      })
+    if (!user?.idCandidato) return;
+    apiFetch<Postulacion[]>(`/api/candidato/${user.idCandidato}/postulaciones`)
       .then(setPostulaciones)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [candidato]);
+  }, [user]);
 
   const conteos = useMemo(() => {
     const c = { postulado: 0, vistas: 0, proceso: 0, cerradas: 0 };
@@ -79,6 +87,7 @@ export default function PostulacionesPage() {
 
   const visibles = useMemo(() => {
     let lista = postulaciones;
+
     if (tab !== "todas") {
       lista = lista.filter((p) => {
         const v = estadoVisual(p);
@@ -89,14 +98,31 @@ export default function PostulacionesPage() {
         return true;
       });
     }
+
+    // Filtro Cargo/Empresa
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       lista = lista.filter((p) => p.titulo.toLowerCase().includes(q) || p.empresa.toLowerCase().includes(q));
     }
-    return lista;
-  }, [postulaciones, tab, search]);
 
-  const total = postulaciones.length || 1; // evita división por 0
+    // Filtro Lugar (Ciudad)
+    if (searchCiudad.trim()) {
+      const q = searchCiudad.trim().toLowerCase();
+      lista = lista.filter((p) => p.ciudad.toLowerCase().includes(q));
+    }
+
+    if (filtroEstado) {
+      lista = lista.filter((p) => p.estado === filtroEstado);
+    }
+
+    if (filtroArea) {
+      lista = lista.filter((p) => p.categoria === filtroArea);
+    }
+
+    return lista;
+  }, [postulaciones, tab, search, searchCiudad, filtroEstado, filtroArea]);
+
+  const total = postulaciones.length || 1;
   const pctPostulado = (conteos.postulado / total) * 100;
   const pctProceso = (conteos.proceso / total) * 100;
   const pctVistas = (conteos.vistas / total) * 100;
@@ -108,108 +134,167 @@ export default function PostulacionesPage() {
 
   return (
     <CandidatoShell
-      nombre={candidato ? `${candidato.nombres} ${candidato.apellidos}` : undefined}
+      nombre={user?.correo}
       pageTitle="Mis Postulaciones"
       pageSubtitle="Consulta el estado de las ofertas a las que te has postulado"
     >
-      <div className="postulaciones-tabs">
-        <button className={"postulaciones-tab" + (tab === "todas" ? " active" : "")} onClick={() => setTab("todas")}>
-          Todas <strong>{postulaciones.length}</strong>
-        </button>
-        <button className={"postulaciones-tab tab-postulado" + (tab === "postulado" ? " active" : "")} onClick={() => setTab("postulado")}>
-          Postulado <strong>{conteos.postulado}</strong>
-        </button>
-        <button className={"postulaciones-tab tab-vistas" + (tab === "vistas" ? " active" : "")} onClick={() => setTab("vistas")}>
-          Vistas <strong>{conteos.vistas}</strong>
-        </button>
-        <button className={"postulaciones-tab tab-proceso" + (tab === "proceso" ? " active" : "")} onClick={() => setTab("proceso")}>
-          En proceso <strong>{conteos.proceso}</strong>
-        </button>
-        <button className={"postulaciones-tab tab-cerradas" + (tab === "cerradas" ? " active" : "")} onClick={() => setTab("cerradas")}>
-          Cerradas <strong>{conteos.cerradas}</strong>
-        </button>
-      </div>
-
-      <div className="vacantes-filters">
-        <div className="search-input-wrap">
-          <input type="text" placeholder="Buscar oferta o empresa..." value={search} onChange={(e) => setSearch(e.target.value)} />
-          <svg viewBox="0 0 20 20"><circle cx="9" cy="9" r="6" /><path d="M17 17l-4-4" /></svg>
-        </div>
-        <button className="filter-select">Estado <svg viewBox="0 0 20 20"><path d="M5 8l5 5 5-5" /></svg></button>
-        <button className="filter-select">Área <svg viewBox="0 0 20 20"><path d="M5 8l5 5 5-5" /></svg></button>
-        <button className="filter-select">Modalidad <svg viewBox="0 0 20 20"><path d="M5 8l5 5 5-5" /></svg></button>
-      </div>
-
-      <div className="vacantes-layout">
-        <div className="application-list" style={{ flex: 1, marginBottom: 0 }}>
-          {loading && <p>Cargando tus postulaciones...</p>}
-          {error && <p style={{ color: "#dc3545" }}>{error}</p>}
-          {!loading && visibles.length === 0 && <p>No tienes postulaciones en esta categoría.</p>}
-
-          {visibles.map((p) => {
-            const v = estadoVisual(p);
-            return (
-              <div className="application-card" key={p.idPostulacion}>
-                <div className="application-icon icon-blue">
-                  <svg viewBox="0 0 20 20"><path d="M4 16V9M10 16V4M16 16v-6" /></svg>
-                </div>
-                <div className="application-info">
-                  <h4>{p.titulo}</h4>
-                  <p>{p.empresa}</p>
-                  <div className="application-meta">
-                    <span><svg viewBox="0 0 20 20"><path d="M10 17s5.5-5 5.5-9A5.5 5.5 0 004.5 8c0 4 5.5 9 5.5 9z" /><circle cx="10" cy="8" r="1.8" /></svg>{p.ciudad}</span>
-                    <span><svg viewBox="0 0 20 20"><rect x="3" y="6" width="14" height="9.5" rx="1.4" /><path d="M7.5 6V4.8A1.3 1.3 0 018.8 3.5h2.4a1.3 1.3 0 011.3 1.3V6" /></svg>{p.modalidad}</span>
-                    <span><svg viewBox="0 0 20 20"><rect x="3.5" y="4" width="13" height="12" rx="1.5" /><path d="M3.5 8h13M7 2.5v3M13 2.5v3" /></svg>Postulado el {fechaCorta(p.fechaPostulacion)}</span>
-                  </div>
-                </div>
-                <div className="application-status">
-                  <span className={"status-pill" + (v.className ? " " + v.className : "")}>
-                    {STATUS_ICON[v.className]}
-                    {v.label}
-                  </span>
-                </div>
-                <div className="application-actions">
-                  <button className="btn-outline-sm">Ver oferta</button>
-                  <button className="btn-outline-sm">Ver empresa</button>
-                </div>
+      <div className="vacantes-page-container">
+        
+        {/* CONTENEDOR DE BUSCADOR Y FILTROS */}
+        <div className="vacantes-top-controls">
+          <div className="search-row">
+            
+            {/* BUSCADOR PÍLDORA DE DOS CAMPOS (IDÉNTICO A VACANTES) */}
+            <div className="custom-search-bar">
+              <div className="search-field">
+                <svg viewBox="0 0 24 24">
+                  <rect x="3" y="7" width="18" height="14" rx="2" />
+                  <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Cargo o categoría"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
               </div>
-            );
-          })}
-        </div>
 
-        <aside className="vacantes-sidebar" style={{ width: 250 }}>
-          <h3 className="sidebar-title">Resumen de postulaciones</h3>
+              <div className="search-divider"></div>
 
-          <div className="summary-legend">
-            <div className="summary-legend-item">
-              <span className="legend-dot" style={{ background: "#F0A93F" }} />
-              <span className="legend-label">Postulado</span>
-              <span className="legend-value">{conteos.postulado}</span>
+              <div className="search-field">
+                <svg viewBox="0 0 24 24">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                  <circle cx="12" cy="10" r="3" />
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Lugar"
+                  value={searchCiudad}
+                  onChange={(e) => setSearchCiudad(e.target.value)}
+                />
+              </div>
+
+              <button 
+                className="search-submit-btn" 
+                title="Buscar"
+              >
+                <svg viewBox="0 0 24 24">
+                  <circle cx="11" cy="11" r="7" />
+                  <path d="m21 21-4.3-4.3" />
+                </svg>
+              </button>
             </div>
-            <div className="summary-legend-item">
-              <span className="legend-dot" style={{ background: "#8CF0A4" }} />
-              <span className="legend-label">En proceso</span>
-              <span className="legend-value">{conteos.proceso}</span>
-            </div>
-            <div className="summary-legend-item">
-              <span className="legend-dot" style={{ background: "#2D6CDF" }} />
-              <span className="legend-label">Vistas</span>
-              <span className="legend-value">{conteos.vistas}</span>
-            </div>
-            <div className="summary-legend-item">
-              <span className="legend-dot" style={{ background: "#D6D6D6" }} />
-              <span className="legend-label">Cerradas</span>
-              <span className="legend-value">{conteos.cerradas}</span>
+
+            {/* Filtros a la derecha */}
+            <div className="vacantes-filters">
+              <select className="filter-select" value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)}>
+              <option value="">Estado</option>
+              <option value="Publicada">Publicada</option>
+              <option value="Por aprobar">Por aprobar</option>
+              <option value="Pausada">Pausada</option>
+              <option value="Cerrada">Cerrada</option>
+              <option value="Rechazada">Rechazada</option>
+            </select>
+              <select className="filter-select" value={filtroArea} onChange={(e) => setFiltroArea(e.target.value)}>
+                <option value="">Área</option>
+                <option value="Desarrollo de Software">Desarrollo de Software</option>
+                <option value="Diseño Gráfico">Diseño Gráfico</option>
+                <option value="Marketing">Marketing</option>
+                <option value="Administración">Administración</option>
+                <option value="Ventas">Ventas</option>
+              </select>
             </div>
           </div>
 
-          <div
-            className="donut-chart"
-            style={{
-              background: `conic-gradient(#D6D6D6 0% ${a}%, #8CF0A4 ${a}% ${b}%, #2D6CDF ${b}% ${cAcum}%, #F0A93F ${cAcum}% 100%)`,
-            }}
-          />
-        </aside>
+          {/* Tabs de estados */}
+          <div className="postulaciones-tabs">
+            <button className={"postulaciones-tab" + (tab === "todas" ? " active" : "")} onClick={() => setTab("todas")}>
+              Todas <strong>{postulaciones.length}</strong>
+            </button>
+            <button className={"postulaciones-tab tab-postulado" + (tab === "postulado" ? " active" : "")} onClick={() => setTab("postulado")}>
+              Postulado <strong>{conteos.postulado}</strong>
+            </button>
+            <button className={"postulaciones-tab tab-vistas" + (tab === "vistas" ? " active" : "")} onClick={() => setTab("vistas")}>
+              Vistas <strong>{conteos.vistas}</strong>
+            </button>
+            <button className={"postulaciones-tab tab-proceso" + (tab === "proceso" ? " active" : "")} onClick={() => setTab("proceso")}>
+              En proceso <strong>{conteos.proceso}</strong>
+            </button>
+            <button className={"postulaciones-tab tab-cerradas" + (tab === "cerradas" ? " active" : "")} onClick={() => setTab("cerradas")}>
+              Cerradas <strong>{conteos.cerradas}</strong>
+            </button>
+          </div>
+        </div>
+
+        <div className="vacantes-layout">
+          <div className="application-list" style={{ flex: 1, marginBottom: 0 }}>
+            {loading && <p>Cargando tus postulaciones...</p>}
+            {error && <p style={{ color: "#dc3545" }}>{error}</p>}
+            {!loading && visibles.length === 0 && <p>No tienes postulaciones que coincidan con los filtros.</p>}
+
+            {visibles.map((p) => {
+              const v = estadoVisual(p);
+              return (
+                <div className="application-card" key={p.idPostulacion}>
+                  <div className="application-icon icon-blue">
+                    <svg viewBox="0 0 20 20"><path d="M4 16V9M10 16V4M16 16v-6" /></svg>
+                  </div>
+                  <div className="application-info">
+                    <h4>{p.titulo}</h4>
+                    <p>{p.empresa}</p>
+                    <div className="application-meta">
+                      <span><svg viewBox="0 0 20 20"><path d="M10 17s5.5-5 5.5-9A5.5 5.5 0 004.5 8c0 4 5.5 9 5.5 9z" /><circle cx="10" cy="8" r="1.8" /></svg>{p.ciudad}</span>
+                      <span><svg viewBox="0 0 20 20"><rect x="3" y="6" width="14" height="9.5" rx="1.4" /><path d="M7.5 6V4.8A1.3 1.3 0 018.8 3.5h2.4a1.3 1.3 0 011.3 1.3V6" /></svg>{p.modalidad}</span>
+                      <span><svg viewBox="0 0 20 20"><rect x="3.5" y="4" width="13" height="12" rx="1.5" /><path d="M3.5 8h13M7 2.5v3M13 2.5v3" /></svg>Postulado el {fechaCorta(p.fechaPostulacion)}</span>
+                    </div>
+                  </div>
+                  <div className="application-status">
+                    <span className={"status-pill" + (v.className ? " " + v.className : "")}>
+                      {STATUS_ICON[v.className]}
+                      {v.label}
+                    </span>
+                  </div>
+                  <div className="application-actions">
+                    <button className="btn-outline-sm">Ver oferta</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <aside className="vacantes-sidebar" style={{ width: 250 }}>
+            <h3 className="sidebar-title">Resumen de postulaciones</h3>
+            <div className="summary-legend">
+              <div className="summary-legend-item">
+                <span className="legend-dot" style={{ background: "#F0A93F" }} />
+                <span className="legend-label">Postulado</span>
+                <span className="legend-value">{conteos.postulado}</span>
+              </div>
+              <div className="summary-legend-item">
+                <span className="legend-dot" style={{ background: "#8CF0A4" }} />
+                <span className="legend-label">En proceso</span>
+                <span className="legend-value">{conteos.proceso}</span>
+              </div>
+              <div className="summary-legend-item">
+                <span className="legend-dot" style={{ background: "#2D6CDF" }} />
+                <span className="legend-label">Vistas</span>
+                <span className="legend-value">{conteos.vistas}</span>
+              </div>
+              <div className="summary-legend-item">
+                <span className="legend-dot" style={{ background: "#D6D6D6" }} />
+                <span className="legend-label">Cerradas</span>
+                <span className="legend-value">{conteos.cerradas}</span>
+              </div>
+            </div>
+
+            <div
+              className="donut-chart"
+              style={{
+                background: `conic-gradient(#D6D6D6 0% ${a}%, #8CF0A4 ${a}% ${b}%, #2D6CDF ${b}% ${cAcum}%, #F0A93F ${cAcum}% 100%)`,
+              }}
+            />
+          </aside>
+        </div>
       </div>
     </CandidatoShell>
   );

@@ -2,29 +2,27 @@
 auth.py - Endpoints de autenticación con JWT + refresh tokens + 2FA.
 """
 import os
-import secrets
-import hashlib
-
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
-from jose import JWTError
+from jose import JWTError # ⬅️ NUEVO: Necesario para el challenge
 
 from database import get_db
 from models import (
     Usuario, Candidato, Empresa, Administrador,
     RefreshToken, CodigoRespaldo, EstadoUsuario, Rol,
-    PasswordResetToken, EmailVerificationToken, # ⬅️ Añadido EmailVerificationToken
 )
 from schemas import (
     LoginTokenIn, AdminLoginIn, AdminLogin2FAIn,
-    AdminLoginChallengeOut,
-    TokenOut, MeOut, Setup2FAOut, OlvidePasswordIn, RestablecerPasswordIn,
+    AdminLoginChallengeOut, # ⬅️ NUEVO
+    TokenOut, MeOut, Setup2FAOut,
 )
 from security import (
     verify_and_update,
+    verify_password,     # necesario para el timing fix
+    hash_password,       # necesario para _DUMMY_HASH y para cambiar_contrasena
     crear_access_token,
     generar_refresh_token,
     hashear_refresh_token,
@@ -35,9 +33,8 @@ from security import (
     uri_totp,
     generar_codigos_respaldo,
     verificar_codigo_respaldo,
-    crear_challenge_token,
-    decodificar_challenge_token,
-    hash_password,
+    crear_challenge_token,     # ⬅️ NUEVO
+    decodificar_challenge_token # ⬅️ NUEVO
 )
 from dependencies import (
     COOKIE_ACCESS_TOKEN,
@@ -63,7 +60,20 @@ from rate_limit import (
     LIMIT_LOGIN, LIMIT_REFRESH, LIMIT_2FA,
 )
 
-from email_service import enviar_correo_recuperacion
+import hashlib
+import secrets
+from models import PasswordResetToken, EmailVerificationToken
+from email_service import enviar_correo_recuperacion, enviar_correo_verificacion
+from schemas import OlvidePasswordIn, RestablecerPasswordIn
+
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+
+# ============================================================
+# TIMING ATTACK PROTECTION
+# Hash precomputado para consumir el mismo tiempo de argon2
+# cuando el correo NO existe (evita user enumeration)
+# ============================================================
+_DUMMY_HASH = hash_password("dummy_password_for_timing_protection")
 
 # ============================================================
 # CONFIGURACIÓN DE COOKIES
@@ -161,10 +171,18 @@ async def login(request: Request, response: Response, body: LoginTokenIn, db: Se
             registrar_evento(db, evento=EVENTO_LOGIN_BLOQUEADO, exito=False, id_usuario=usuario.IdUsuario, correo_intentado=body.correo, request=request, detalles=f"Bloqueado por {restante} minutos más")
             raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=f"Cuenta bloqueada temporalmente. Intenta en {restante} minutos.")
 
+    # Precomputar un hash dummy una sola vez al cargar el módulo
+    _DUMMY_HASH = hash_password("dummy_password_for_timing_protection")
+
     valido = False
     nuevo_hash = None
     if usuario:
         valido, nuevo_hash = verify_and_update(body.contrasena, usuario.Contrasena)
+    else:
+        # FIX: consumir el mismo tiempo de argon2 aunque el usuario no exista
+        verify_password(body.contrasena, _DUMMY_HASH)
+        valido = False
+        nuevo_hash = None
 
     if not usuario or not valido:
         if usuario:
@@ -175,13 +193,6 @@ async def login(request: Request, response: Response, body: LoginTokenIn, db: Se
             db.commit()
         registrar_evento(db, evento=EVENTO_LOGIN_FALLIDO, exito=False, id_usuario=usuario.IdUsuario if usuario else None, correo_intentado=body.correo, request=request, detalles=f"tipo={body.tipo}")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Correo o contraseña incorrectos.")
-
-    # ⬅️ NUEVO: Validar que el correo esté verificado
-    if not usuario.EmailVerificado:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, 
-            detail="Debes verificar tu correo electrónico antes de iniciar sesión. Revisa tu bandeja de entrada."
-        )
 
     usuario.IntentosFallidos = 0
     usuario.BloqueadoHasta = None
@@ -295,6 +306,7 @@ async def me(usuario: Usuario = Depends(get_current_user)):
 @router.post("/admin/login", response_model=AdminLoginChallengeOut | TokenOut)
 @limiter.limit(LIMIT_LOGIN)
 async def admin_login(request: Request, response: Response, body: AdminLoginIn, db: Session = Depends(get_db)):
+    # ⬇️ ESTA LÍNEA ES VITAL. SI FALTA, DA EL ERROR.
     usuario = db.query(Usuario).filter(Usuario.Correo == body.correo).first()
 
     if usuario and usuario.BloqueadoHasta:
@@ -306,6 +318,10 @@ async def admin_login(request: Request, response: Response, body: AdminLoginIn, 
     valido = False
     if usuario:
         valido, _ = verify_and_update(body.contrasena, usuario.Contrasena)
+    else:
+        # FIX: mismo patrón que en login para evitar timing attacks
+        verify_password(body.contrasena, _DUMMY_HASH)
+        valido = False
 
     if not usuario or not valido:
         if usuario:
@@ -349,9 +365,27 @@ async def admin_login_2fa(request: Request, response: Response, body: AdminLogin
     except JWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="El tiempo para ingresar el código ha expirado o el token es inválido. Vuelve a iniciar sesión.")
 
+    # ⬇️ VITAL: Buscar al usuario ANTES de leer sus propiedades.
     usuario = db.query(Usuario).filter(Usuario.IdUsuario == id_usuario).first()
     if not usuario or not usuario.TotpHabilitado or not usuario.TotpSecret:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenciales incorrectas.")
+
+    # ⬇️ FIX: verificar bloqueo (esto ya puede leer `usuario` sin problemas)
+    ahora = datetime.now(timezone.utc).replace(tzinfo=None)
+    if usuario.BloqueadoHasta and usuario.BloqueadoHasta > ahora:
+        restante = int((usuario.BloqueadoHasta - ahora).total_seconds() / 60) + 1
+        registrar_evento(
+            db,
+            evento=EVENTO_LOGIN_BLOQUEADO,
+            exito=False,
+            id_usuario=usuario.IdUsuario,
+            request=request,
+            detalles=f"2FA bloqueado por {restante} minutos más",
+        )
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Cuenta bloqueada temporalmente. Intenta en {restante} minutos.",
+        )
 
     rol_nombre = usuario.rol.Nombre if usuario.rol else ""
     if rol_nombre.lower() != "administrador":
@@ -390,103 +424,251 @@ async def admin_login_2fa(request: Request, response: Response, body: AdminLogin
     return TokenOut(access_token=access_token, expires_in=_duracion_access_minutos(rol_nombre) * 60)
 
 # ============================================================
-# RECUPERACIÓN DE CONTRASEÑA
+# CAMBIAR CONTRASEÑA (Para usuarios logueados)
+# ============================================================
+@router.put("/cambiar-contrasena")
+async def cambiar_contrasena(
+    request: Request,
+    body: dict,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_current_user), # ⬅️ SEGURIDAD: Identifica al usuario por su sesión
+):
+    contrasena_actual = body.get("contrasenaActual")
+    contrasena_nueva = body.get("contrasenaNueva")
+
+    if not contrasena_actual or not contrasena_nueva:
+        raise HTTPException(400, "Faltan datos obligatorios.")
+
+    if not verify_password(contrasena_actual, usuario.Contrasena):
+        raise HTTPException(400, "La contraseña actual es incorrecta.")
+
+    if len(contrasena_nueva) < 8:
+        raise HTTPException(400, "La nueva contraseña debe tener al menos 8 caracteres.")
+
+    if contrasena_actual == contrasena_nueva:
+        raise HTTPException(400, "La nueva contraseña debe ser diferente a la actual.")
+
+    usuario.Contrasena = hash_password(contrasena_nueva)
+    
+    # Por seguridad, cerramos todas las sesiones activas
+    ahora = datetime.now(timezone.utc).replace(tzinfo=None)
+    db.query(RefreshToken).filter(RefreshToken.IdUsuario == usuario.IdUsuario).update({"Revocado": True, "RevocadoEn": ahora})
+    
+    db.commit()
+    return {"message": "Contraseña actualizada correctamente. Por favor, vuelve a iniciar sesión."}
+
+# ============================================================
+# OLVIDÉ MI CONTRASEÑA
 # ============================================================
 @router.post("/olvide-password")
 @limiter.limit("3/minute")
-async def olvide_password(request: Request, body: OlvidePasswordIn, db: Session = Depends(get_db)):
+async def olvide_password(
+    request: Request,
+    body: OlvidePasswordIn,
+    db: Session = Depends(get_db),
+):
+    """
+    Siempre devuelve 200 con mensaje genérico para no filtrar
+    si el correo existe o no (anti-enumeración).
+    """
     usuario = db.query(Usuario).filter(Usuario.Correo == body.correo).first()
-    
-    mensaje_generico = {"message": "Si el correo está registrado, recibirás un enlace de recuperación."}
-    
-    if not usuario:
-        return mensaje_generico
+    mensaje = {"message": "Si el correo está registrado, recibirás un enlace en breve."}
 
+    if not usuario:
+        # Registrar el intento (auditoría) y salir
+        registrar_evento(
+            db, evento="PASSWORD_RESET_SOLICITADO", exito=False,
+            correo_intentado=body.correo, request=request,
+            detalles="Correo no registrado",
+        )
+        return mensaje
+
+    # Invalidar tokens previos no usados
+    ahora = datetime.now(timezone.utc).replace(tzinfo=None)
     db.query(PasswordResetToken).filter(
         PasswordResetToken.IdUsuario == usuario.IdUsuario,
-        PasswordResetToken.Usado == False
-    ).update({"Usado": True, "UsadoEn": datetime.now(timezone.utc).replace(tzinfo=None)})
+        PasswordResetToken.Usado == False,  # noqa: E712
+    ).update({"Usado": True, "UsadoEn": ahora})
 
+    # Crear nuevo token
     token_plano = secrets.token_urlsafe(32)
     token_hash = hashlib.sha256(token_plano.encode("utf-8")).hexdigest()
-    expira_en = datetime.now(timezone.utc) + timedelta(minutes=15)
 
     nuevo_token = PasswordResetToken(
         IdUsuario=usuario.IdUsuario,
         TokenHash=token_hash,
-        ExpiraEn=expira_en.replace(tzinfo=None),
+        ExpiraEn=(datetime.now(timezone.utc) + timedelta(minutes=15)).replace(tzinfo=None),
         IP=request.client.host if request.client else None,
-        FechaCreacion=datetime.now(timezone.utc).replace(tzinfo=None)
+        FechaCreacion=ahora,
     )
     db.add(nuevo_token)
-    
-    registrar_evento(db, evento="PASSWORD_RESET_SOLICITADO", exito=True, id_usuario=usuario.IdUsuario, request=request, commit=False)
+
+    registrar_evento(
+        db, evento="PASSWORD_RESET_SOLICITADO", exito=True,
+        id_usuario=usuario.IdUsuario, correo_intentado=body.correo,
+        request=request, commit=False,
+    )
     db.commit()
 
-    enlace = f"http://localhost:3000/restablecer-password?token={token_plano}"
-    enviar_correo_recuperacion(usuario.Correo, enlace)
+    # Email best-effort
+    enlace = f"{FRONTEND_URL}/restablecer?token={token_plano}"
+    try:
+        enviar_correo_recuperacion(usuario.Correo, enlace)
+    except Exception as e:
+        print(f"[EMAIL] Falló envío de reset: {e}")
 
-    return mensaje_generico
+    return mensaje
 
 
+# ============================================================
+# RESTABLECER CONTRASEÑA
+# ============================================================
 @router.post("/restablecer-password")
 @limiter.limit("5/minute")
-async def restablecer_password(request: Request, body: RestablecerPasswordIn, db: Session = Depends(get_db)):
+async def restablecer_password(
+    request: Request,
+    body: RestablecerPasswordIn,
+    db: Session = Depends(get_db),
+):
     token_hash = hashlib.sha256(body.token.encode("utf-8")).hexdigest()
-    reset_token = db.query(PasswordResetToken).filter(PasswordResetToken.TokenHash == token_hash).first()
+
+    reset_token = db.query(PasswordResetToken).filter(
+        PasswordResetToken.TokenHash == token_hash,
+        PasswordResetToken.Usado == False,  # noqa: E712
+    ).first()
 
     if not reset_token:
-        raise HTTPException(status_code=400, detail="El enlace es inválido o ya fue utilizado.")
-    
-    if reset_token.Usado:
-        raise HTTPException(status_code=400, detail="Este enlace ya fue utilizado. Solicita uno nuevo.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Enlace inválido o ya usado. Solicita uno nuevo.",
+        )
 
     ahora = datetime.now(timezone.utc).replace(tzinfo=None)
     if reset_token.ExpiraEn < ahora:
-        raise HTTPException(status_code=400, detail="El enlace ha expirado. Por favor, solicita uno nuevo.")
+        reset_token.Usado = True
+        reset_token.UsadoEn = ahora
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El enlace expiró. Solicita uno nuevo.",
+        )
 
     usuario = db.query(Usuario).filter(Usuario.IdUsuario == reset_token.IdUsuario).first()
     if not usuario:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado.")
+        raise HTTPException(status_code=400, detail="Usuario no encontrado.")
 
+    # Actualizar contraseña y resetear bloqueos
     usuario.Contrasena = hash_password(body.contrasena)
     usuario.IntentosFallidos = 0
     usuario.BloqueadoHasta = None
-    
+
+    # Marcar token usado
     reset_token.Usado = True
     reset_token.UsadoEn = ahora
 
-    db.query(RefreshToken).filter(RefreshToken.IdUsuario == usuario.IdUsuario).update({"Revocado": True, "RevocadoEn": ahora})
+    # Seguridad: cerrar TODAS las sesiones activas
+    db.query(RefreshToken).filter(
+        RefreshToken.IdUsuario == usuario.IdUsuario,
+        RefreshToken.Revocado == False,  # noqa: E712
+    ).update({"Revocado": True, "RevocadoEn": ahora})
 
-    registrar_evento(db, evento="PASSWORD_CAMBIADA", exito=True, id_usuario=usuario.IdUsuario, request=request, commit=False)
+    registrar_evento(
+        db, evento="PASSWORD_RESET_COMPLETADO", exito=True,
+        id_usuario=usuario.IdUsuario, request=request, commit=False,
+    )
     db.commit()
 
-    return {"message": "Contraseña actualizada correctamente. Ya puedes iniciar sesión."}
+    return {"message": "Contraseña actualizada. Ya puedes iniciar sesión."}
+
 
 # ============================================================
-# NUEVO: VERIFICACIÓN DE CORREO
+# VERIFICAR CORREO
 # ============================================================
-"""@router.get("/verificar-correo")
-async def verificar_correo(token: str, db: Session = Depends(get_db)):
-    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
-    v_token = db.query(EmailVerificationToken).filter(EmailVerificationToken.TokenHash == token_hash).first()
+@router.post("/verificar-correo")
+async def verificar_correo(
+    request: Request,
+    body: dict,
+    db: Session = Depends(get_db),
+):
+    token_plano = body.get("token", "").strip()
+    if not token_plano:
+        raise HTTPException(status_code=400, detail="Token requerido.")
 
-    if not v_token:
-        raise HTTPException(status_code=400, detail="El enlace es inválido.")
-    
-    if v_token.Usado:
-        raise HTTPException(status_code=400, detail="Este enlace ya fue utilizado.")
+    token_hash = hashlib.sha256(token_plano.encode("utf-8")).hexdigest()
+
+    evt = db.query(EmailVerificationToken).filter(
+        EmailVerificationToken.TokenHash == token_hash,
+        EmailVerificationToken.Usado == False,  # noqa: E712
+    ).first()
+
+    if not evt:
+        raise HTTPException(status_code=400, detail="Enlace inválido o ya usado.")
 
     ahora = datetime.now(timezone.utc).replace(tzinfo=None)
-    if v_token.ExpiraEn < ahora:
-        raise HTTPException(status_code=400, detail="El enlace ha expirado. Por favor, regístrate de nuevo.")
+    if evt.ExpiraEn < ahora:
+        evt.Usado = True
+        db.commit()
+        raise HTTPException(status_code=400, detail="El enlace expiró.")
 
-    usuario = db.query(Usuario).filter(Usuario.IdUsuario == v_token.IdUsuario).first()
+    usuario = db.query(Usuario).filter(Usuario.IdUsuario == evt.IdUsuario).first()
     if not usuario:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado.")
+        raise HTTPException(status_code=400, detail="Usuario no encontrado.")
 
     usuario.EmailVerificado = True
-    v_token.Usado = True
-    
+    evt.Usado = True
+
+    registrar_evento(
+        db, evento="EMAIL_VERIFICADO", exito=True,
+        id_usuario=usuario.IdUsuario, request=request, commit=False,
+    )
     db.commit()
-    return {"message": "Correo verificado exitosamente."}"""
+
+    return {"message": "¡Correo verificado! Ya puedes usar todas las funciones."}
+
+
+# ============================================================
+# REENVIAR VERIFICACIÓN
+# ============================================================
+@router.post("/reenviar-verificacion")
+@limiter.limit("3/minute")
+async def reenviar_verificacion(
+    request: Request,
+    body: dict,
+    db: Session = Depends(get_db),
+):
+    correo = body.get("correo", "").strip()
+    mensaje = {"message": "Si el correo existe y no está verificado, recibirás un enlace."}
+
+    if not correo:
+        return mensaje
+
+    usuario = db.query(Usuario).filter(Usuario.Correo == correo).first()
+    if not usuario or usuario.EmailVerificado:
+        return mensaje
+
+    # Invalidar tokens previos
+    db.query(EmailVerificationToken).filter(
+        EmailVerificationToken.IdUsuario == usuario.IdUsuario,
+        EmailVerificationToken.Usado == False,  # noqa: E712
+    ).update({"Usado": True})
+
+    # Nuevo token
+    token_plano = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(token_plano.encode("utf-8")).hexdigest()
+
+    nuevo_token = EmailVerificationToken(
+        IdUsuario=usuario.IdUsuario,
+        TokenHash=token_hash,
+        ExpiraEn=(datetime.now(timezone.utc) + timedelta(hours=24)).replace(tzinfo=None),
+        FechaCreacion=datetime.now(timezone.utc).replace(tzinfo=None),
+    )
+    db.add(nuevo_token)
+    db.commit()
+
+    enlace = f"{FRONTEND_URL}/verificar-correo?token={token_plano}"
+    try:
+        enviar_correo_verificacion(usuario.Correo, enlace)
+    except Exception as e:
+        print(f"[EMAIL] Falló reenvío de verificación: {e}")
+
+    return mensaje

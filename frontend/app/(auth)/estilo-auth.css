@@ -1,0 +1,391 @@
+/* ==========================================================
+   SEEDWORK — Estilos de Autenticación (Login, Registro, Admin)
+   ========================================================== */
+
+.auth-scope {
+  --sw-blue: #0d47c9;
+  --sw-blue-dark: #073593;
+  --sw-accent: #60A5FA;
+  --sw-text-dark: #1e293b;
+  --sw-text-muted: #64748b;
+  --sw-bg-white: #ffffff;
+  --sw-border: #e2e8f0;
+  --sw-error: #ef4444;
+  --sw-success: #10b981;
+
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 30px 20px; /* ⬅️ Menos padding para que no quede tan separado */
+  box-sizing: border-box;
+  
+  background: 
+    radial-gradient(ellipse at 10% 40%, rgba(54, 154, 255, 0.6), transparent 40%),
+    radial-gradient(ellipse at 90% 20%, rgba(91, 85, 255, 0.5), transparent 40%),
+    linear-gradient(135deg, var(--sw-blue) 0%, var(--sw-blue-dark) 100%);
+  background-attachment: fixed;
+}
+
+/* Formas decorativas de fondo (Blobs) */
+.auth-scope::before,
+.auth-scope::after {
+  content: "";
+  position: fixed;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+  filter: blur(40px);
+}
+.auth-scope::before {
+  width: 400px; height: 400px;
+  top: -100px; left: -100px;
+  background: rgba(96, 165, 250, 0.15);
+}
+.auth-scope::after {
+  width: 500px; height: 500px;
+  bottom: -150px; right: -150px;
+  background: rgba(167, 139, 250, 0.15);
+}
+
+/* Contenedor de la tarjeta (Login) */
+.login-wrapper {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 400px; /* Tamaño estándar del login */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* ⬅️ Tamaño ideal para el registro (2 columnas sin verse gigante) */
+.register-wrapper {
+  max-width: 560px !important; 
+}
+
+/* Cabecera: Logo y Texto en Fila */
+.sw-brand-header {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 16px; /* Menos espacio */
+}
+
+.sw-logo-icon {
+  width: 32px; /* ⬅️ Logo más pequeño */
+  height: 32px;
+  object-fit: contain;
+}
+
+.sw-brand-name {
+  font-family: "Poppins", "Inter", sans-serif;
+  font-size: 1.6rem; /* ⬅️ Texto más pequeño y estilizado */
+  font-weight: 800;
+  color: #fff;
+  margin: 0;
+  letter-spacing: 0.05em;
+}
+
+.login-wrapper h2 {
+  color: #fff;
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  text-align: center;
+}
+
+.login-wrapper .intro {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 14px;
+  margin-bottom: 20px;
+  line-height: 1.4;
+  text-align: center;
+  max-width: 340px;
+}
+
+/* Tarjeta Blanca del Formulario */
+.container {
+  width: 100%;
+  background: var(--sw-bg-white);
+  padding: 32px 32px; /* ⬅️ Un poco más de padding lateral, menos vertical */
+  border-radius: 20px;
+  box-shadow: 0 20px 40px -10px rgba(0, 20, 80, 0.3);
+  text-align: center;
+}
+
+/* Tabs (Candidato / Empresa) */
+.tabs {
+  display: flex;
+  background: #f1f5f9;
+  padding: 5px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+}
+
+.tabs button {
+  flex: 1;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  color: var(--sw-text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tabs button:hover {
+  color: var(--sw-text-dark);
+}
+
+.tabs button.active {
+  background: #fff;
+  color: var(--sw-blue);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+/* Formularios */
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px; /* ⬅️ Menos espacio entre filas */
+  text-align: left;
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.input-group label {
+  font-size: 12px; /* Letra de label más pequeña */
+  font-weight: 600;
+  color: var(--sw-text-dark);
+}
+
+form input,
+form select {
+  width: 100%;
+  padding: 10px 14px; /* ⬅️ Inputs más delgados y elegantes */
+  border: 1.5px solid var(--sw-border);
+  border-radius: 10px;
+  background: #f8fafc;
+  color: var(--sw-text-dark);
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+form input:focus,
+form select:focus {
+  outline: none;
+  border-color: var(--sw-blue);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(13, 71, 201, 0.1);
+}
+
+.forgot-password {
+  align-self: flex-end;
+  color: var(--sw-blue);
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: none;
+  margin-top: -4px;
+}
+
+.forgot-password:hover {
+  text-decoration: underline;
+}
+
+/* Botones */
+.btn-submit {
+  width: 100%;
+  padding: 14px;
+  border: none;
+  border-radius: 999px;
+  background: var(--sw-blue);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn-submit:hover:not(:disabled) {
+  background: var(--sw-blue-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(13, 71, 201, 0.25);
+}
+
+.btn-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--sw-text-muted);
+  border: none;
+  padding: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-top: 8px;
+  width: 100%;
+}
+
+.btn-secondary:hover {
+  color: var(--sw-text-dark);
+  text-decoration: underline;
+}
+
+/* Checkbox Mejorado */
+.checkbox-group {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 4px 0;
+  color: var(--sw-text-muted);
+  font-size: 13px; /* ⬅️ Texto más pequeño */
+  text-align: left;
+}
+
+.checkbox-group input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  accent-color: var(--sw-blue);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.checkbox-group label {
+  line-height: 1.3;
+  font-weight: normal;
+  color: var(--sw-text-muted);
+}
+
+/* Enlaces y textos */
+p.footer-link {
+  margin-top: 16px;
+  font-size: 13px;
+  color: var(--sw-text-muted);
+  text-align: center;
+}
+
+p.footer-link a {
+  color: var(--sw-blue);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+p.footer-link a:hover {
+  text-decoration: underline;
+}
+
+/* Alertas */
+.alert-error {
+  background: #fef2f2;
+  color: var(--sw-error);
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-bottom: 12px;
+  text-align: center;
+  border: 1px solid #fecaca;
+}
+
+.alert-warning {
+  background: #fffbeb;
+  color: #b45309;
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-bottom: 12px;
+  text-align: center;
+  border: 1px solid #fde68a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.alert-success {
+  background: #ecfdf5;
+  color: var(--sw-success);
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-bottom: 12px;
+  text-align: center;
+  border: 1px solid #a7f3d0;
+}
+
+/* ==========================================================
+   MOSTRAR/OCULTAR CONTRASEÑA
+   ========================================================== */
+.input-group-password {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.input-group-password input {
+  width: 100%;
+  padding-right: 40px;
+}
+
+.btn-toggle-password {
+  position: absolute;
+  right: 10px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--sw-text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  transition: color 0.2s ease;
+}
+
+.btn-toggle-password:hover {
+  color: var(--sw-blue);
+}
+
+/* ==========================================================
+   FILAS DE 2 COLUMNAS
+   ========================================================== */
+.form-row-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px; /* ⬅️ Columnas más juntas */
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .form-row-2 {
+    grid-template-columns: 1fr; 
+  }
+}
+
+@media (max-width: 480px) {
+  .auth-scope {
+    padding: 20px 16px;
+  }
+  .container {
+    padding: 20px;
+  }
+}

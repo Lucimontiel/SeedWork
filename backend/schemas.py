@@ -3,26 +3,28 @@ from pydantic import BaseModel, EmailStr, ConfigDict, Field
 from typing import Optional, List, Literal
 from datetime import datetime, date
 
-# --- Autenticación y Registro ---
+# ============================================================
+# AUTENTICACIÓN Y REGISTRO
+# ============================================================
 class RegistroCandidatoIn(BaseModel):
     nombreCompleto: str
     correo: EmailStr
     contrasena: str = Field(min_length=8, max_length=128)
     telefono: str
-    ciudad: str
+    ciudad: str  # nombre del municipio, ej. "Medellín"
 
 class RegistroEmpresaIn(BaseModel):
     nombreEmpresa: str
     correo: EmailStr
     contrasena: str = Field(min_length=8, max_length=128)
     nit: str
-    sector: str
+    sector: str  # nombre del sector, ej. "Tecnología"
     ciudad: str
 
 class LoginIn(BaseModel):
     correo: EmailStr
     contrasena: str
-    tipo: str
+    tipo: str  # "candidato" | "empresa"
 
 class UsuarioOut(BaseModel):
     idUsuario: int
@@ -52,7 +54,59 @@ class EmpresaOut(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-# --- Secciones del CV (Entradas y Salidas) ---
+# ============================================================
+# NUEVOS SCHEMAS DE AUTENTICACIÓN (Tokens y 2FA)
+# ============================================================
+class LoginTokenIn(BaseModel):
+    correo: EmailStr
+    contrasena: str
+    tipo: Literal["candidato", "empresa"]
+
+class AdminLoginIn(BaseModel):
+    correo: EmailStr
+    contrasena: str
+
+class AdminLoginChallengeOut(BaseModel):
+    dos_fa_requerido: bool = True
+    challenge_token: str
+    message: Optional[str] = None
+
+class AdminLogin2FAIn(BaseModel):
+    challenge_token: str = Field(min_length=20)
+    codigo: str = Field(min_length=6, max_length=20)
+
+class TokenOut(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int
+
+class MeOut(BaseModel):
+    idUsuario: int
+    correo: str
+    rol: str
+    tipo: str
+    idCandidato: Optional[int] = None
+    idEmpresa: Optional[int] = None
+    idAdministrador: Optional[int] = None
+    totpHabilitado: bool = False
+
+class Setup2FAOut(BaseModel):
+    secreto: str
+    qr_uri: str
+
+# ============================================================
+# RECUPERACIÓN DE CONTRASEÑA
+# ============================================================
+class OlvidePasswordIn(BaseModel):
+    correo: EmailStr
+
+class RestablecerPasswordIn(BaseModel):
+    token: str = Field(min_length=20, max_length=200)
+    contrasena: str = Field(min_length=8, max_length=128)
+
+# ============================================================
+# SECCIONES DEL CV (Entradas y Salidas)
+# ============================================================
 class HabilidadOut(BaseModel):
     idHabilidad: int
     nombre: str
@@ -116,7 +170,9 @@ class SeccionCVUpdateIn(BaseModel):
     titulo: Optional[str] = None
     contenido: Optional[str] = None
 
-# --- Actualizaciones del CV ---
+# ============================================================
+# ACTUALIZACIONES DEL CV
+# ============================================================
 class HabilidadesIn(BaseModel):
     habilidades: List[str]
 
@@ -137,7 +193,6 @@ class PlantillaIn(BaseModel):
 class FotoIn(BaseModel):
     fotoUrl: str
 
-# --- CV Completo ---
 class CVOut(BaseModel):
     idCandidato: int
     nombres: str
@@ -158,7 +213,9 @@ class CVOut(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-# --- Ofertas ---
+# ============================================================
+# OFERTAS Y POSTULACIONES
+# ============================================================
 class OfertaOut(BaseModel):
     idOferta: int
     titulo: str
@@ -174,7 +231,6 @@ class OfertaOut(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-# --- Postulaciones ---
 class PostulacionIn(BaseModel):
     idCandidato: int
     idOferta: int
@@ -193,7 +249,9 @@ class PostulacionOut(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-# --- Perfil y Preferencias ---
+# ============================================================
+# PERFIL Y PREFERENCIAS
+# ============================================================
 class PerfilDatosIn(BaseModel):
     nombres: Optional[str] = None
     apellidos: Optional[str] = None
@@ -244,56 +302,3 @@ class PerfilOut(BaseModel):
     secciones: List[SeccionCVOut] = []
 
     model_config = ConfigDict(from_attributes=True)
-
-# ============================================================
-# NUEVOS SCHEMAS DE AUTENTICACIÓN (con tokens)
-# ============================================================
-class LoginTokenIn(BaseModel):
-    correo: EmailStr
-    contrasena: str
-    tipo: Literal["candidato", "empresa"]
-
-class AdminLoginIn(BaseModel):
-    correo: EmailStr
-    contrasena: str
-
-# ⬅️ NUEVO: Estructura del token de desafío
-class AdminLoginChallengeOut(BaseModel):
-    dos_fa_requerido: bool = True
-    challenge_token: str
-    message: Optional[str] = None
-
-# ⬅️ ACTUALIZADO: Ahora recibe el token en lugar del correo
-class AdminLogin2FAIn(BaseModel):
-    challenge_token: str = Field(min_length=20)
-    codigo: str = Field(min_length=6, max_length=20)
-
-class TokenOut(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
-    expires_in: int
-
-class MeOut(BaseModel):
-    idUsuario: int
-    correo: str
-    rol: str
-    tipo: str
-    idCandidato: Optional[int] = None
-    idEmpresa: Optional[int] = None
-    idAdministrador: Optional[int] = None
-    totpHabilitado: bool = False
-
-class Setup2FAOut(BaseModel):
-    secreto: str
-    qr_uri: str
-
-# ============================================================
-# RECUPERACIÓN DE CONTRASEÑA
-# ============================================================
-class OlvidePasswordIn(BaseModel):
-    correo: EmailStr
-
-class RestablecerPasswordIn(BaseModel):
-    token: str = Field(min_length=20, max_length=200)
-    contrasena: str = Field(min_length=8, max_length=128)
-

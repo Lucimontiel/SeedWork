@@ -11,57 +11,57 @@ from sqlalchemy.dialects.mysql import LONGTEXT
 
 
 class Rol(Base):
-    __tablename__ = "Rol"
+    __tablename__ = "rol"
     IdRol = Column(Integer, primary_key=True)
     Nombre = Column(String(30), unique=True, nullable=False)
 
 
 class EstadoUsuario(Base):
-    __tablename__ = "EstadoUsuario"
+    __tablename__ = "estadousuario"
     IdEstadoUsuario = Column(Integer, primary_key=True)
     Nombre = Column(String(30), unique=True, nullable=False)
 
 
 class Municipio(Base):
-    __tablename__ = "Municipio"
+    __tablename__ = "municipio"
     IdMunicipio = Column(Integer, primary_key=True)
-    IdDepartamento = Column(Integer, ForeignKey("Departamento.IdDepartamento"))
+    IdDepartamento = Column(Integer, ForeignKey("departamento.IdDepartamento"))
     Nombre = Column(String(120), nullable=False)
 
 
 class Departamento(Base):
-    __tablename__ = "Departamento"
+    __tablename__ = "departamento"
     IdDepartamento = Column(Integer, primary_key=True)
-    IdPais = Column(Integer, ForeignKey("Pais.IdPais"))
+    IdPais = Column(Integer, ForeignKey("pais.IdPais"))
     Nombre = Column(String(100), nullable=False)
 
 
 class Pais(Base):
-    __tablename__ = "Pais"
+    __tablename__ = "pais"
     IdPais = Column(Integer, primary_key=True)
     Nombre = Column(String(100), nullable=False)
 
 
 class SectorEmpresa(Base):
-    __tablename__ = "SectorEmpresa"
+    __tablename__ = "sectorempresa"
     IdSectorEmpresa = Column(Integer, primary_key=True)
     Nombre = Column(String(80), unique=True, nullable=False)
 
 
 class TamanoEmpresa(Base):
-    __tablename__ = "TamanoEmpresa"
+    __tablename__ = "tamanoempresa"
     IdTamanoEmpresa = Column(Integer, primary_key=True)
     Rango = Column(String(40), unique=True, nullable=False)
 
 
 class Modalidad(Base):
-    __tablename__ = "Modalidad"
+    __tablename__ = "modalidad"
     IdModalidad = Column(Integer, primary_key=True)
     Nombre = Column(String(50), unique=True, nullable=False)
 
 
 class Disponibilidad(Base):
-    __tablename__ = "Disponibilidad"
+    __tablename__ = "disponibilidad"
     IdDisponibilidad = Column(Integer, primary_key=True)
     Nombre = Column(String(50), unique=True, nullable=False)
 
@@ -70,10 +70,10 @@ class Disponibilidad(Base):
 # USUARIO (con columnas de seguridad)
 # ============================================================
 class Usuario(Base):
-    __tablename__ = "Usuario"
+    __tablename__ = "usuario"
     IdUsuario = Column(Integer, primary_key=True)
-    IdRol = Column(Integer, ForeignKey("Rol.IdRol"), nullable=False)
-    IdEstadoUsuario = Column(Integer, ForeignKey("EstadoUsuario.IdEstadoUsuario"), nullable=False)
+    IdRol = Column(Integer, ForeignKey("rol.IdRol"), nullable=False)
+    IdEstadoUsuario = Column(Integer, ForeignKey("estadousuario.IdEstadoUsuario"), nullable=False)
     Correo = Column(String(150), unique=True, nullable=False)
     Contrasena = Column(String(255), nullable=False)
     FechaCreacion: datetime = Column(DateTime, server_default=func.now())
@@ -95,6 +95,7 @@ class Usuario(Base):
     empresa = relationship("Empresa", back_populates="usuario", uselist=False, lazy="selectin")
     administrador = relationship("Administrador", back_populates="usuario", uselist=False, lazy="selectin")
 
+    # Relaciones con tokens y códigos
     refresh_tokens = relationship(
         "RefreshToken",
         back_populates="usuario",
@@ -109,31 +110,31 @@ class Usuario(Base):
 
 
 # ============================================================
-# NUEVO: RefreshToken
+# RefreshToken
 # ============================================================
 class RefreshToken(Base):
-    __tablename__ = "RefreshToken"
+    __tablename__ = "refreshtoken"
     IdRefreshToken = Column(Integer, primary_key=True)
-    IdUsuario = Column(Integer, ForeignKey("Usuario.IdUsuario", ondelete="CASCADE"), nullable=False)
+    IdUsuario = Column(Integer, ForeignKey("usuario.IdUsuario", ondelete="CASCADE"), nullable=False)
     TokenHash = Column(String(255), unique=True, nullable=False)
     UserAgent = Column(String(255), nullable=True)
     IP = Column(String(45), nullable=True)
     ExpiraEn = Column(DateTime, nullable=False)
     Revocado = Column(Boolean, nullable=False, default=False)
     RevocadoEn = Column(DateTime, nullable=True)
-    ReemplazadoPor = Column(Integer, ForeignKey("RefreshToken.IdRefreshToken"), nullable=True)
+    ReemplazadoPor = Column(Integer, ForeignKey("refreshtoken.IdRefreshToken"), nullable=True)
     FechaCreacion = Column(DateTime, server_default=func.now())
 
     usuario = relationship("Usuario", back_populates="refresh_tokens", foreign_keys=[IdUsuario])
 
 
 # ============================================================
-# NUEVO: CodigoRespaldo (para 2FA)
+# CodigoRespaldo (para 2FA)
 # ============================================================
 class CodigoRespaldo(Base):
-    __tablename__ = "CodigoRespaldo"
+    __tablename__ = "codigorespaldo"
     IdCodigo = Column(Integer, primary_key=True)
-    IdUsuario = Column(Integer, ForeignKey("Usuario.IdUsuario", ondelete="CASCADE"), nullable=False)
+    IdUsuario = Column(Integer, ForeignKey("usuario.IdUsuario", ondelete="CASCADE"), nullable=False)
     CodigoHash = Column(String(255), nullable=False)
     Usado = Column(Boolean, nullable=False, default=False)
     UsadoEn = Column(DateTime, nullable=True)
@@ -142,12 +143,12 @@ class CodigoRespaldo(Base):
 
 
 # ============================================================
-# NUEVO: AuditLog
+# AuditLog
 # ============================================================
 class AuditLog(Base):
-    __tablename__ = "AuditLog"
+    __tablename__ = "auditlog"
     IdAudit = Column(Integer, primary_key=True)
-    IdUsuario = Column(Integer, ForeignKey("Usuario.IdUsuario", ondelete="SET NULL"), nullable=True)
+    IdUsuario = Column(Integer, ForeignKey("usuario.IdUsuario", ondelete="SET NULL"), nullable=True)
     CorreoIntentado = Column(String(150), nullable=True)
     Evento = Column(String(50), nullable=False)
     Exito = Column(Boolean, nullable=False)
@@ -161,9 +162,9 @@ class AuditLog(Base):
 # ADMINISTRADOR / EMPRESA / CANDIDATO
 # ============================================================
 class Administrador(Base):
-    __tablename__ = "Administrador"
+    __tablename__ = "administrador"
     IdAdministrador = Column(Integer, primary_key=True)
-    IdUsuario = Column(Integer, ForeignKey("Usuario.IdUsuario"), unique=True, nullable=False)
+    IdUsuario = Column(Integer, ForeignKey("usuario.IdUsuario"), unique=True, nullable=False)
     Nombres = Column(String(100), nullable=False)
     Apellidos = Column(String(100), nullable=False)
     Documento = Column(String(20))
@@ -173,14 +174,14 @@ class Administrador(Base):
 
 
 class Candidato(Base):
-    __tablename__ = "Candidato"
+    __tablename__ = "candidato"
     IdCandidato = Column(Integer, primary_key=True)
-    IdUsuario = Column(Integer, ForeignKey("Usuario.IdUsuario"), unique=True, nullable=False)
-    IdMunicipio = Column(Integer, ForeignKey("Municipio.IdMunicipio"))
-    IdModalidad = Column(Integer, ForeignKey("Modalidad.IdModalidad"))
-    IdDisponibilidad = Column(Integer, ForeignKey("Disponibilidad.IdDisponibilidad"))
-    IdTipoContratoPreferido = Column(Integer, ForeignKey("TipoContrato.IdTipoContrato"))
-    IdJornadaPreferida = Column(Integer, ForeignKey("JornadaLaboral.IdJornada"))
+    IdUsuario = Column(Integer, ForeignKey("usuario.IdUsuario"), unique=True, nullable=False)
+    IdMunicipio = Column(Integer, ForeignKey("municipio.IdMunicipio"))
+    IdModalidad = Column(Integer, ForeignKey("modalidad.IdModalidad"))
+    IdDisponibilidad = Column(Integer, ForeignKey("disponibilidad.IdDisponibilidad"))
+    IdTipoContratoPreferido = Column(Integer, ForeignKey("tipocontrato.IdTipoContrato"))
+    IdJornadaPreferida = Column(Integer, ForeignKey("jornadalaboral.IdJornada"))
     Nombres = Column(String(100), nullable=False)
     Apellidos = Column(String(100), nullable=False)
     Telefono = Column(String(20))
@@ -209,15 +210,16 @@ class Candidato(Base):
 
 
 class Empresa(Base):
-    __tablename__ = "Empresa"
+    __tablename__ = "empresa"
     IdEmpresa = Column(Integer, primary_key=True)
-    IdUsuario = Column(Integer, ForeignKey("Usuario.IdUsuario"), unique=True, nullable=False)
-    IdMunicipio = Column(Integer, ForeignKey("Municipio.IdMunicipio"), nullable=False)
-    IdSectorEmpresa = Column(Integer, ForeignKey("SectorEmpresa.IdSectorEmpresa"))
-    IdTamanoEmpresa = Column(Integer, ForeignKey("TamanoEmpresa.IdTamanoEmpresa"))
+    IdUsuario = Column(Integer, ForeignKey("usuario.IdUsuario"), unique=True, nullable=False)
+    IdMunicipio = Column(Integer, ForeignKey("municipio.IdMunicipio"), nullable=False)
+    IdSectorEmpresa = Column(Integer, ForeignKey("sectorempresa.IdSectorEmpresa"))
+    IdTamanoEmpresa = Column(Integer, ForeignKey("tamanoempresa.IdTamanoEmpresa"))
     NombreEmpresa = Column(String(150), nullable=False)
     NIT = Column(String(20), unique=True, nullable=False)
     Descripcion = Column(Text)
+    
     SitioWeb = Column(String(255))
     CorreoCorporativo = Column(String(150))
     Especialidades = Column(String(255))
@@ -225,6 +227,7 @@ class Empresa(Base):
     Mision = Column(Text)
     Vision = Column(Text)
     LogoUrl = Column(Text)
+    
     Direccion = Column(String(150))
     Telefono = Column(String(20))
     FechaRegistro: datetime = Column(DateTime, server_default=func.now())
@@ -236,39 +239,39 @@ class Empresa(Base):
 
 
 class EstadoOferta(Base):
-    __tablename__ = "EstadoOferta"
+    __tablename__ = "estadooferta"
     IdEstadoOferta = Column(Integer, primary_key=True)
     Nombre = Column(String(50), unique=True, nullable=False)
 
 
 class CategoriaOferta(Base):
-    __tablename__ = "CategoriaOferta"
+    __tablename__ = "categoriaoferta"
     IdCategoria = Column(Integer, primary_key=True)
     Nombre = Column(String(100), unique=True, nullable=False)
 
 
 class TipoContrato(Base):
-    __tablename__ = "TipoContrato"
+    __tablename__ = "tipocontrato"
     IdTipoContrato = Column(Integer, primary_key=True)
     Nombre = Column(String(80), unique=True, nullable=False)
 
 
 class JornadaLaboral(Base):
-    __tablename__ = "JornadaLaboral"
+    __tablename__ = "jornadalaboral"
     IdJornada = Column(Integer, primary_key=True)
     Nombre = Column(String(80), unique=True, nullable=False)
 
 
 class Oferta(Base):
-    __tablename__ = "Oferta"
+    __tablename__ = "oferta"
     IdOferta = Column(Integer, primary_key=True)
-    IdEmpresa = Column(Integer, ForeignKey("Empresa.IdEmpresa"), nullable=False)
-    IdCategoria = Column(Integer, ForeignKey("CategoriaOferta.IdCategoria"), nullable=False)
-    IdTipoContrato = Column(Integer, ForeignKey("TipoContrato.IdTipoContrato"), nullable=False)
-    IdModalidad = Column(Integer, ForeignKey("Modalidad.IdModalidad"), nullable=False)
-    IdJornada = Column(Integer, ForeignKey("JornadaLaboral.IdJornada"), nullable=False)
-    IdEstadoOferta = Column(Integer, ForeignKey("EstadoOferta.IdEstadoOferta"), nullable=False)
-    IdMunicipio = Column(Integer, ForeignKey("Municipio.IdMunicipio"), nullable=False)
+    IdEmpresa = Column(Integer, ForeignKey("empresa.IdEmpresa"), nullable=False)
+    IdCategoria = Column(Integer, ForeignKey("categoriaoferta.IdCategoria"), nullable=False)
+    IdTipoContrato = Column(Integer, ForeignKey("tipocontrato.IdTipoContrato"), nullable=False)
+    IdModalidad = Column(Integer, ForeignKey("modalidad.IdModalidad"), nullable=False)
+    IdJornada = Column(Integer, ForeignKey("jornadalaboral.IdJornada"), nullable=False)
+    IdEstadoOferta = Column(Integer, ForeignKey("estadooferta.IdEstadoOferta"), nullable=False)
+    IdMunicipio = Column(Integer, ForeignKey("municipio.IdMunicipio"), nullable=False)
     Titulo = Column(String(200), nullable=False)
     Descripcion = Column(Text, nullable=False)
     Vacantes = Column(Integer, default=1)
@@ -286,17 +289,17 @@ class Oferta(Base):
 
 
 class EstadoPostulacion(Base):
-    __tablename__ = "EstadoPostulacion"
+    __tablename__ = "estadopostulacion"
     IdEstadoPostulacion = Column(Integer, primary_key=True)
     Nombre = Column(String(80), unique=True, nullable=False)
 
 
 class Postulacion(Base):
-    __tablename__ = "Postulacion"
+    __tablename__ = "postulacion"
     IdPostulacion = Column(Integer, primary_key=True)
-    IdOferta = Column(Integer, ForeignKey("Oferta.IdOferta"), nullable=False)
-    IdCandidato = Column(Integer, ForeignKey("Candidato.IdCandidato"), nullable=False)
-    IdEstadoPostulacion = Column(Integer, ForeignKey("EstadoPostulacion.IdEstadoPostulacion"), nullable=False)
+    IdOferta = Column(Integer, ForeignKey("oferta.IdOferta"), nullable=False)
+    IdCandidato = Column(Integer, ForeignKey("candidato.IdCandidato"), nullable=False)
+    IdEstadoPostulacion = Column(Integer, ForeignKey("estadopostulacion.IdEstadoPostulacion"), nullable=False)
     Vista = Column(Boolean, default=False)
     FechaPostulacion: datetime = Column(DateTime, server_default=func.now())
 
@@ -306,18 +309,18 @@ class Postulacion(Base):
 
 
 class TipoNotificacion(Base):
-    __tablename__ = "TipoNotificacion"
+    __tablename__ = "tiponotificacion"
     IdTipoNotificacion = Column(Integer, primary_key=True)
     Nombre = Column(String(80), unique=True)
 
 
 class Notificacion(Base):
-    __tablename__ = "Notificacion"
+    __tablename__ = "notificacion"
     IdNotificacion = Column(Integer, primary_key=True)
-    IdTipoNotificacion = Column(Integer, ForeignKey("TipoNotificacion.IdTipoNotificacion"), nullable=False)
-    IdEmpresa = Column(Integer, ForeignKey("Empresa.IdEmpresa"))
-    IdCandidato = Column(Integer, ForeignKey("Candidato.IdCandidato"))
-    IdAdministrador = Column(Integer, ForeignKey("Administrador.IdAdministrador"))
+    IdTipoNotificacion = Column(Integer, ForeignKey("tiponotificacion.IdTipoNotificacion"), nullable=False)
+    IdEmpresa = Column(Integer, ForeignKey("empresa.IdEmpresa"))
+    IdCandidato = Column(Integer, ForeignKey("candidato.IdCandidato"))
+    IdAdministrador = Column(Integer, ForeignKey("administrador.IdAdministrador"))
     Titulo = Column(String(150))
     Mensaje = Column(Text)
     Leida = Column(Boolean, default=False)
@@ -330,59 +333,62 @@ class Notificacion(Base):
 
 
 class CandidatoHabilidad(Base):
-    __tablename__ = "CandidatoHabilidad"
+    __tablename__ = "candidatohabilidad"
     IdHabilidad = Column(Integer, primary_key=True)
-    IdCandidato = Column(Integer, ForeignKey("Candidato.IdCandidato"), nullable=False)
+    IdCandidato = Column(Integer, ForeignKey("candidato.IdCandidato"), nullable=False)
     Nombre = Column(String(80), nullable=False)
 
 
 class CandidatoEducacion(Base):
-    __tablename__ = "CandidatoEducacion"
+    __tablename__ = "candidatoeducacion"
     IdEducacion = Column(Integer, primary_key=True)
-    IdCandidato = Column(Integer, ForeignKey("Candidato.IdCandidato"), nullable=False)
+    IdCandidato = Column(Integer, ForeignKey("candidato.IdCandidato"), nullable=False)
     Titulo = Column(String(150), nullable=False)
     Institucion = Column(String(150))
     Anio = Column(String(20))
 
 
 class CandidatoProyecto(Base):
-    __tablename__ = "CandidatoProyecto"
+    __tablename__ = "candidatoproyecto"
     IdProyecto = Column(Integer, primary_key=True)
-    IdCandidato = Column(Integer, ForeignKey("Candidato.IdCandidato"), nullable=False)
+    IdCandidato = Column(Integer, ForeignKey("candidato.IdCandidato"), nullable=False)
     Titulo = Column(String(150), nullable=False)
     Descripcion = Column(Text)
     Meta = Column(String(120))
 
 
 class CandidatoIdioma(Base):
-    __tablename__ = "CandidatoIdioma"
+    __tablename__ = "candidatoidioma"
     IdIdioma = Column(Integer, primary_key=True)
-    IdCandidato = Column(Integer, ForeignKey("Candidato.IdCandidato"), nullable=False)
+    IdCandidato = Column(Integer, ForeignKey("candidato.IdCandidato"), nullable=False)
     Descripcion = Column(String(120), nullable=False)
 
 
 class CandidatoReferencia(Base):
-    __tablename__ = "CandidatoReferencia"
+    __tablename__ = "candidatoreferencia"
     IdReferencia = Column(Integer, primary_key=True)
-    IdCandidato = Column(Integer, ForeignKey("Candidato.IdCandidato"), nullable=False)
+    IdCandidato = Column(Integer, ForeignKey("candidato.IdCandidato"), nullable=False)
     Nombre = Column(String(120), nullable=False)
     Cargo = Column(String(150))
     Contacto = Column(String(120))
 
 
 class CandidatoSeccionCV(Base):
-    __tablename__ = "CandidatoSeccionCV"
+    __tablename__ = "candidatoseccioncv"
     IdSeccion = Column(Integer, primary_key=True)
-    IdCandidato = Column(Integer, ForeignKey("Candidato.IdCandidato"), nullable=False)
+    IdCandidato = Column(Integer, ForeignKey("candidato.IdCandidato"), nullable=False)
     Titulo = Column(String(120), nullable=False)
     Contenido = Column(Text)
     Orden = Column(Integer, default=0)
 
 
+# ============================================================
+# NUEVO: PasswordResetToken (recuperación de contraseña)
+# ============================================================
 class PasswordResetToken(Base):
-    __tablename__ = "PasswordResetToken"
+    __tablename__ = "passwordresettoken"
     IdPasswordResetToken = Column(Integer, primary_key=True)
-    IdUsuario = Column(Integer, ForeignKey("Usuario.IdUsuario", ondelete="CASCADE"), nullable=False)
+    IdUsuario = Column(Integer, ForeignKey("usuario.IdUsuario", ondelete="CASCADE"), nullable=False)
     TokenHash = Column(String(64), unique=True, nullable=False)
     ExpiraEn = Column(DateTime, nullable=False)
     Usado = Column(Boolean, nullable=False, default=False)
@@ -391,12 +397,26 @@ class PasswordResetToken(Base):
     FechaCreacion = Column(DateTime, nullable=False)
 
 
-# ⬅️ NUEVO: Modelo para verificar el correo
+# ============================================================
+# NUEVO: EmailVerificationToken (verificación de correo)
+# ============================================================
 class EmailVerificationToken(Base):
-    __tablename__ = "EmailVerificationToken"
+    __tablename__ = "emailverificationtoken"
     IdEmailVerificationToken = Column(Integer, primary_key=True)
-    IdUsuario = Column(Integer, ForeignKey("Usuario.IdUsuario", ondelete="CASCADE"), nullable=False)
+    IdUsuario = Column(Integer, ForeignKey("usuario.IdUsuario", ondelete="CASCADE"), nullable=False)
     TokenHash = Column(String(64), unique=True, nullable=False)
     ExpiraEn = Column(DateTime, nullable=False)
     Usado = Column(Boolean, nullable=False, default=False)
     FechaCreacion = Column(DateTime, nullable=False)
+
+class Reporte(Base):
+    __tablename__ = "reporte"
+    IdReporte = Column(Integer, primary_key=True, autoincrement=True)
+    IdUsuario = Column(Integer, ForeignKey("usuario.IdUsuario", ondelete="CASCADE"), nullable=False)
+    IdOferta = Column(Integer, ForeignKey("oferta.IdOferta", ondelete="CASCADE"), nullable=False)
+    Motivo = Column(Text, nullable=False)
+    Estado = Column(String(20), nullable=False, default="Abierto") # Abierto, Cerrado
+    Fecha = Column(DateTime, server_default=func.now())
+
+    usuario = relationship("Usuario")
+    oferta = relationship("Oferta")
