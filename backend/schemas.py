@@ -94,6 +94,21 @@ class Setup2FAOut(BaseModel):
     secreto: str
     qr_uri: str
 
+class Enable2FAIn(BaseModel):
+    codigo: str = Field(min_length=6, max_length=6, pattern=r"^\d{6}$")
+
+class Enable2FAOut(BaseModel):
+    message: str
+    backup_codes: list[str]
+
+class Disable2FAIn(BaseModel):
+    contrasena: str = Field(min_length=1)
+    codigo: str = Field(min_length=6, max_length=20)
+
+class RegenerateBackupOut(BaseModel):
+    message: str
+    backup_codes: list[str]
+
 # ============================================================
 # RECUPERACIÓN DE CONTRASEÑA
 # ============================================================

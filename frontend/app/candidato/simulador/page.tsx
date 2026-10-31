@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import CandidatoShell from "../CandidatoShell";
 import { useCandidato } from "../../lib/useCandidato";
-import { API_BASE } from "../../lib/api";
+import { apiFetch } from "../../lib/api";
 import "../estilo-candidato.css";
 import { GENERAL_QUESTIONS, ROLE_QUESTIONS, generarFeedback, type Pregunta } from "./questions-data";
 import { useLocalSetting } from "@/app/lib/useSettings";
@@ -186,17 +186,12 @@ export default function SimuladorPage() {
         formData.append("respuesta_texto", texto);
       }
 
-      const response = await fetch(`${API_BASE}/api/simulador/evaluar`, {
+      // apiFetch ya maneja los errores y devuelve el JSON directamente
+      const data = await apiFetch<FeedbackIA>(`/api/simulador/evaluar`, {
         method: "POST",
         body: formData,
       });
 
-      if (!response.ok) {
-        const err = await response.json().catch(() => null);
-        throw new Error(err?.detail || "No se pudo evaluar la respuesta.");
-      }
-
-      const data: FeedbackIA = await response.json();
       setFeedbackData(data);
       setHasFeedback(true);
       setStatusLine("");

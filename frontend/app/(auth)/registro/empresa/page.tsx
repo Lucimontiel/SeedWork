@@ -78,7 +78,7 @@ export default function RegistroEmpresaPage() {
           Revisa tu bandeja (y spam). Puedes iniciar sesión ahora, pero verificar
           tu correo desbloquea todas las funciones.
         </p>
-        <Link href="/login?registro=ok&tipo=candidato" className="btn-submit" style={{ display: "inline-block", textDecoration: "none" }}>
+        <Link href="/login?registro=ok&tipo=empresa" className="btn-submit" style={{ display: "inline-block", textDecoration: "none" }}>
           Ir al login
         </Link>
       </div>

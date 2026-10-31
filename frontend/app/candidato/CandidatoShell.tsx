@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { usePathname, useRouter } from "next/navigation"; 
+import { useState, useEffect } from "react"; 
 import { avatarColorFromName } from "../lib/avatarColor";
 import { useTheme } from "../lib/useTheme";
 import { useLocalization } from "../lib/useLocalization";
 import { useAuth } from "../lib/auth-context";
+import { apiFetch } from "../lib/api";
 
 const NAV_ITEMS = [
   { href: "/candidato/inicio", labelKey: "inicio", icon: <><path d="M3 8.5L10 3l7 5.5"/><path d="M5 8v8h10V8"/></> },
@@ -17,13 +18,6 @@ const NAV_ITEMS = [
   { href: "/candidato/consejos", labelKey: "consejos", icon: <><path d="M10 2.5a5 5 0 00-3 9c.5.4.8 1 .8 1.6v1h4.4v-1c0-.6.3-1.2.8-1.6a5 5 0 00-3-9z"/><path d="M8.3 17h3.4"/></> },
   { href: "/candidato/simulador", labelKey: "simulador", icon: <><path d="M3 4.5h14v8H8l-3 3v-3H3z"/></> },
   { href: "/candidato/configuracion", labelKey: "configuracion", icon: <><circle cx="10" cy="10" r="2.6"/><path d="M10 3v2M10 15v2M3 10h2M15 10h2M5.3 5.3l1.4 1.4M13.3 13.3l1.4 1.4M5.3 14.7l1.4-1.4M13.3 6.7l1.4-1.4"/></> },
-];
-
-const NOTIFICACIONES = [
-  { icon: "💼", color: "blue", titulo: "Nueva vacante recomendada", texto: "Desarrollador Frontend Junior", hace: "Hace 10 min" },
-  { icon: "👁️", color: "green", titulo: "Postulación vista", texto: "Auxiliar de Desarrollo de Software", hace: "Hace 2 horas" },
-  { icon: "⏳", color: "yellow", titulo: "Proceso actualizado", texto: "Analista de Sistemas", hace: "Ayer" },
-  { icon: "🎤", color: "purple", titulo: "Entrevista programada", texto: "Empresa Innovatech", hace: "Hace 1 día" },
 ];
 
 export default function CandidatoShell({
@@ -41,18 +35,42 @@ export default function CandidatoShell({
 }) {
   const pathname = usePathname();
   const { t } = useLocalization();
-  const { logout } = useAuth();
+  const router = useRouter();
+  const { user, cargando: cargandoAuth, logout } = useAuth();
+  
+  const [notificaciones, setNotificaciones] = useState<any[]>([]);
   const [notifOpen, setNotifOpen] = useState(false);
   const { theme } = useTheme();
+
+  // 1. Protección de ruta
+  useEffect(() => {
+    if (cargandoAuth) return;
+    if (!user) {
+      router.replace("/login");
+      return;
+    }
+    if (user.tipo !== "candidato") {
+      if (user.tipo === "empresa") router.replace("/empresa/inicio");
+      else if (user.tipo === "administrador") router.replace("/administrador/inicio");
+      else router.replace("/login");
+    }
+  }, [user, cargandoAuth, router]);
+
+  // 2. Cargar notificaciones
+  useEffect(() => {
+    if (user?.idCandidato) {
+      apiFetch<any[]>(`/api/candidato/${user.idCandidato}/notificaciones`)
+        .then(setNotificaciones)
+        .catch(() => {});
+    }
+  }, [user?.idCandidato]);
 
   const iniciales = nombre
     ? nombre.split(" ").filter(Boolean).slice(0, 2).map((p) => p[0]).join("").toUpperCase()
     : "";
 
   function handleLogout() {
-    // Quitamos el tema oscuro antes de irnos al login
     document.documentElement.removeAttribute("data-theme");
-    // Usamos la función logout del contexto de autenticación
     logout();
   }
 
@@ -105,24 +123,35 @@ export default function CandidatoShell({
               <button className="icon-btn" onClick={() => setNotifOpen((o) => !o)} aria-label="Notificaciones">
                 <svg viewBox="0 0 20 20"><path d="M10 2.5a4 4 0 014 4v2.3c0 .9.3 1.8.9 2.5l.6.7H4.5l.6-.7c.6-.7.9-1.6.9-2.5V6.5a4 4 0 014-4z"/><path d="M8 16a2 2 0 004 0"/></svg>
               </button>
+              
               <div className={"notification-dropdown" + (notifOpen ? " show" : "")}>
                 <div className="notification-title">
-                  <h3>{t("notificaciones")}</h3>
-                  <span>{NOTIFICACIONES.length} nuevas</span>
+                  <h3>Notificaciones</h3>
+                  <span>{notificaciones.filter(n => !n.leida).length} nuevas</span>
                 </div>
-                {NOTIFICACIONES.map((n, i) => (
-                  <div className="notification-item" key={i}>
-                    <div className={"notification-icon " + n.color}>{n.icon}</div>
-                    <div className="notification-info">
-                      <strong>{n.titulo}</strong>
-                      <p>{n.texto}</p>
-                      <small>{n.hace}</small>
+                
+                {notificaciones.length === 0 ? (
+                  <p style={{ padding: "20px 0", fontSize: 13, color: "var(--muted)", textAlign: "center" }}>
+                    No tienes notificaciones por ahora.
+                  </p>
+                ) : (
+                  notificaciones.slice(0, 4).map((n) => (
+                    <div className="notification-item" key={n.idNotificacion}>
+                      <div className="notification-icon blue">🔔</div>
+                      <div className="notification-info">
+                        <strong>{n.titulo}</strong>
+                        <p>{n.mensaje}</p>
+                        <small>{new Date(n.fecha).toLocaleDateString()}</small>
+                      </div>
                     </div>
-                  </div>
-                ))}
-                <button className="view-all-btn">{t("verTodasNotif")}</button>
+                  ))
+                )}
+                
+                <Link href="/candidato/notificaciones" className="view-all-btn" style={{ display: "block", textAlign: "center", textDecoration: "none" }}>
+                  Ver todas las notificaciones
+                </Link>
               </div>
-            </div>
+            </div> {/* ⬅️ ESTE ERA EL </div> QUE FALTABA */}
 
             <div className="user-chip">
               <div

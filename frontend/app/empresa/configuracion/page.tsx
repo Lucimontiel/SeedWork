@@ -46,7 +46,7 @@ function RowLink({ label, onClick }: RowLinkProps) {
 
 export default function ConfiguracionEmpresaPage() {
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, logout, refrescar } = useAuth();
   const [modo, setModo] = useLocalSetting("empresa:apariencia", "light");
   const [toast, setToast] = useState<string | null>(null);
 
@@ -57,6 +57,77 @@ export default function ConfiguracionEmpresaPage() {
 
   const [formContrasena, setFormContrasena] = useState({ actual: "", nueva: "", confirmar: "" });
   const [errorContrasena, setErrorContrasena] = useState<string | null>(null);
+
+    // ============ 2FA REAL ============
+  const [modal2FA, setModal2FA] = useState(false);
+  const [paso2FA, setPaso2FA] = useState<"inicio" | "setup" | "verificar" | "backup" | "desactivar">("inicio");
+  const [qrUri, setQrUri] = useState("");
+  const [codigo2FA, setCodigo2FA] = useState("");
+  const [password2FA, setPassword2FA] = useState("");
+  const [backupCodes, setBackupCodes] = useState<string[]>([]);
+  const [cargando2FA, setCargando2FA] = useState(false);
+  const [error2FA, setError2FA] = useState<string | null>(null);
+
+  function abrirModal2FA() {
+    setModal2FA(true);
+    setError2FA(null);
+    setCodigo2FA("");
+    setPassword2FA("");
+    setPaso2FA(user?.totpHabilitado ? "desactivar" : "inicio");
+  }
+
+  async function iniciarSetup2FA() {
+    setCargando2FA(true);
+    setError2FA(null);
+    try {
+      const res = await apiFetch<{ secreto: string; qr_uri: string }>("/api/auth/2fa/setup", { method: "POST" });
+      setQrUri(res.qr_uri);
+      setPaso2FA("setup");
+    } catch (err: any) {
+      setError2FA(err.message);
+    } finally {
+      setCargando2FA(false);
+    }
+  }
+
+  async function confirmar2FA() {
+    if (!codigo2FA || codigo2FA.length < 6) return setError2FA("Ingresa el código de 6 dígitos.");
+    setCargando2FA(true);
+    setError2FA(null);
+    try {
+      const res = await apiFetch<{ backup_codes: string[] }>("/api/auth/2fa/enable", {
+        method: "POST",
+        body: { codigo: codigo2FA }
+      });
+      setBackupCodes(res.backup_codes);
+      setPaso2FA("backup");
+      if (refrescar) await refrescar();
+    } catch (err: any) {
+      setError2FA(err.message);
+    } finally {
+      setCargando2FA(false);
+    }
+  }
+
+  async function desactivar2FA() {
+    if (!password2FA || !codigo2FA) return setError2FA("Completa todos los campos.");
+    setCargando2FA(true);
+    setError2FA(null);
+    try {
+      await apiFetch("/api/auth/2fa/disable", {
+        method: "POST",
+        body: { contrasena: password2FA, codigo: codigo2FA }
+      });
+      setPaso2FA("inicio");
+      setModal2FA(false);
+      mostrarToast("2FA desactivado correctamente.");
+      if (refrescar) await refrescar();
+    } catch (err: any) {
+      setError2FA(err.message);
+    } finally {
+      setCargando2FA(false);
+    }
+  }
 
   function mostrarToast(msg: string) {
     setToast(msg);
@@ -167,7 +238,16 @@ export default function ConfiguracionEmpresaPage() {
             </h2>
             <div className="settings-card">
               <RowLink label="Cambiar contraseña" onClick={() => abrirModal("contrasena")} />
-              <Toggle label="Verificación en dos pasos" settingKey="empresa:seguridad:2fa" />
+                <div className="settings-row-toggle" onClick={abrirModal2FA} style={{ cursor: "pointer" }}>
+                  <span>Verificación en dos pasos (2FA)</span>
+                  <span style={{ 
+                    fontSize: 12, fontWeight: 700, padding: "4px 10px", borderRadius: 12,
+                    color: user?.totpHabilitado ? "#2FA360" : "#B5750C",
+                    background: user?.totpHabilitado ? "#E4F7EA" : "#FDF1DC" 
+                  }}>
+                    {user?.totpHabilitado ? "Activado" : "Desactivado"}
+                  </span>
+                </div>
               {/* Se eliminaron Correo admin, Sesiones activas e Historial de accesos */}
             </div>
           </section>
@@ -377,6 +457,69 @@ export default function ConfiguracionEmpresaPage() {
           </div>
         </div>
       )}
+
+      {/* MODAL 2FA REAL */}
+      {modal2FA && (
+        <div className="cv-form-modal-backdrop" onClick={() => !cargando2FA && setModal2FA(false)}>
+          <div className="cv-form-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 450 }}>
+            <div className="cv-form-modal-header">
+              <h3>Verificación en dos pasos</h3>
+              <button type="button" className="cv-form-modal-close" onClick={() => setModal2FA(false)}>×</button>
+            </div>
+            
+            <div className="cv-form-modal-body">
+              {error2FA && <div className="alert-error" style={{ marginBottom: 16 }}>{error2FA}</div>}
+
+              {paso2FA === "inicio" && !user?.totpHabilitado && (
+                <div>
+                  <p>Protege tu cuenta. Necesitarás una app como Google Authenticator.</p>
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 24 }}>
+                    <button className="btn-cancel-edit" onClick={() => setModal2FA(false)}>Cancelar</button>
+                    <button className="cv-btn-solid" onClick={iniciarSetup2FA} disabled={cargando2FA}>Configurar 2FA</button>
+                  </div>
+                </div>
+              )}
+
+              {paso2FA === "setup" && (
+                <div style={{ textAlign: "center" }}>
+                  <p>Escanea el código QR:</p>
+                  <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrUri)}`} alt="QR 2FA" style={{ margin: "16px auto", borderRadius: 8 }} />
+                  <input type="text" maxLength={6} value={codigo2FA} onChange={e => setCodigo2FA(e.target.value.replace(/\D/g, ''))} placeholder="000000" style={{ textAlign: "center", fontSize: 18, letterSpacing: 4, width: "100%", padding: 10, borderRadius: 8, border: "1px solid var(--line)" }} />
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 24 }}>
+                    <button className="btn-cancel-edit" onClick={() => setModal2FA(false)}>Cancelar</button>
+                    <button className="cv-btn-solid" onClick={confirmar2FA} disabled={cargando2FA || codigo2FA.length < 6}>Verificar</button>
+                  </div>
+                </div>
+              )}
+
+              {paso2FA === "backup" && (
+                <div>
+                  <p style={{ color: "#C97A1F", fontWeight: 600 }}>¡Guarda estos códigos!</p>
+                  <div style={{ background: "#FAFBFC", padding: 16, borderRadius: 8, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    {backupCodes.map(c => <code key={c} style={{ fontSize: 14, fontWeight: "bold" }}>{c}</code>)}
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 24 }}>
+                    <button className="cv-btn-solid" onClick={() => setModal2FA(false)}>Entendido</button>
+                  </div>
+                </div>
+              )}
+
+              {paso2FA === "desactivar" && (
+                <div>
+                  <p>Para desactivar, confirma tu contraseña y un código:</p>
+                  <input type="password" value={password2FA} onChange={e => setPassword2FA(e.target.value)} placeholder="Contraseña actual" style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid var(--line)", marginBottom: 10 }} />
+                  <input type="text" maxLength={6} value={codigo2FA} onChange={e => setCodigo2FA(e.target.value.replace(/\D/g, ''))} placeholder="000000" style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid var(--line)" }} />
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 24 }}>
+                    <button className="btn-cancel-edit" onClick={() => setModal2FA(false)}>Cancelar</button>
+                    <button className="cv-btn-solid" style={{ background: "#D0402F" }} onClick={desactivar2FA} disabled={cargando2FA || !password2FA || !codigo2FA}>Desactivar</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
 
       {toast && <div className="sw-toast show">{toast}</div>}
     </EmpresaShell>

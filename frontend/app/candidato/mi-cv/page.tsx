@@ -510,6 +510,7 @@ export default function MiCVPage() {
         </div>
       )}
 
+
       {toast && <div className="sw-toast show">{toast}</div>}
     </CandidatoShell>
   );

@@ -4,6 +4,21 @@ export const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
 
 // ============================================================
+// Error tipado
+// ============================================================
+export class ApiError extends Error {
+  status: number;
+  data: unknown;
+
+  constructor(message: string, status: number, data?: unknown) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.data = data;
+  }
+}
+
+// ============================================================
 // Refresh automático
 // ============================================================
 let refreshPromise: Promise<boolean> | null = null;
@@ -57,7 +72,7 @@ function extraerMensajeError(data: any, status: number): string {
 }
 
 // ============================================================
-// Fetch con manejo de refresh automático
+// Fetch con manejo de refresh automático y Timeout (AbortController)
 // ============================================================
 export interface ApiOptions extends Omit<RequestInit, "body"> {
   body?: unknown;
@@ -70,7 +85,6 @@ export async function apiFetch<T = unknown>(
 ): Promise<T> {
   const { body, headers, silencioso = false, ...rest } = options;
 
-  // ⬅️ SOPORTE PARA ARCHIVOS (FormData)
   const isFormData = body instanceof FormData;
 
   const finalHeaders: HeadersInit = {
@@ -80,16 +94,33 @@ export async function apiFetch<T = unknown>(
 
   const url = path.startsWith("http") ? path : `${API_BASE}${path}`;
 
-  const makeRequest = () =>
+  const makeRequest = (signal?: AbortSignal) =>
     fetch(url, {
       ...rest,
       headers: finalHeaders,
       credentials: "include",
-      // Si es FormData, lo enviamos tal cual. Si no, lo pasamos a JSON.
+      signal,
       body: isFormData ? body : (body !== undefined ? JSON.stringify(body) : undefined),
     });
 
-  let resp = await makeRequest();
+  // ⬇️ Lógica del Timeout de 15s ⬇️
+  const fetchConTimeout = async () => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    try {
+      const res = await makeRequest(controller.signal);
+      clearTimeout(timeoutId);
+      return res;
+    } catch (error: any) {
+      clearTimeout(timeoutId);
+      if (error.name === "AbortError") {
+        throw new ApiError("La solicitud tardó demasiado tiempo. Revisa tu conexión.", 408);
+      }
+      throw error;
+    }
+  };
+
+  let resp = await fetchConTimeout();
 
   const esEndpointAuth =
     path.includes("/api/auth/login") ||
@@ -99,7 +130,7 @@ export async function apiFetch<T = unknown>(
   if (resp.status === 401 && !esEndpointAuth) {
     const ok = await intentarRefresh();
     if (ok) {
-      resp = await makeRequest();
+      resp = await fetchConTimeout(); // Reintentamos con el nuevo token
     } else {
       if (!silencioso) {
         dispararLogout();
@@ -117,21 +148,6 @@ export async function apiFetch<T = unknown>(
   if (resp.status === 204) return undefined as T;
 
   return (await resp.json()) as T;
-}
-
-// ============================================================
-// Error tipado
-// ============================================================
-export class ApiError extends Error {
-  status: number;
-  data: unknown;
-
-  constructor(message: string, status: number, data?: unknown) {
-    super(message);
-    this.name = "ApiError";
-    this.status = status;
-    this.data = data;
-  }
 }
 
 // ============================================================
@@ -169,6 +185,12 @@ export interface MeResponse {
 export const authApi = {
   login: (payload: LoginPayload) =>
     apiFetch<TokenResponse>("/api/auth/login", {
+      method: "POST",
+      body: payload,
+    }),
+
+  login2FA: (payload: { challenge_token: string; codigo: string }) =>
+    apiFetch<TokenResponse>("/api/auth/login/2fa", {
       method: "POST",
       body: payload,
     }),

@@ -14,11 +14,14 @@ from models import (
     Usuario, Candidato, Empresa, Administrador,
     RefreshToken, CodigoRespaldo, EstadoUsuario, Rol,
 )
+
 from schemas import (
     LoginTokenIn, AdminLoginIn, AdminLogin2FAIn,
-    AdminLoginChallengeOut, # ⬅️ NUEVO
+    AdminLoginChallengeOut,
     TokenOut, MeOut, Setup2FAOut,
+    Enable2FAIn, Enable2FAOut, Disable2FAIn, RegenerateBackupOut,
 )
+
 from security import (
     verify_and_update,
     verify_password,     # necesario para el timing fix
@@ -159,7 +162,7 @@ def _construir_me_out(usuario: Usuario) -> MeOut:
 # ============================================================
 # LOGIN (candidato / empresa)
 # ============================================================
-@router.post("/login", response_model=TokenOut)
+@router.post("/login", response_model=AdminLoginChallengeOut | TokenOut)
 @limiter.limit(LIMIT_LOGIN)
 async def login(request: Request, response: Response, body: LoginTokenIn, db: Session = Depends(get_db)):
     usuario = db.query(Usuario).filter(Usuario.Correo == body.correo).first()
@@ -172,8 +175,6 @@ async def login(request: Request, response: Response, body: LoginTokenIn, db: Se
             raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=f"Cuenta bloqueada temporalmente. Intenta en {restante} minutos.")
 
     # Precomputar un hash dummy una sola vez al cargar el módulo
-    _DUMMY_HASH = hash_password("dummy_password_for_timing_protection")
-
     valido = False
     nuevo_hash = None
     if usuario:
@@ -211,6 +212,19 @@ async def login(request: Request, response: Response, body: LoginTokenIn, db: Se
         db.commit()
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Cuenta {usuario.estado.Nombre.lower()}. Contacta a soporte.")
 
+        # ==========================================
+    # NUEVO: Verificar si el usuario tiene 2FA activo
+    # ==========================================
+    if usuario.TotpHabilitado and usuario.TotpSecret:
+        registrar_evento(db, evento=EVENTO_2FA_REQUERIDO, exito=True, id_usuario=usuario.IdUsuario, correo_intentado=body.correo, request=request, commit=True)
+        challenge = crear_challenge_token(usuario.IdUsuario)
+        return AdminLoginChallengeOut(
+            dos_fa_requerido=True, 
+            challenge_token=challenge, 
+            message="Ingresa el código de tu app de autenticación."
+        )
+
+    # Si no tiene 2FA, continúa con el login normal:
     access_token = crear_access_token(usuario.IdUsuario, rol_nombre)
     refresh_token_plano = generar_refresh_token()
     expira_refresh = duracion_refresh(rol_nombre)
@@ -219,6 +233,78 @@ async def login(request: Request, response: Response, body: LoginTokenIn, db: Se
     registrar_evento(db, evento=EVENTO_LOGIN_EXITOSO, exito=True, id_usuario=usuario.IdUsuario, correo_intentado=body.correo, request=request, detalles=f"tipo={body.tipo}", commit=False)
     db.commit()
     _set_cookies(response, access_token, refresh_token_plano, rol_nombre)
+    return TokenOut(access_token=access_token, expires_in=_duracion_access_minutos(rol_nombre) * 60)
+
+# ============================================================
+# LOGIN 2FA (paso 2 para candidatos / empresas)
+# ============================================================
+@router.post("/login/2fa", response_model=TokenOut)
+@limiter.limit(LIMIT_2FA)
+async def login_2fa(
+    request: Request,
+    response: Response,
+    body: AdminLogin2FAIn,
+    db: Session = Depends(get_db),
+):
+    try:
+        id_usuario = decodificar_challenge_token(body.challenge_token)
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="El tiempo para ingresar el código ha expirado. Vuelve a iniciar sesión.",
+        )
+
+    usuario = db.query(Usuario).filter(Usuario.IdUsuario == id_usuario).first()
+    if not usuario or not usuario.TotpHabilitado or not usuario.TotpSecret:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenciales incorrectas.")
+
+    # Verificar bloqueo
+    ahora = datetime.now(timezone.utc).replace(tzinfo=None)
+    if usuario.BloqueadoHasta and usuario.BloqueadoHasta > ahora:
+        restante = int((usuario.BloqueadoHasta - ahora).total_seconds() / 60) + 1
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=f"Cuenta bloqueada. Intenta en {restante} minutos.")
+
+    codigo = body.codigo.strip()
+    
+    # 1. Validar código TOTP
+    valido = verificar_codigo_totp(usuario.TotpSecret, codigo)
+
+    # 2. Si no es TOTP, validar como backup code
+    if not valido:
+        codigos = db.query(CodigoRespaldo).filter(
+            CodigoRespaldo.IdUsuario == usuario.IdUsuario, 
+            CodigoRespaldo.Usado == False
+        ).all()
+        for cr in codigos:
+            if verificar_codigo_respaldo(codigo, cr.CodigoHash):
+                cr.Usado = True
+                cr.UsadoEn = ahora
+                valido = True
+                break
+
+    if not valido:
+        registrar_evento(db, evento=EVENTO_2FA_FALLIDO, exito=False, id_usuario=usuario.IdUsuario, request=request)
+        usuario.IntentosFallidos = (usuario.IntentosFallidos or 0) + 1
+        if usuario.IntentosFallidos >= MAX_INTENTOS_FALLIDOS:
+            usuario.BloqueadoHasta = (datetime.now(timezone.utc) + timedelta(minutes=BLOQUEO_MINUTOS)).replace(tzinfo=None)
+        db.commit()
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Código inválido.")
+
+    # Si es válido, generar sesión
+    rol_nombre = usuario.rol.Nombre if usuario.rol else ""
+    
+    access_token = crear_access_token(usuario.IdUsuario, rol_nombre)
+    refresh_plano = generar_refresh_token()
+    _guardar_refresh_token(db, usuario.IdUsuario, refresh_plano, duracion_refresh(rol_nombre), request)
+    
+    usuario.UltimoLogin = datetime.now(timezone.utc).replace(tzinfo=None)
+    usuario.IntentosFallidos = 0
+    usuario.BloqueadoHasta = None
+    
+    registrar_evento(db, evento=EVENTO_2FA_EXITOSO, exito=True, id_usuario=usuario.IdUsuario, request=request, commit=False)
+    db.commit()
+    
+    _set_cookies(response, access_token, refresh_plano, rol_nombre)
     return TokenOut(access_token=access_token, expires_in=_duracion_access_minutos(rol_nombre) * 60)
 
 # ============================================================
@@ -422,6 +508,205 @@ async def admin_login_2fa(request: Request, response: Response, body: AdminLogin
     db.commit()
     _set_cookies(response, access_token, refresh_plano, rol_nombre)
     return TokenOut(access_token=access_token, expires_in=_duracion_access_minutos(rol_nombre) * 60)
+
+# ============================================================
+# 2FA - SETUP (paso 1: generar secreto + QR)
+# ============================================================
+@router.post("/2fa/setup", response_model=Setup2FAOut)
+@limiter.limit("5/minute")
+async def setup_2fa(
+    request: Request,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_current_user),
+):
+    """
+    Genera un secreto TOTP y lo guarda en el usuario (sin activar).
+    Devuelve el secreto y la URI otpauth:// para mostrar el QR.
+
+    Flujo:
+      1. El usuario llama a este endpoint → recibe { secreto, qr_uri }
+      2. Escanea el QR con Google Authenticator
+      3. Llama a /2fa/enable con el código de 6 dígitos
+      4. El backend valida y activa TotpHabilitado=True
+    """
+    if usuario.TotpHabilitado:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El 2FA ya está activado en esta cuenta. Desactívalo primero si quieres regenerarlo.",
+        )
+
+    # Generar un secreto nuevo
+    secreto = generar_secreto_totp()
+    uri = uri_totp(secreto, usuario.Correo)
+
+    # Guardar secreto SIN activar (para que /enable lo valide)
+    usuario.TotpSecret = secreto
+    usuario.TotpHabilitado = False
+    db.commit()
+
+    registrar_evento(
+        db,
+        evento="2FA_SETUP_INICIADO",
+        exito=True,
+        id_usuario=usuario.IdUsuario,
+        request=request,
+        commit=False,
+    )
+
+    return Setup2FAOut(secreto=secreto, qr_uri=uri)
+
+# ============================================================
+# 2FA - ENABLE (paso 2: confirmar código y activar)
+# ============================================================
+@router.post("/2fa/enable", response_model=Enable2FAOut)
+@limiter.limit("5/minute")
+async def enable_2fa(
+    request: Request,
+    body: Enable2FAIn,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_current_user),
+):
+    """
+    Activa 2FA si el usuario tiene un secreto pendiente y el código es válido.
+    Devuelve 10 códigos de respaldo (solo se muestran UNA vez).
+    """
+    if usuario.TotpHabilitado:
+        raise HTTPException(400, "El 2FA ya está activado.")
+    if not usuario.TotpSecret:
+        raise HTTPException(
+            400,
+            "No hay secreto pendiente. Primero llama a /api/auth/2fa/setup.",
+        )
+
+    # Verificar el código TOTP contra el secreto guardado
+    if not verificar_codigo_totp(usuario.TotpSecret, body.codigo):
+        registrar_evento(
+            db, evento="2FA_SETUP_FALLIDO", exito=False,
+            id_usuario=usuario.IdUsuario, request=request,
+        )
+        raise HTTPException(400, "Código incorrecto. Verifica la hora de tu dispositivo e inténtalo de nuevo.")
+
+    # Generar 10 códigos de respaldo
+    codigos_planos, codigos_hash = generar_codigos_respaldo(cantidad=10)
+
+    # Invalidar códigos viejos (por si acaso)
+    db.query(CodigoRespaldo).filter(CodigoRespaldo.IdUsuario == usuario.IdUsuario).delete()
+
+    # Guardar los nuevos hasheados
+    for ch in codigos_hash:
+        db.add(CodigoRespaldo(IdUsuario=usuario.IdUsuario, CodigoHash=ch))
+
+    # Activar 2FA
+    usuario.TotpHabilitado = True
+    db.commit()
+
+    registrar_evento(
+        db, evento="2FA_SETUP_EXITOSO", exito=True,
+        id_usuario=usuario.IdUsuario, request=request, commit=False,
+    )
+
+    return Enable2FAOut(
+        message="2FA activado correctamente. Guarda los códigos de respaldo en un lugar seguro — no se volverán a mostrar.",
+        backup_codes=codigos_planos,
+    )
+
+# ============================================================
+# 2FA - DISABLE (requiere password + código)
+# ============================================================
+@router.post("/2fa/disable")
+@limiter.limit("5/minute")
+async def disable_2fa(
+    request: Request,
+    body: Disable2FAIn,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_current_user),
+):
+    """
+    Desactiva 2FA. Requiere password actual + código TOTP (o backup code).
+    """
+    if not usuario.TotpHabilitado:
+        raise HTTPException(400, "El 2FA no está activado.")
+    if not usuario.TotpSecret:
+        raise HTTPException(400, "Secreto 2FA no encontrado.")
+
+    # 1. Verificar contraseña actual
+    valido, _ = verify_and_update(body.contrasena, usuario.Contrasena)
+    if not valido:
+        raise HTTPException(401, "Contraseña incorrecta.")
+
+    # 2. Verificar código (TOTP o backup code)
+    codigo = body.codigo.strip()
+    es_valido = verificar_codigo_totp(usuario.TotpSecret, codigo)
+
+    if not es_valido:
+        # Intentar como backup code
+        codigos = (
+            db.query(CodigoRespaldo)
+            .filter(CodigoRespaldo.IdUsuario == usuario.IdUsuario, CodigoRespaldo.Usado == False)
+            .all()
+        )
+        for cr in codigos:
+            if verificar_codigo_respaldo(codigo, cr.CodigoHash):
+                cr.Usado = True
+                cr.UsadoEn = datetime.now(timezone.utc).replace(tzinfo=None)
+                es_valido = True
+                break
+
+    if not es_valido:
+        raise HTTPException(401, "Código incorrecto.")
+
+    # 3. Desactivar 2FA y borrar secretos + códigos
+    usuario.TotpHabilitado = False
+    usuario.TotpSecret = None
+    db.query(CodigoRespaldo).filter(CodigoRespaldo.IdUsuario == usuario.IdUsuario).delete()
+
+    registrar_evento(
+        db, evento="2FA_DESHABILITADO", exito=True,
+        id_usuario=usuario.IdUsuario, request=request, commit=False,
+    )
+    db.commit()
+
+    return {"message": "2FA desactivado correctamente."}
+
+# ============================================================
+# 2FA - REGENERAR CÓDIGOS DE RESPALDO (requiere código TOTP)
+# ============================================================
+@router.post("/2fa/regenerate-backup", response_model=RegenerateBackupOut)
+@limiter.limit("3/minute")
+async def regenerate_backup_codes(
+    request: Request,
+    body: Enable2FAIn,   # reutilizamos el schema: { codigo: 6 dígitos }
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_current_user),
+):
+    """
+    Regenera los códigos de respaldo. Requiere el 2FA activo y un código TOTP válido.
+    Los códigos viejos se invalidan.
+    """
+    if not usuario.TotpHabilitado or not usuario.TotpSecret:
+        raise HTTPException(400, "El 2FA no está activado.")
+
+    if not verificar_codigo_totp(usuario.TotpSecret, body.codigo):
+        raise HTTPException(401, "Código incorrecto.")
+
+    # Borrar viejos
+    db.query(CodigoRespaldo).filter(CodigoRespaldo.IdUsuario == usuario.IdUsuario).delete()
+
+    # Generar nuevos
+    codigos_planos, codigos_hash = generar_codigos_respaldo(cantidad=10)
+    for ch in codigos_hash:
+        db.add(CodigoRespaldo(IdUsuario=usuario.IdUsuario, CodigoHash=ch))
+
+    registrar_evento(
+        db, evento="2FA_BACKUP_REGENERADOS", exito=True,
+        id_usuario=usuario.IdUsuario, request=request, commit=False,
+    )
+    db.commit()
+
+    return RegenerateBackupOut(
+        message="Nuevos códigos de respaldo generados. Los anteriores ya no funcionan.",
+        backup_codes=codigos_planos,
+    )
 
 # ============================================================
 # CAMBIAR CONTRASEÑA (Para usuarios logueados)

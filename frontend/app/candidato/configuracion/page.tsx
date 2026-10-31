@@ -70,12 +70,77 @@ export default function ConfiguracionPage() {
 
   const [modalInfoCuenta, setModalInfoCuenta] = useState(false);
 
-  // 2FA
+  // ============ 2FA REAL ============
+  const { user, refrescar } = useAuth(); // Asegúrate de importar useAuth y apiFetch si no están
   const [modal2FA, setModal2FA] = useState(false);
-  const [codigo2FAGenerado, setCodigo2FAGenerado] = useState<string | null>(null);
-  const [codigo2FAInput, setCodigo2FAInput] = useState("");
-  const [error2FA, setError2FA] = useState<string | undefined>();
-  const [paso2FA, setPaso2FA] = useState<"confirmar" | "verificar">("confirmar");
+  const [paso2FA, setPaso2FA] = useState<"inicio" | "setup" | "verificar" | "backup" | "desactivar">("inicio");
+  const [qrUri, setQrUri] = useState("");
+  const [codigo2FA, setCodigo2FA] = useState("");
+  const [password2FA, setPassword2FA] = useState("");
+  const [backupCodes, setBackupCodes] = useState<string[]>([]);
+  const [cargando2FA, setCargando2FA] = useState(false);
+  const [error2FA, setError2FA] = useState<string | null>(null);
+
+  function abrirModal2FA() {
+    setModal2FA(true);
+    setError2FA(null);
+    setCodigo2FA("");
+    setPassword2FA("");
+    setPaso2FA(user?.totpHabilitado ? "desactivar" : "inicio");
+  }
+
+  async function iniciarSetup2FA() {
+    setCargando2FA(true);
+    setError2FA(null);
+    try {
+      const res = await apiFetch<{ secreto: string; qr_uri: string }>("/api/auth/2fa/setup", { method: "POST" });
+      setQrUri(res.qr_uri);
+      setPaso2FA("setup");
+    } catch (err: any) {
+      setError2FA(err.message);
+    } finally {
+      setCargando2FA(false);
+    }
+  }
+
+  async function confirmar2FA() {
+    if (!codigo2FA || codigo2FA.length < 6) return setError2FA("Ingresa el código de 6 dígitos.");
+    setCargando2FA(true);
+    setError2FA(null);
+    try {
+      const res = await apiFetch<{ backup_codes: string[] }>("/api/auth/2fa/enable", {
+        method: "POST",
+        body: { codigo: codigo2FA }
+      });
+      setBackupCodes(res.backup_codes);
+      setPaso2FA("backup");
+      if (refrescar) await refrescar();
+    } catch (err: any) {
+      setError2FA(err.message);
+    } finally {
+      setCargando2FA(false);
+    }
+  }
+
+  async function desactivar2FA() {
+    if (!password2FA || !codigo2FA) return setError2FA("Completa todos los campos.");
+    setCargando2FA(true);
+    setError2FA(null);
+    try {
+      await apiFetch("/api/auth/2fa/disable", {
+        method: "POST",
+        body: { contrasena: password2FA, codigo: codigo2FA }
+      });
+      setPaso2FA("inicio");
+      setModal2FA(false);
+      mostrarToast("2FA desactivado correctamente.");
+      if (refrescar) await refrescar();
+    } catch (err: any) {
+      setError2FA(err.message);
+    } finally {
+      setCargando2FA(false);
+    }
+  }
 
   // Accesibilidad
   const [altoContraste, setAltoContraste] = useLocalSetting("accesibilidad:contraste", false);
@@ -96,9 +161,6 @@ export default function ConfiguracionPage() {
 
   // IA
   const [iaSimulador, setIaSimulador] = useLocalSetting("ia:simulador", true);
-
-  // Seguridad
-  const [twoFA, setTwoFA] = useLocalSetting("seguridad:2fa", false);
 
   // Idioma y Región
   const [idioma, setIdioma] = useLocalSetting("idioma", "Español (Latinoamérica)");
@@ -213,50 +275,6 @@ export default function ConfiguracionPage() {
     }
   }
 
-  // ============ 2FA ============
-  function handle2FAToggle(nuevo: boolean) {
-    if (nuevo) {
-      setPaso2FA("confirmar");
-      setCodigo2FAGenerado(null);
-      setCodigo2FAInput("");
-      setError2FA(undefined);
-      setModal2FA(true);
-    } else {
-      setPaso2FA("verificar");
-      setCodigo2FAGenerado(generarCodigo2FA());
-      setCodigo2FAInput("");
-      setError2FA(undefined);
-      setModal2FA(true);
-    }
-  }
-
-  function generarCodigo2FA(): string {
-    return Math.floor(100000 + Math.random() * 900000).toString();
-  }
-
-  function confirmarActivacion2FA() {
-    setCodigo2FAGenerado(generarCodigo2FA());
-    setPaso2FA("verificar");
-  }
-
-  function verificarCodigo2FA(e: React.FormEvent) {
-    e.preventDefault();
-    if (!codigo2FAGenerado) return;
-
-    if (codigo2FAInput.trim() !== codigo2FAGenerado) {
-      setError2FA("El código no es correcto. Verifica e inténtalo de nuevo.");
-      return;
-    }
-
-    const activar = !twoFA;
-    setTwoFA(activar);
-    setModal2FA(false);
-    setCodigo2FAGenerado(null);
-    setCodigo2FAInput("");
-    setError2FA(undefined);
-    mostrarToast(activar ? "Verificación en dos pasos activada correctamente" : "Verificación en dos pasos desactivada");
-  }
-
   // ============ Preferencias de contenido ============
   function abrirTiposEmpleo() { setModalTiposEmpleo(true); }
   function abrirCategorias() { setModalCategorias(true); }
@@ -301,7 +319,16 @@ export default function ConfiguracionPage() {
             </h2>
             <div className="settings-card">
               <LinkRow label="Cambiar contraseña" onClick={abrirCambiarContrasena} />
-              <ToggleRow label="Verificación en dos pasos" checked={twoFA} onChange={handle2FAToggle} />
+              <div className="settings-row-toggle" onClick={abrirModal2FA} style={{ cursor: "pointer" }}>
+                <span>Verificación en dos pasos (2FA)</span>
+                <span style={{ 
+                  fontSize: 12, fontWeight: 700, padding: "4px 10px", borderRadius: 12,
+                  color: user?.totpHabilitado ? "#2FA360" : "#B5750C",
+                  background: user?.totpHabilitado ? "#E4F7EA" : "#FDF1DC" 
+                }}>
+                  {user?.totpHabilitado ? "Activado" : "Desactivado"}
+                </span>
+              </div>
             </div>
           </section>
 
@@ -515,60 +542,64 @@ export default function ConfiguracionPage() {
         </div>
       )}
 
-      {/* ============ MODAL: Verificación en dos pasos ============ */}
-      {modal2FA && (
-        <div className="cv-form-modal-backdrop" onClick={() => setModal2FA(false)}>
-          <div className="cv-form-modal" onClick={(e) => e.stopPropagation()}>
+      {/* MODAL 2FA REAL  */}
+        {modal2FA && (
+        <div className="cv-form-modal-backdrop" onClick={() => !cargando2FA && setModal2FA(false)}>
+          <div className="cv-form-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 450 }}>
             <div className="cv-form-modal-header">
-              <h3>{paso2FA === "confirmar" ? "Activar verificación en dos pasos" : twoFA ? "Desactivar verificación en dos pasos" : "Verifica el código"}</h3>
-              <button type="button" className="cv-form-modal-close" onClick={() => setModal2FA(false)} aria-label="Cerrar">×</button>
+              <h3>Verificación en dos pasos</h3>
+              <button type="button" className="cv-form-modal-close" onClick={() => setModal2FA(false)}>×</button>
             </div>
+            
+            <div className="cv-form-modal-body">
+              {error2FA && <div className="alert-error" style={{ marginBottom: 16 }}>{error2FA}</div>}
 
-            {paso2FA === "confirmar" && (
-              <>
-                <div className="cv-form-modal-body">
-                  <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: "var(--ink)" }}>La verificación en dos pasos añade una capa extra de seguridad a tu cuenta. Cada vez que inicies sesión, te pediremos un código de 6 dígitos además de tu contraseña.</p>
-                  <div className="twofa-info-box">
-                    <strong>¿Cómo funciona?</strong>
-                    <ol style={{ margin: "8px 0 0 20px", padding: 0, fontSize: 13.5, lineHeight: 1.6 }}>
-                      <li>Ingresas tu correo y contraseña como siempre.</li>
-                      <li>Te enviamos un código de 6 dígitos a tu correo electrónico.</li>
-                      <li>Ingresas el código para completar el inicio de sesión.</li>
-                    </ol>
-                  </div>
-                  <p style={{ margin: 0, fontSize: 12, color: "var(--muted)", fontStyle: "italic" }}>Nota: en esta versión de demostración, el código aparecerá en el siguiente paso en lugar de enviarse por correo real.</p>
-                </div>
-                <div className="cv-form-modal-footer">
-                  <button type="button" className="btn-cancel-edit" onClick={() => setModal2FA(false)}>Cancelar</button>
-                  <button type="button" className="cv-btn-solid" onClick={confirmarActivacion2FA}>Enviar código</button>
-                </div>
-              </>
-            )}
-
-            {paso2FA === "verificar" && (
-              <form onSubmit={verificarCodigo2FA}>
-                <div className="cv-form-modal-body">
-                  {!twoFA && <p style={{ margin: "0 0 12px", fontSize: 14, lineHeight: 1.6, color: "var(--ink)" }}>Hemos enviado un código de verificación a tu correo. Ingrésalo para confirmar la activación.</p>}
-                  {codigo2FAGenerado && (
-                    <div className="twofa-code-box">
-                      <span className="twofa-code-label">Código de demostración:</span>
-                      <span className="twofa-code-value">{codigo2FAGenerado}</span>
-                      <span className="twofa-code-note">En producción este código llegaría a tu correo.</span>
-                    </div>
-                  )}
-                  <div className="cv-form-field" style={{ marginTop: 14 }}>
-                    <label>Código de 6 dígitos</label>
-                    <input type="text" inputMode="numeric" maxLength={6} value={codigo2FAInput} onChange={(e) => { const val = e.target.value.replace(/\D/g, "").slice(0, 6); setCodigo2FAInput(val); if (error2FA) setError2FA(undefined); }} placeholder="123456" className={error2FA ? "input-error" : ""} autoFocus style={{ letterSpacing: "0.3em", fontSize: 18, textAlign: "center", fontWeight: 600 }} />
-                    {error2FA && <span className="form-error-msg">{error2FA}</span>}
-                    {codigo2FAInput.length > 0 && codigo2FAInput.length < 6 && !error2FA && <span className="form-hint-msg">Faltan {6 - codigo2FAInput.length} dígitos</span>}
+              {paso2FA === "inicio" && !user?.totpHabilitado && (
+                <div>
+                  <p>Protege tu cuenta. Necesitarás una app como Google Authenticator.</p>
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 24 }}>
+                    <button className="btn-cancel-edit" onClick={() => setModal2FA(false)}>Cancelar</button>
+                    <button className="cv-btn-solid" onClick={iniciarSetup2FA} disabled={cargando2FA}>Configurar 2FA</button>
                   </div>
                 </div>
-                <div className="cv-form-modal-footer">
-                  <button type="button" className="btn-cancel-edit" onClick={() => setModal2FA(false)}>Cancelar</button>
-                  <button type="submit" className="cv-btn-solid" disabled={codigo2FAInput.length !== 6}>Verificar</button>
+              )}
+
+              {paso2FA === "setup" && (
+                <div style={{ textAlign: "center" }}>
+                  <p>Escanea el código QR:</p>
+                  <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrUri)}`} alt="QR 2FA" style={{ margin: "16px auto", borderRadius: 8 }} />
+                  <input type="text" maxLength={6} value={codigo2FA} onChange={e => setCodigo2FA(e.target.value.replace(/\D/g, ''))} placeholder="000000" style={{ textAlign: "center", fontSize: 18, letterSpacing: 4, width: "100%", padding: 10, borderRadius: 8, border: "1px solid var(--line)" }} />
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 24 }}>
+                    <button className="btn-cancel-edit" onClick={() => setModal2FA(false)}>Cancelar</button>
+                    <button className="cv-btn-solid" onClick={confirmar2FA} disabled={cargando2FA || codigo2FA.length < 6}>Verificar</button>
+                  </div>
                 </div>
-              </form>
-            )}
+              )}
+
+              {paso2FA === "backup" && (
+                <div>
+                  <p style={{ color: "#C97A1F", fontWeight: 600 }}>¡Guarda estos códigos!</p>
+                  <div style={{ background: "#FAFBFC", padding: 16, borderRadius: 8, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    {backupCodes.map(c => <code key={c} style={{ fontSize: 14, fontWeight: "bold" }}>{c}</code>)}
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 24 }}>
+                    <button className="cv-btn-solid" onClick={() => setModal2FA(false)}>Entendido</button>
+                  </div>
+                </div>
+              )}
+
+              {paso2FA === "desactivar" && (
+                <div>
+                  <p>Para desactivar, confirma tu contraseña y un código:</p>
+                  <input type="password" value={password2FA} onChange={e => setPassword2FA(e.target.value)} placeholder="Contraseña actual" style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid var(--line)", marginBottom: 10 }} />
+                  <input type="text" maxLength={6} value={codigo2FA} onChange={e => setCodigo2FA(e.target.value.replace(/\D/g, ''))} placeholder="000000" style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid var(--line)" }} />
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 24 }}>
+                    <button className="btn-cancel-edit" onClick={() => setModal2FA(false)}>Cancelar</button>
+                    <button className="cv-btn-solid" style={{ background: "#D0402F" }} onClick={desactivar2FA} disabled={cargando2FA || !password2FA || !codigo2FA}>Desactivar</button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

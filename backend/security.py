@@ -32,6 +32,22 @@ import pyotp
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "cambia-esto-en-produccion")
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 
+# Fail-fast: en producción NO se permite el default inseguro
+_ENV = os.getenv("ENV", "dev").lower()
+if JWT_SECRET_KEY in ("", "cambia-esto-en-produccion"):
+    if _ENV != "dev":
+        raise RuntimeError(
+            "JWT_SECRET_KEY no está configurada. "
+            "Defínela en el archivo .env antes de arrancar en producción. "
+            "Genera una con: python -c 'import secrets; print(secrets.token_urlsafe(64))'"
+        )
+    else:
+        import warnings
+        warnings.warn(
+            "⚠️  JWT_SECRET_KEY está usando el valor por defecto. "
+            "Esto solo es aceptable en desarrollo."
+        )
+
 ACCESS_MIN_CANDIDATO = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES_CANDIDATO", "30"))
 ACCESS_MIN_EMPRESA   = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES_EMPRESA", "20"))
 ACCESS_MIN_ADMIN     = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES_ADMIN", "10"))
@@ -52,9 +68,8 @@ pwd_context = CryptContext(
     deprecated="auto",
     argon2__time_cost=2,
     argon2__memory_cost=102400,  # ~100 MB
-    argon2__parallelism=8,
+    argon2__parallelism=1,        # 1 thread evita OOM en contenedores chicos
 )
-
 
 def hash_password(password: str) -> str:
     """Genera un hash argon2 de la contraseña."""

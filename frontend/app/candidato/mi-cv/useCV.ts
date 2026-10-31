@@ -11,7 +11,7 @@ export function useCV(idCandidato: number | null) {
 
   const cargar = useCallback(async () => {
     if (!idCandidato) return;
-    setLoading(true);
+    setLoading(false);
     try {
       const data = await apiFetch<CV>(`/api/candidato/${idCandidato}/cv`);
       setCv(data);

@@ -5,6 +5,7 @@ import os
 import json
 import secrets
 import hashlib
+import requests
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func, or_
@@ -265,7 +266,6 @@ def registrar_candidato(body: RegistroCandidatoIn, request: Request, db: Session
     db.add(nuevo_token)
 
     enlace = f"{FRONTEND_URL}/verificar-correo?token={token_plano}"
-    enviar_correo_verificacion(usuario.Correo, enlace)
 
     registrar_evento(db, EVENTO_REGISTRO, exito=True, id_usuario=usuario.IdUsuario,
                  correo_intentado=body.correo, request=request, detalles="candidato",
@@ -1823,12 +1823,14 @@ Eres un reclutador experto y coach de entrevistas. Evalúa la respuesta de un ca
 """
 
 @app.post("/api/simulador/evaluar")
+@limiter.limit("10/hour") # ⬅️ MÁXIMO 10 EVALUACIONES POR HORA
 async def evaluar_respuesta_simulador(
+    request: Request, 
     cargo: str = Form(...),
     pregunta: str = Form(...),
     respuesta_texto: str = Form(None),
     archivo_audio: UploadFile = File(None),
-    usuario: Usuario = Depends(get_current_user), # ⬅️ SEGURIDAD: Solo usuarios logueados
+    usuario: Usuario = Depends(get_current_user),
 ):
     if not respuesta_texto and not archivo_audio:
         raise HTTPException(400, "Debes enviar un texto o un archivo de audio.")
@@ -1837,13 +1839,24 @@ async def evaluar_respuesta_simulador(
 
     if archivo_audio:
         try:
+            # Validar que el audio no sea mayor a 10MB para evitar saturación
+            contenido = await archivo_audio.read()
+            if len(contenido) > 10 * 1024 * 1024:
+                raise HTTPException(413, "El archivo de audio es demasiado grande (máximo 10MB).")
+            
+            # Volvemos a empaquetar el audio para enviarlo a Groq
+            # (Groq SDK acepta tuplas de (filename, bytes))
+            audio_tuple = (archivo_audio.filename, contenido)
+            
             transcripcion = groq_client.audio.transcriptions.create(
                 model="whisper-large-v3-turbo",
-                file=(archivo_audio.filename, await archivo_audio.read()),
+                file=audio_tuple,
                 language="es",
                 response_format="text",
             )
             texto_final_respuesta = transcripcion
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(500, f"Error en la transcripción: {str(e)}")
 
@@ -1896,6 +1909,12 @@ def listar_usuarios_admin(db: Session = Depends(get_db), usuario: Usuario = Depe
 def cambiar_estado_usuario(id_usuario: int, body: dict, db: Session = Depends(get_db), usuario: Usuario = Depends(require_role("Administrador"))):
     user = db.query(Usuario).filter(Usuario.IdUsuario == id_usuario).first()
     if not user: raise HTTPException(404, "Usuario no encontrado")
+
+       # ⬇️ VALIDACIONES NUEVAS DE SEGURIDAD ⬇️
+    if user.IdRol == 1:
+        raise HTTPException(403, "No puedes suspender a otro Administrador.")
+    if user.IdUsuario == usuario.IdUsuario:
+        raise HTTPException(400, "No puedes suspender tu propia cuenta.")
     
     nuevo_estado_nombre = body.get("estado") # "Activo" o "Suspendido"
     estado = db.query(EstadoUsuario).filter(EstadoUsuario.Nombre == nuevo_estado_nombre).first()
@@ -1907,7 +1926,10 @@ def cambiar_estado_usuario(id_usuario: int, body: dict, db: Session = Depends(ge
 
 # --- ENDPOINTS DE REPORTES ---
 @app.post("/api/reportes")
-def crear_reporte(body: dict, db: Session = Depends(get_db), usuario: Usuario = Depends(get_current_user)):
+@limiter.limit("3/hour") # MÁXIMO 3 REPORTES POR HORA
+def crear_reporte(
+    request: Request,body: dict, db: Session = Depends(get_db), usuario: Usuario = Depends(get_current_user)):
+    
     # Permitimos que cualquier usuario logueado (Candidato) reporte
     nuevo = Reporte(
         IdUsuario=usuario.IdUsuario,

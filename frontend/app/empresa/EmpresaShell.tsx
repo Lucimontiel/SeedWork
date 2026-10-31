@@ -71,12 +71,6 @@ const NAV_ITEMS = [
   },
 ];
 
-const NOTIFICACIONES = [
-  { icon: "📄", color: "blue", titulo: "Nueva postulación", texto: "Andrea Perez aplicó a Desarrollador de Software", hace: "Hace 20 min" },
-  { icon: "✅", color: "green", titulo: "Oferta publicada", texto: "Analista de Software ya está activa", hace: "Hace 3 horas" },
-  { icon: "⏳", color: "yellow", titulo: "Recordatorio", texto: "Tienes 2 candidatos sin contactar", hace: "Ayer" },
-];
-
 type EmpresaShellProps = {
   children: ReactNode;
   pageTitle?: string;
@@ -92,6 +86,8 @@ export default function EmpresaShell({ children, pageTitle, pageSubtitle, varian
   const [notifOpen, setNotifOpen] = useState(false);
   const [nombreEmpresa, setNombreEmpresa] = useState("Empresa");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  
+  const [notificaciones, setNotificaciones] = useState<any[]>([]);
 
   // Protección + carga de datos de la empresa
   useEffect(() => {
@@ -118,6 +114,23 @@ export default function EmpresaShell({ children, pageTitle, pageSubtitle, varian
       })
       .catch(() => {});
   }, [user, cargandoAuth, router]);
+
+    // Protección + carga de datos de la empresa
+  useEffect(() => {
+    if (cargandoAuth) return;
+    if (!user || user.tipo !== "empresa" || !user.idEmpresa) return;
+
+    // ... (aquí está tu apiFetch de la empresa que ya tenías) ...
+  }, [user, cargandoAuth, router]);
+
+  // ⬇️ AÑADE ESTE NUEVO EFECTO ⬇️
+  useEffect(() => {
+    if (user?.idEmpresa) {
+      apiFetch<any[]>(`/api/empresa/${user.idEmpresa}/notificaciones`)
+        .then(setNotificaciones)
+        .catch(() => {});
+    }
+  }, [user?.idEmpresa]);
 
   function handleLogout() {
   // Limpiar tema y accesibilidad al cerrar sesión
@@ -220,22 +233,32 @@ export default function EmpresaShell({ children, pageTitle, pageSubtitle, varian
                   <path d="M8 16a2 2 0 004 0" />
                 </svg>
               </button>
-              <div className={"notification-dropdown" + (notifOpen ? " show" : "")}>
+                            <div className={"notification-dropdown" + (notifOpen ? " show" : "")}>
                 <div className="notification-title">
                   <h3>Notificaciones</h3>
-                  <span>{NOTIFICACIONES.length} nuevas</span>
+                  <span>{notificaciones.filter(n => !n.leida).length} nuevas</span>
                 </div>
-                {NOTIFICACIONES.map((n, i) => (
-                  <div className="notification-item" key={i}>
-                    <div className={"notification-icon " + n.color}>{n.icon}</div>
-                    <div className="notification-info">
-                      <strong>{n.titulo}</strong>
-                      <p>{n.texto}</p>
-                      <small>{n.hace}</small>
+                
+                {notificaciones.length === 0 ? (
+                  <p style={{ padding: "20px 0", fontSize: 13, color: "var(--muted)", textAlign: "center" }}>
+                    No tienes notificaciones por ahora.
+                  </p>
+                ) : (
+                  notificaciones.slice(0, 4).map((n) => (
+                    <div className="notification-item" key={n.idNotificacion}>
+                      <div className="notification-icon blue">🔔</div>
+                      <div className="notification-info">
+                        <strong>{n.titulo}</strong>
+                        <p>{n.mensaje}</p>
+                        <small>{new Date(n.fecha).toLocaleDateString()}</small>
+                      </div>
                     </div>
-                  </div>
-                ))}
-                <Link href="/empresa/notificaciones" className="view-all-btn">
+                  ))
+                )}
+                
+                {/* En CandidatoShell es <Link href="/candidato/notificaciones"...> */}
+                {/* En EmpresaShell es <Link href="/empresa/notificaciones"...> */}
+                <Link href="/empresa/notificaciones" className="view-all-btn" style={{ display: "block", textAlign: "center", textDecoration: "none" }}>
                   Ver todas las notificaciones
                 </Link>
               </div>

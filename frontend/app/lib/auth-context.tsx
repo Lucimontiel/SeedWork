@@ -8,7 +8,9 @@ import {
   useEffect,
   useRef,          // ⬅️ AÑADIDO
   useState,
-} from "react";
+} 
+
+from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { AUTH_LOGOUT_EVENT, authApi, MeResponse } from "./api";
 import { clearSession, saveSession } from "./session";
@@ -21,6 +23,11 @@ interface AuthContextValue {
     correo: string,
     contrasena: string,
     tipo: "candidato" | "empresa"
+  ) => Promise<any>;
+
+  login2FA: (
+    challengeToken: string, 
+    codigo: string
   ) => Promise<MeResponse>;
 
   adminLoginStep1: (
@@ -108,9 +115,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener(AUTH_LOGOUT_EVENT, handler);
   }, [router, pathname]);   // ⬅️ sin `user` en deps
 
-  const login = useCallback(
+    const login = useCallback(
     async (correo: string, contrasena: string, tipo: "candidato" | "empresa") => {
-      await authApi.login({ correo, contrasena, tipo });
+      const resp = await authApi.login({ correo, contrasena, tipo });
+      if ("access_token" in resp) {
+        const me = await authApi.me();
+        actualizarSesion(me);
+      }
+      return resp;
+    },
+    [actualizarSesion]
+  );
+
+  // ⬇️ PEGA ESTO DEBAJO DEL LOGIN ⬇️
+  const login2FA = useCallback(
+    async (challengeToken: string, codigo: string) => {
+      await authApi.login2FA({ challenge_token: challengeToken, codigo });
       const me = await authApi.me();
       actualizarSesion(me);
       return me;
@@ -176,6 +196,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         cargando,
         login,
+        login2FA,
         adminLoginStep1,
         adminLoginStep2,
         logout,
@@ -193,5 +214,7 @@ export function useAuth(): AuthContextValue {
     throw new Error("useAuth debe usarse dentro de <AuthProvider>");
   }
   return ctx;
+
 }
+
 

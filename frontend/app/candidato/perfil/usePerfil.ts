@@ -34,12 +34,10 @@ export function usePerfil(idCandidato: number | null) {
   const [error, setError] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
-    // ⬇️ AQUÍ VA EL CAMBIO ⬇️
     if (!idCandidato) {
       setLoading(false);
       return;
     }
-    // ⬆️ AQUÍ TERMINA EL CAMBIO ⬆️
 
     setLoading(true);
     try {
