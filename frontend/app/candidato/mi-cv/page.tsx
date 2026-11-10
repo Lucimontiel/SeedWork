@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import CandidatoShell from "../CandidatoShell";
 import { useCandidato } from "../../lib/useCandidato";
+import { ConfirmDialog } from "../../lib/ConfirmDialog";
 import { useCV } from "./useCV";
 import EditForm from "./EditForm";
 import { calcularCompletitud, type SeccionActiva } from "./types";
@@ -22,6 +23,7 @@ const TEMPLATES: { id: string; label: string }[] = [
   { id: "moderno", label: "Moderno" },
   { id: "elegante", label: "Elegante" },
 ];
+
 
 // Redimensiona y comprime la imagen antes de convertirla a base64
 function comprimirImagen(file: File, maxLado = 400, calidad = 0.8): Promise<string> {
@@ -70,6 +72,17 @@ export default function MiCVPage() {
   const [nuevaSeccionForm, setNuevaSeccionForm] = useState({ titulo: "", contenido: "" });
   const [guardandoNueva, setGuardandoNueva] = useState(false);
 
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+
+  // Modal de confirmación
+  const [confirmConfig, setConfirmConfig] = useState<{
+      isOpen: boolean;
+      title: string;
+      message: string;
+      action: () => void;
+    }>({ isOpen: false, title: "", message: "", action: () => {} })
+
   function mostrarToast(msg: string) {
     setToast(msg);
     setTimeout(() => setToast(null), 2500);
@@ -107,20 +120,30 @@ export default function MiCVPage() {
   }
 
   // ----------- Eliminar items (sin window.confirm) -----------
-  async function eliminarItem(tipo: "educacion" | "proyectos" | "idiomas" | "referencias" | "secciones", id: number, mensaje: string) {
-    try {
-      if (tipo === "educacion") await cvApi.eliminarEducacion(id);
-      if (tipo === "proyectos") await cvApi.eliminarProyecto(id);
-      if (tipo === "idiomas") await cvApi.eliminarIdioma(id);
-      if (tipo === "referencias") await cvApi.eliminarReferencia(id);
-      if (tipo === "secciones") await cvApi.eliminarSeccion(id);
-      mostrarToast(mensaje);
-      if (seccionActiva?.tipo === "custom" && seccionActiva.idSeccion === id) {
-        setSeccionActiva(null);
+    async function eliminarItem(tipo: "educacion" | "proyectos" | "idiomas" | "referencias" | "secciones", id: number, mensaje: string) {
+    // Guardamos la acción que se ejecutará si el usuario confirma
+    setConfirmConfig({
+      isOpen: true,
+      title: "Confirmar eliminación",
+      message: "¿Estás seguro de que deseas eliminar este elemento? Esta acción no se puede deshacer.",
+      action: async () => {
+        // La lógica original de eliminación
+        try {
+          if (tipo === "educacion") await cvApi.eliminarEducacion(id);
+          if (tipo === "proyectos") await cvApi.eliminarProyecto(id);
+          if (tipo === "idiomas") await cvApi.eliminarIdioma(id);
+          if (tipo === "referencias") await cvApi.eliminarReferencia(id);
+          if (tipo === "secciones") await cvApi.eliminarSeccion(id);
+          mostrarToast(mensaje);
+          if (seccionActiva?.tipo === "custom" && seccionActiva.idSeccion === id) {
+            setSeccionActiva(null);
+          }
+        } catch (err: any) {
+          mostrarToast(err.message || "No se pudo eliminar");
+        }
+        setConfirmConfig((prev) => ({ ...prev, isOpen: false })); // Cerrar modal
       }
-    } catch (err: any) {
-      mostrarToast(err.message || "No se pudo eliminar");
-    }
+    });
   }
 
   async function eliminarHabilidad(idHabilidad: number) {
@@ -510,6 +533,15 @@ export default function MiCVPage() {
         </div>
       )}
 
+      <ConfirmDialog
+        isOpen={confirmConfig.isOpen}
+        title={confirmConfig.title}
+        message={confirmConfig.message}
+        isDestructive={true}
+        confirmText="Sí, eliminar"
+        onCancel={() => setConfirmConfig((prev) => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmConfig.action}
+      />
 
       {toast && <div className="sw-toast show">{toast}</div>}
     </CandidatoShell>

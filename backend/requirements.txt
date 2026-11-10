@@ -26,3 +26,6 @@ slowapi
 
 # --- Inteligencia Artificial (Simulador) ---
 groq
+
+# Migraciones de Base de Datos
+alembic

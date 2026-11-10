@@ -1,5 +1,6 @@
 "use client"; // ⬅️ ESTA LÍNEA ES LA QUE ARREGLA EL ERROR
 
+import "../estilo-shell.css"; // Nuevo
 import "./estilo-candidato.css";
 import { useLocalSetting } from "@/app/lib/useSettings";
 import { useSyncAccesibilidad } from "../lib/useAccessibility";

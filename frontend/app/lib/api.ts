@@ -180,6 +180,7 @@ export interface MeResponse {
   idEmpresa: number | null;
   idAdministrador: number | null;
   totpHabilitado: boolean;
+  emailVerificado: boolean; 
 }
 
 export const authApi = {

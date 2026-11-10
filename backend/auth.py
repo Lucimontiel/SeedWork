@@ -1,6 +1,8 @@
 """
 auth.py - Endpoints de autenticación con JWT + refresh tokens + 2FA.
 """
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status, BackgroundTasks
+
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -8,6 +10,9 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 from jose import JWTError # ⬅️ NUEVO: Necesario para el challenge
+import qrcode
+import io
+import base64
 
 from database import get_db
 from models import (
@@ -157,6 +162,7 @@ def _construir_me_out(usuario: Usuario) -> MeOut:
         idEmpresa=usuario.empresa.IdEmpresa if usuario.empresa else None,
         idAdministrador=usuario.administrador.IdAdministrador if usuario.administrador else None,
         totpHabilitado=bool(usuario.TotpHabilitado),
+        emailVerificado=bool(usuario.EmailVerificado),
     )
 
 # ============================================================
@@ -519,27 +525,21 @@ async def setup_2fa(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(get_current_user),
 ):
-    """
-    Genera un secreto TOTP y lo guarda en el usuario (sin activar).
-    Devuelve el secreto y la URI otpauth:// para mostrar el QR.
-
-    Flujo:
-      1. El usuario llama a este endpoint → recibe { secreto, qr_uri }
-      2. Escanea el QR con Google Authenticator
-      3. Llama a /2fa/enable con el código de 6 dígitos
-      4. El backend valida y activa TotpHabilitado=True
-    """
     if usuario.TotpHabilitado:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="El 2FA ya está activado en esta cuenta. Desactívalo primero si quieres regenerarlo.",
         )
 
-    # Generar un secreto nuevo
     secreto = generar_secreto_totp()
     uri = uri_totp(secreto, usuario.Correo)
 
-    # Guardar secreto SIN activar (para que /enable lo valide)
+    # Generar el QR en memoria y convertirlo a Base64
+    img = qrcode.make(uri)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    qr_base64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+
     usuario.TotpSecret = secreto
     usuario.TotpHabilitado = False
     db.commit()
@@ -553,7 +553,7 @@ async def setup_2fa(
         commit=False,
     )
 
-    return Setup2FAOut(secreto=secreto, qr_uri=uri)
+    return Setup2FAOut(secreto=secreto, qr_uri=uri, qr_base64=qr_base64)
 
 # ============================================================
 # 2FA - ENABLE (paso 2: confirmar código y activar)
@@ -749,6 +749,7 @@ async def cambiar_contrasena(
 @limiter.limit("3/minute")
 async def olvide_password(
     request: Request,
+    background_tasks: BackgroundTasks, 
     body: OlvidePasswordIn,
     db: Session = Depends(get_db),
 ):
@@ -796,11 +797,8 @@ async def olvide_password(
     db.commit()
 
     # Email best-effort
-    enlace = f"{FRONTEND_URL}/restablecer?token={token_plano}"
-    try:
-        enviar_correo_recuperacion(usuario.Correo, enlace)
-    except Exception as e:
-        print(f"[EMAIL] Falló envío de reset: {e}")
+    enlace = f"{FRONTEND_URL}/restablecer-password?token={token_plano}"
+    background_tasks.add_task(enviar_correo_recuperacion, usuario.Correo, enlace)
 
     return mensaje
 
@@ -918,6 +916,7 @@ async def verificar_correo(
 @limiter.limit("3/minute")
 async def reenviar_verificacion(
     request: Request,
+    background_tasks: BackgroundTasks, 
     body: dict,
     db: Session = Depends(get_db),
 ):
@@ -951,9 +950,6 @@ async def reenviar_verificacion(
     db.commit()
 
     enlace = f"{FRONTEND_URL}/verificar-correo?token={token_plano}"
-    try:
-        enviar_correo_verificacion(usuario.Correo, enlace)
-    except Exception as e:
-        print(f"[EMAIL] Falló reenvío de verificación: {e}")
+    background_tasks.add_task(enviar_correo_verificacion, usuario.Correo, enlace)
 
     return mensaje

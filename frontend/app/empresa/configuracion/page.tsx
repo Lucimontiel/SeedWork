@@ -76,12 +76,14 @@ export default function ConfiguracionEmpresaPage() {
     setPaso2FA(user?.totpHabilitado ? "desactivar" : "inicio");
   }
 
-  async function iniciarSetup2FA() {
+    async function iniciarSetup2FA() {
     setCargando2FA(true);
     setError2FA(null);
     try {
-      const res = await apiFetch<{ secreto: string; qr_uri: string }>("/api/auth/2fa/setup", { method: "POST" });
-      setQrUri(res.qr_uri);
+      //  Agregamos qr_base64 al tipado
+      const res = await apiFetch<{ secreto: string; qr_uri: string; qr_base64: string }>("/api/auth/2fa/setup", { method: "POST" });
+      
+      setQrUri(res.qr_base64); // Guardamos la imagen en Base64 en lugar de la URL
       setPaso2FA("setup");
     } catch (err: any) {
       setError2FA(err.message);
@@ -483,7 +485,7 @@ export default function ConfiguracionEmpresaPage() {
               {paso2FA === "setup" && (
                 <div style={{ textAlign: "center" }}>
                   <p>Escanea el código QR:</p>
-                  <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrUri)}`} alt="QR 2FA" style={{ margin: "16px auto", borderRadius: 8 }} />
+                  <img src={`data:image/png;base64,${qrUri}`} alt="QR 2FA" style={{ margin: "16px auto", borderRadius: 8, width: 200, height: 200 }} />
                   <input type="text" maxLength={6} value={codigo2FA} onChange={e => setCodigo2FA(e.target.value.replace(/\D/g, ''))} placeholder="000000" style={{ textAlign: "center", fontSize: 18, letterSpacing: 4, width: "100%", padding: 10, borderRadius: 8, border: "1px solid var(--line)" }} />
                   <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 24 }}>
                     <button className="btn-cancel-edit" onClick={() => setModal2FA(false)}>Cancelar</button>

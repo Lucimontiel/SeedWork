@@ -5,28 +5,11 @@ import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { useAuth } from "../lib/auth-context";
 import { apiFetch } from "../lib/api";
+import { useToast } from "../lib/ToastProvider";
 
 const NAV_ITEMS = [
-  {
-    href: "/empresa/inicio",
-    label: "Inicio",
-    icon: (
-      <>
-        <path d="M3 8.5L10 3l7 5.5" />
-        <path d="M5 8v8h10V8" />
-      </>
-    ),
-  },
-  {
-    href: "/empresa/perfil",
-    label: "Perfil",
-    icon: (
-      <>
-        <circle cx="10" cy="6.5" r="3" />
-        <path d="M4 17c0-3 2.7-5 6-5s6 2 6 5" />
-      </>
-    ),
-  },
+  {href: "/empresa/inicio",label: "Inicio",icon: ( <> <path d="M3 8.5L10 3l7 5.5" /><path d="M5 8v8h10V8" /></>),},
+  {href: "/empresa/perfil",label: "Perfil",icon: (<><circle cx="10" cy="6.5" r="3" /><path d="M4 17c0-3 2.7-5 6-5s6 2 6 5" /> </> ),},
   {
     href: "/empresa/mis-ofertas",
     label: "Mis ofertas",
@@ -88,6 +71,7 @@ export default function EmpresaShell({ children, pageTitle, pageSubtitle, varian
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   
   const [notificaciones, setNotificaciones] = useState<any[]>([]);
+  const { showToast } = useToast();
 
   // Protección + carga de datos de la empresa
   useEffect(() => {
@@ -278,6 +262,29 @@ export default function EmpresaShell({ children, pageTitle, pageSubtitle, varian
             </div>
           </div>
         </header>
+
+        {/* BANNER DE VERIFICACIÓN DE CORREO */}
+        {user && !user.emailVerificado && (
+          <div style={{ background: "#FDF1DC", borderBottom: "1px solid #F5D8A0", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#B5750C", fontSize: 13.5, fontWeight: 600 }}>
+              <span>⚠️</span>
+              <span>Por favor, verifica tu correo electrónico para desbloquear todas las funciones.</span>
+            </div>
+            <button 
+              onClick={async () => {
+                try {
+                  await apiFetch("/api/auth/reenviar-verificacion", { method: "POST", body: { correo: user.correo } });
+                  showToast("Te hemos enviado un nuevo enlace de verificación. Revisa tu correo.", "success");
+                } catch {
+                  showToast("Error al reenviar el correo. Intenta de nuevo más tarde.", "error");
+                }
+              }}
+              style={{ background: "#B5750C", color: "#fff", border: "none", padding: "6px 14px", borderRadius: 6, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}
+            >
+              Reenviar correo
+            </button>
+          </div>
+        )}
 
         <div className="content-wrap">{children}</div>
       </div>

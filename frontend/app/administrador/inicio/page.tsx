@@ -11,9 +11,23 @@ export default function InicioAdminPage() {
   const [vacantes, setVacantes] = useState<Vacante[]>([]);
   const [cargando, setCargando] = useState(true);
 
+  const [resumen, setResumen] = useState({
+    totalUsuarios: 0,
+    totalEmpresas: 0,
+    totalCandidatos: 0,
+    totalOfertas: 0,
+    reportesPendientes: 0,
+  });
+
   useEffect(() => {
-    apiFetch<Vacante[]>("/api/admin/vacantes")
-      .then(setVacantes)
+    Promise.all([
+      apiFetch<{ items: Vacante[] }>("/api/admin/vacantes?limit=100"), 
+      apiFetch<any>("/api/admin/resumen")
+    ])
+      .then(([vacantesData, resumenData]) => {
+        setVacantes(vacantesData.items);
+        setResumen(resumenData);
+      })
       .catch(console.error)
       .finally(() => setCargando(false));
   }, []);
@@ -43,15 +57,17 @@ export default function InicioAdminPage() {
         </div>
         <div className="quick-card">
           <div>
-            <h3>Total vacantes</h3>
-            <div className="stat">{cargando ? "-" : vacantes.length}</div>
+            <h3>Total ofertas</h3>
+            <div className="stat">{cargando ? "-" : resumen.totalOfertas}</div>
             <p>Histórico en la plataforma</p>
           </div>
         </div>
         <div className="quick-card">
           <div>
             <h3>Reportes activos</h3>
-            <div className="stat" style={{ color: "#C6382E" }}>0</div>
+            <div className="stat" style={{ color: "#C6382E" }}>
+              {cargando ? "-" : resumen.reportesPendientes}
+            </div>
             <p>Casos abiertos sin resolver</p>
           </div>
         </div>
@@ -80,7 +96,7 @@ export default function InicioAdminPage() {
             </div>
             <div className="row-actions">
               <span className="badge badge-amber">Por aprobar</span>
-              <Link href="/administrador/vacantes" className="btn btn-solid">Revisar</Link>
+              <Link href="/administrador/vacantes" className="btn btn-solid">Ir a Vacantes</Link>
             </div>
           </div>
         ))}

@@ -3,8 +3,8 @@
 import { useState } from "react";
 import AdministradorShell from "../AdministradorShell";
 import { useLocalSetting } from "../../lib/useSettings";
-import { useAuth } from "../../lib/auth-context"; // ⬅️ NUEVO
-import { apiFetch } from "../../lib/api"; // ⬅️ NUEVO
+import { useAuth } from "../../lib/auth-context";
+import { apiFetch } from "../../lib/api";
 
 function Toggle({ label, settingKey, defaultChecked = false }: { label: string, settingKey: string, defaultChecked?: boolean }) {
   const [checked, setChecked] = useLocalSetting(settingKey, defaultChecked);
@@ -17,11 +17,11 @@ function Toggle({ label, settingKey, defaultChecked = false }: { label: string, 
 }
 
 export default function ConfiguracionAdminPage() {
-  const { user, refrescar } = useAuth(); // ⬅️ Obtener el usuario actual
+  const { user, refrescar, logout } = useAuth();
   const [toast, setToast] = useState<string | null>(null);
   const [modo, setModo] = useLocalSetting("theme:candidato", "claro");
   
-  // ⬇️ NUEVOS ESTADOS PARA EL MODAL 2FA ⬇️
+  // ============ 2FA ============
   const [modal2FA, setModal2FA] = useState(false);
   const [paso2FA, setPaso2FA] = useState<"inicio" | "setup" | "verificar" | "backup" | "desactivar">("inicio");
   const [qrUri, setQrUri] = useState("");
@@ -31,26 +31,34 @@ export default function ConfiguracionAdminPage() {
   const [cargando2FA, setCargando2FA] = useState(false);
   const [error2FA, setError2FA] = useState<string | null>(null);
 
+  // ============ CAMBIAR CONTRASEÑA ============
+  const [modalContrasena, setModalContrasena] = useState(false);
+  const [formContrasena, setFormContrasena] = useState({ actual: "", nueva: "", confirmar: "" });
+  const [errorContrasena, setErrorContrasena] = useState<string | null>(null);
+  const [guardandoContrasena, setGuardandoContrasena] = useState(false);
+
   function mostrarToast(msg: string) {
     setToast(msg);
     setTimeout(() => setToast(null), 2800);
   }
   
+  // ============ FUNCIONES 2FA ============
   function abrirModal2FA() {
     setModal2FA(true);
     setError2FA(null);
     setCodigo2FA("");
     setPassword2FA("");
-    // Si ya está habilitado, mostramos la opción de desactivar
     setPaso2FA(user?.totpHabilitado ? "desactivar" : "inicio");
   }
 
-  async function iniciarSetup2FA() {
+    async function iniciarSetup2FA() {
     setCargando2FA(true);
     setError2FA(null);
     try {
-      const res = await apiFetch<{ secreto: string; qr_uri: string }>("/api/auth/2fa/setup", { method: "POST" });
-      setQrUri(res.qr_uri);
+      // Agregamos qr_base64 al tipado
+      const res = await apiFetch<{ secreto: string; qr_uri: string; qr_base64: string }>("/api/auth/2fa/setup", { method: "POST" });
+      
+      setQrUri(res.qr_base64); // Guardamos la imagen en Base64 en lugar de la URL
       setPaso2FA("setup");
     } catch (err: any) {
       setError2FA(err.message);
@@ -70,7 +78,7 @@ export default function ConfiguracionAdminPage() {
       });
       setBackupCodes(res.backup_codes);
       setPaso2FA("backup");
-      if (refrescar) await refrescar(); // Actualizar el estado global
+      if (refrescar) await refrescar();
     } catch (err: any) {
       setError2FA(err.message);
     } finally {
@@ -98,6 +106,44 @@ export default function ConfiguracionAdminPage() {
     }
   }
 
+  // ============ FUNCIONES CAMBIAR CONTRASEÑA ============
+  async function handleCambiarContrasena(e: React.FormEvent) {
+    e.preventDefault();
+    setErrorContrasena(null);
+
+    if (formContrasena.nueva.length < 8) {
+      return setErrorContrasena("La nueva contraseña debe tener al menos 8 caracteres.");
+    }
+    if (formContrasena.nueva !== formContrasena.confirmar) {
+      return setErrorContrasena("Las contraseñas no coinciden.");
+    }
+    if (formContrasena.actual === formContrasena.nueva) {
+      return setErrorContrasena("La nueva contraseña debe ser diferente a la actual.");
+    }
+
+    setGuardandoContrasena(true);
+    try {
+      await apiFetch("/api/auth/cambiar-contrasena", {
+        method: "PUT",
+        body: {
+          contrasenaActual: formContrasena.actual,
+          contrasenaNueva: formContrasena.nueva,
+        },
+      });
+      
+      setModalContrasena(false);
+      mostrarToast("Contraseña actualizada correctamente. Vuelve a iniciar sesión.");
+      
+      // Forzamos el logout para pedir login de nuevo
+      if (logout) await logout();
+      
+    } catch (err: any) {
+      setErrorContrasena(err.message || "Error al cambiar la contraseña.");
+    } finally {
+      setGuardandoContrasena(false);
+    }
+  }
+
   return (
     <AdministradorShell pageTitle="Configuración" pageSubtitle="Seguridad y parámetros generales de la plataforma">
       <div className="adm-settings-grid">
@@ -110,11 +156,14 @@ export default function ConfiguracionAdminPage() {
               Seguridad
             </div>
             <div className="adm-settings-list">
-              <div className="adm-settings-row nav" onClick={() => mostrarToast("Cambio de contraseña: Próximamente")}>
+              <div className="adm-settings-row nav" onClick={() => {
+                setFormContrasena({ actual: "", nueva: "", confirmar: "" });
+                setErrorContrasena(null);
+                setModalContrasena(true);
+              }}>
                 <span className="row-label">Cambiar contraseña</span>
                 <svg className="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m9 6 6 6-6 6"/></svg>
               </div>
-              {/* 2FA ya desarrollado*/}
               <div className="adm-settings-row nav" onClick={abrirModal2FA}>
                 <span className="row-label">Verificación en dos pasos (2FA)</span>
                 <span className={`badge ${user?.totpHabilitado ? 'badge-green' : 'badge-amber'}`}>
@@ -174,7 +223,68 @@ export default function ConfiguracionAdminPage() {
 
       </div>
       
-      {/* MODAL 2FA REAL */}
+      {/* ============ MODAL: CAMBIAR CONTRASEÑA ============ */}
+      {modalContrasena && (
+        <div className="cv-form-modal-backdrop" onClick={() => !guardandoContrasena && setModalContrasena(false)}>
+          <div className="cv-form-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 450 }}>
+            <div className="cv-form-modal-header">
+              <h3>Cambiar contraseña</h3>
+              <button type="button" className="cv-form-modal-close" onClick={() => setModalContrasena(false)} disabled={guardandoContrasena}>×</button>
+            </div>
+            
+            <form onSubmit={handleCambiarContrasena}>
+              <div className="cv-form-modal-body">
+                {errorContrasena && <div className="alert-error" style={{ marginBottom: 16 }}>{errorContrasena}</div>}
+                
+                <div className="cv-form-field">
+                  <label>Contraseña actual</label>
+                  <input 
+                    type="password" 
+                    value={formContrasena.actual} 
+                    onChange={(e) => setFormContrasena({ ...formContrasena, actual: e.target.value })} 
+                    placeholder="Tu contraseña actual" 
+                    required 
+                    autoFocus
+                  />
+                </div>
+
+                <div className="cv-form-field">
+                  <label>Nueva contraseña</label>
+                  <input 
+                    type="password" 
+                    value={formContrasena.nueva} 
+                    onChange={(e) => setFormContrasena({ ...formContrasena, nueva: e.target.value })} 
+                    placeholder="Mínimo 8 caracteres" 
+                    required 
+                  />
+                </div>
+
+                <div className="cv-form-field">
+                  <label>Confirmar nueva contraseña</label>
+                  <input 
+                    type="password" 
+                    value={formContrasena.confirmar} 
+                    onChange={(e) => setFormContrasena({ ...formContrasena, confirmar: e.target.value })} 
+                    placeholder="Repite la nueva contraseña" 
+                    required 
+                  />
+                </div>
+              </div>
+
+              <div className="cv-form-modal-footer">
+                <button type="button" className="btn-cancel-edit" onClick={() => setModalContrasena(false)} disabled={guardandoContrasena}>
+                  Cancelar
+                </button>
+                <button type="submit" className="cv-btn-solid" disabled={guardandoContrasena}>
+                  {guardandoContrasena ? "Cambiando..." : "Cambiar contraseña"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ============ MODAL 2FA ============ */}
       {modal2FA && (
         <div className="cv-form-modal-backdrop" onClick={() => !cargando2FA && setModal2FA(false)}>
           <div className="cv-form-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 450 }}>
@@ -199,7 +309,7 @@ export default function ConfiguracionAdminPage() {
               {paso2FA === "setup" && (
                 <div style={{ textAlign: "center" }}>
                   <p>Escanea el código QR:</p>
-                  <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrUri)}`} alt="QR 2FA" style={{ margin: "16px auto", borderRadius: 8 }} />
+                  <img src={`data:image/png;base64,${qrUri}`} alt="QR 2FA" style={{ margin: "16px auto", borderRadius: 8, width: 200, height: 200 }} />
                   <input type="text" maxLength={6} value={codigo2FA} onChange={e => setCodigo2FA(e.target.value.replace(/\D/g, ''))} placeholder="000000" style={{ textAlign: "center", fontSize: 18, letterSpacing: 4, width: "100%", padding: 10, borderRadius: 8, border: "1px solid var(--line)" }} />
                   <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 24 }}>
                     <button className="btn-cancel-edit" onClick={() => setModal2FA(false)}>Cancelar</button>

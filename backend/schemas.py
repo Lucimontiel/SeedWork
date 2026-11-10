@@ -89,10 +89,12 @@ class MeOut(BaseModel):
     idEmpresa: Optional[int] = None
     idAdministrador: Optional[int] = None
     totpHabilitado: bool = False
+    emailVerificado: bool = False 
 
 class Setup2FAOut(BaseModel):
     secreto: str
     qr_uri: str
+    qr_base64: str # NUEVO CAMPO
 
 class Enable2FAIn(BaseModel):
     codigo: str = Field(min_length=6, max_length=6, pattern=r"^\d{6}$")

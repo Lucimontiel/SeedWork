@@ -1,5 +1,6 @@
 "use client";
 
+import "../estilo-shell.css"; // Nuevo
 import "./estilo-admin.css";
 import { useEffect } from "react";
 import { useLocalSetting } from "../lib/useSettings";

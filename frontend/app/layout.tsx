@@ -1,6 +1,7 @@
 import "./globals.css";
 import Script from "next/script";
 import { AuthProvider } from "./lib/auth-context";
+import { ToastProvider } from "./lib/ToastProvider"; // ⬅️ NUEVO
 
 export const metadata = {
   title: "SeedWork",
@@ -32,7 +33,12 @@ export default function RootLayout({
         />
       </head>
       <body>
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          {/* ⬇️ ENVOLVEMOS CON EL TOAST PROVIDER ⬇️ */}
+          <ToastProvider>
+            {children}
+          </ToastProvider>
+        </AuthProvider>
       </body>
     </html>
   );

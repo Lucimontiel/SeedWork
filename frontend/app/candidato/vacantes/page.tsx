@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import CandidatoShell from "../CandidatoShell";
 import { useAuth } from "../../lib/auth-context";
 import { apiFetch } from "../../lib/api";
+import { Pagination } from "../../lib/Pagination";
+import { useToast } from "../../lib/ToastProvider";
 
 interface Oferta {
   idOferta: number;
@@ -36,6 +38,7 @@ function tiempoDesde(fechaISO: string) {
 }
 
 export default function VacantesPage() {
+  const { showToast } = useToast();
   const { user } = useAuth();
   const [ofertas, setOfertas] = useState<Oferta[]>([]);
   const [loadingOfertas, setLoadingOfertas] = useState(true);
@@ -48,10 +51,13 @@ export default function VacantesPage() {
   const [area, setArea] = useState("");
   const [modalidad, setModalidad] = useState("");
 
+  // Paginación
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+
   const [aplicadas, setAplicadas] = useState<Set<number>>(new Set());
   const [guardadas, setGuardadas] = useState<Set<number>>(new Set());
   const [enviando, setEnviando] = useState<number | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
   const [menuAbierto, setMenuAbierto] = useState<number | null>(null);
   const [postulaciones, setPostulaciones] = useState<Postulacion[]>([]);
 
@@ -60,12 +66,7 @@ export default function VacantesPage() {
   const [motivoReporte, setMotivoReporte] = useState("");
   const [enviandoReporte, setEnviandoReporte] = useState(false);
 
-  function mostrarToast(msg: string) {
-    setToast(msg);
-    setTimeout(() => setToast(null), 3000);
-  }
-
-  const cargarOfertas = useCallback(async (q: string, ciudad: string) => {
+  const cargarOfertas = useCallback(async (q: string, ciudad: string, currentPage: number) => {
     setLoadingOfertas(true);
     try {
       const params = new URLSearchParams();
@@ -73,9 +74,13 @@ export default function VacantesPage() {
       if (ciudad) params.set("ciudad", ciudad);
       if (modalidad) params.set("modalidad", modalidad);
       if (area) params.set("categoria", area);
+      params.set("page", currentPage.toString());
+      params.set("limit", "10");
       
-      const data = await apiFetch<Oferta[]>(`/api/vacantes?${params.toString()}`);
-      setOfertas(data);
+      const data = await apiFetch<{ items: Oferta[], total: number, page: number, pages: number }>(`/api/vacantes?${params.toString()}`);
+      
+      setOfertas(data.items);
+      setTotalPages(data.pages);
       setError(null);
     } catch (err: any) {
       setError(err.message);
@@ -85,11 +90,13 @@ export default function VacantesPage() {
   }, [modalidad, area]);
 
   useEffect(() => {
-    cargarOfertas(search, searchCiudad);
-  }, [cargarOfertas]); // Al montar o cambiar filtros select
+    cargarOfertas(search, searchCiudad, page);
+  }, [cargarOfertas, page]); 
 
   useEffect(() => {
-    const t = setTimeout(() => cargarOfertas(search, searchCiudad), 400);
+    // Cuando el usuario cambia los filtros, volvemos a la página 1
+    setPage(1);
+    const t = setTimeout(() => cargarOfertas(search, searchCiudad, 1), 400);
     return () => clearTimeout(t);
   }, [search, searchCiudad, cargarOfertas]);
 
@@ -112,9 +119,9 @@ export default function VacantesPage() {
         body: { idOferta },
       });
       setAplicadas((prev) => new Set(prev).add(idOferta));
-      mostrarToast("Tu postulación fue enviada");
+      showToast("Tu postulación fue enviada con éxito", "success");
     } catch (err: any) {
-      mostrarToast(err.message);
+      showToast(err.message, "error");
     } finally {
       setEnviando(null);
     }
@@ -124,7 +131,7 @@ export default function VacantesPage() {
     if (!user?.idCandidato) return;
     const postulacion = postulaciones.find((p) => p.idOferta === idOferta);
     if (!postulacion) {
-      mostrarToast("No estás postulado a esta oferta");
+      showToast("No estás postulado a esta oferta", "info");
       setMenuAbierto(null);
       return;
     }
@@ -139,9 +146,9 @@ export default function VacantesPage() {
         return next;
       });
       setPostulaciones((prev) => prev.filter((p) => p.idOferta !== idOferta));
-      mostrarToast("Has salido de la oferta");
+      showToast("Has salido de la oferta", "success");
     } catch (err: any) {
-      mostrarToast(err.message);
+      showToast(err.message, "error");
     } finally {
       setMenuAbierto(null);
     }
@@ -152,10 +159,10 @@ export default function VacantesPage() {
       const next = new Set(prev);
       if (next.has(idOferta)) {
         next.delete(idOferta);
-        mostrarToast("Oferta eliminada de guardadas");
+        showToast("Oferta eliminada de guardadas", "info");
       } else {
         next.add(idOferta);
-        mostrarToast("Oferta guardada (solo en este dispositivo)");
+        showToast("Oferta guardada (solo en este dispositivo)", "success");
       }
       return next;
     });
@@ -179,11 +186,11 @@ export default function VacantesPage() {
           motivo: motivoReporte.trim(),
         },
       });
-      mostrarToast("Oferta reportada correctamente al administrador");
+      showToast("Oferta reportada correctamente al administrador", "success");
       setReporteOfertaId(null);
       setMotivoReporte("");
     } catch (err: any) {
-      mostrarToast(err.message || "No se pudo enviar el reporte");
+      showToast(err.message || "No se pudo enviar el reporte", "error");
     } finally {
       setEnviandoReporte(false);
     }
@@ -200,7 +207,7 @@ export default function VacantesPage() {
       {/* CONTENEDOR CENTRADO PARA BUSCADOR, FILTROS Y TABS */}
       <div className="vacantes-top-controls">
         
-        {/* ⬇️ NUEVA FILA: BUSCADOR Y FILTROS ⬇️ */}
+        {/* FILA: BUSCADOR Y FILTROS */}
         <div className="search-row">
           
           {/* BUSCADOR PÍLDORA */}
@@ -235,7 +242,7 @@ export default function VacantesPage() {
 
             <button 
               className="search-submit-btn" 
-              onClick={() => cargarOfertas(search, searchCiudad)}
+              onClick={() => { setPage(1); cargarOfertas(search, searchCiudad, 1); }}
               title="Buscar"
             >
               <svg viewBox="0 0 24 24">
@@ -245,9 +252,9 @@ export default function VacantesPage() {
             </button>
           </div>
 
-          {/* FILTROS SECUNDARIOS (Ahora al lado derecho) */}
+          {/* FILTROS SECUNDARIOS */}
           <div className="vacantes-filters">
-            <select className="filter-select" value={area} onChange={(e) => setArea(e.target.value)}>
+            <select className="filter-select" value={area} onChange={(e) => { setArea(e.target.value); setPage(1); }}>
               <option value="">Todas las áreas</option>
               <option value="Desarrollo de Software">Desarrollo de Software</option>
               <option value="Diseño Gráfico">Diseño Gráfico</option>
@@ -256,7 +263,7 @@ export default function VacantesPage() {
               <option value="Ventas">Ventas</option>
               <option value="Recursos Humanos">Recursos Humanos</option>
             </select>
-            <select className="filter-select" value={modalidad} onChange={(e) => setModalidad(e.target.value)}>
+            <select className="filter-select" value={modalidad} onChange={(e) => { setModalidad(e.target.value); setPage(1); }}>
               <option value="">Todas las modalidades</option>
               <option value="Presencial">Presencial</option>
               <option value="Remoto">Remoto</option>
@@ -266,7 +273,7 @@ export default function VacantesPage() {
 
         </div>
 
-        {/* 3. TABS (TODAS / GUARDADAS) */}
+        {/* TABS (TODAS / GUARDADAS) */}
         <div className="vacantes-tabs">
           <button className={"vacantes-tab" + (tab === "todas" ? " active" : "")} onClick={() => setTab("todas")}>
             Todas <strong>{ofertas.length}</strong>
@@ -337,6 +344,15 @@ export default function VacantesPage() {
               </div>
             );
           })}
+          
+          <Pagination 
+            currentPage={page} 
+            totalPages={totalPages} 
+            onPageChange={(newPage) => {
+              setPage(newPage);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }} 
+          />
         </div>
 
         <div className="vacantes-sidebar">
@@ -413,7 +429,6 @@ export default function VacantesPage() {
         </div>
       )}
 
-      {toast && <div className="sw-toast show">{toast}</div>}
     </CandidatoShell>
   );
 }

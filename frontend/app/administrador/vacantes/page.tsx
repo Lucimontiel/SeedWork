@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import AdministradorShell from "../AdministradorShell";
 import { apiFetch } from "../../lib/api";
+import { Pagination } from "../../lib/Pagination";
 
 type Vacante = {
   idOferta: number;
@@ -39,6 +40,9 @@ export default function VacantesAdminPage() {
   const [busqueda, setBusqueda] = useState("");
   const [filtroEstado, setFiltroEstado] = useState("");
   const [filtroModalidad, setFiltroModalidad] = useState("");
+  // Paginación
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
   function mostrarToast(msg: string) {
     setToast(msg);
@@ -47,8 +51,10 @@ export default function VacantesAdminPage() {
 
   async function cargar() {
     try {
-      const data = await apiFetch<Vacante[]>("/api/admin/vacantes");
-      setVacantes(data);
+      // Ahora esperamos un objeto con items y pages
+      const data = await apiFetch<{ items: Vacante[], pages: number }>(`/api/admin/vacantes?page=${page}&limit=15`);
+      setVacantes(data.items);
+      setTotalPages(data.pages);
     } catch (e: any) {
       mostrarToast("Error al cargar vacantes: " + e.message);
     } finally {
@@ -58,7 +64,7 @@ export default function VacantesAdminPage() {
 
   useEffect(() => {
     cargar();
-  }, []);
+  }, [page]);
 
   async function cambiarEstado(idOferta: number, nuevoEstado: string) {
     if (nuevoEstado === "Rechazada" && !confirm("¿Seguro que deseas rechazar esta vacante?")) return;
@@ -164,6 +170,13 @@ export default function VacantesAdminPage() {
           </tbody>
         </table>
       </div>
+      
+      <Pagination 
+        currentPage={page} 
+        totalPages={totalPages} 
+        onPageChange={(newPage) => setPage(newPage)} 
+      />
+
       {toast && <div className="toast show">{toast}</div>}
     </AdministradorShell>
   );

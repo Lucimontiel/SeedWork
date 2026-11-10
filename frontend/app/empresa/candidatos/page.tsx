@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import EmpresaShell from "../EmpresaShell";
 import { useAuth } from "../../lib/auth-context";
 import { apiFetch } from "../../lib/api";
+import { Pagination } from "../../lib/Pagination";
 
 // ============================================================
 // Tipos
@@ -63,17 +64,28 @@ export default function CandidatosEmpresaPage() {
   const [perfilAbierto, setPerfilAbierto] = useState<PerfilCandidato | null>(null);
   const [cargandoPerfil, setCargandoPerfil] = useState(false);
 
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+
   function mostrarToast(msg: string) {
     setToast(msg);
     setTimeout(() => setToast(null), 2800);
   }
 
-  async function recargar() {
+  async function recargar(currentPage: number = 1) {
     if (!user || user.tipo !== "empresa" || !user.idEmpresa) return;
 
     try {
-      const data = await apiFetch<Candidato[]>(`/api/empresa/${user.idEmpresa}/candidatos`);
-      if (Array.isArray(data)) setCandidatos(data);
+      const params = new URLSearchParams();
+      params.set("page", currentPage.toString());
+      params.set("limit", "10");
+      if (filtroBusqueda) params.set("q", filtroBusqueda);
+      if (filtroEstado) params.set("estado", filtroEstado);
+
+      const data = await apiFetch<{ items: Candidato[], pages: number }>(`/api/empresa/${user.idEmpresa}/candidatos?${params.toString()}`);
+      
+      setCandidatos(data.items);
+      setTotalPages(data.pages);
     } catch (err) {
       console.error("Error cargando candidatos:", err);
     }
@@ -87,9 +99,12 @@ export default function CandidatosEmpresaPage() {
     }
 
     setCargando(true);
-    recargar().finally(() => setCargando(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, cargandoAuth]);
+    const timer = setTimeout(() => {
+      recargar(page).finally(() => setCargando(false));
+    }, 400); // Debounce para no saturar al escribir
+
+    return () => clearTimeout(timer);
+  }, [user, cargandoAuth, page, filtroBusqueda, filtroEstado]);
 
   async function cambiarEstadoCandidato(idPostulacion: number, nuevoEstado: string) {
     try {
@@ -98,13 +113,13 @@ export default function CandidatosEmpresaPage() {
         body: { nuevoEstado },
       });
       mostrarToast("Estado actualizado");
-      await recargar();
+      await recargar(page); // Recargamos la página actual
     } catch (err: any) {
       mostrarToast(err?.message || "Error al cambiar estado");
     }
   }
 
-  // 👇 NUEVO: abrir modal con el perfil del candidato
+  // Abrir modal con el perfil del candidato
   async function verPerfil(idCandidato: number) {
     setCargandoPerfil(true);
     setPerfilAbierto(null);
@@ -118,33 +133,23 @@ export default function CandidatosEmpresaPage() {
     }
   }
 
-  function filtrarCandidatos() {
-    return candidatos.filter((candidato) => {
-      const nombreCompleto = `${candidato.nombres} ${candidato.apellidos}`.toLowerCase();
-      const coincideNombre = nombreCompleto.includes(filtroBusqueda.toLowerCase());
-      const coincideTitulo = candidato.tituloOferta.toLowerCase().includes(filtroBusqueda.toLowerCase());
-      const coincideEstado = filtroEstado ? candidato.estado === filtroEstado : true;
-      return (coincideNombre || coincideTitulo) && coincideEstado;
-    });
-  }
-
   return (
     <EmpresaShell pageTitle="Candidatos" pageSubtitle="Explora y gestiona los candidatos que se han postulado a tus ofertas">
       {/* Tabs por estado */}
       <div className="misofertas-tabs" style={{ marginBottom: 18 }}>
-        <button className={"misofertas-tab" + (filtroEstado === "" ? " active" : "")} onClick={() => setFiltroEstado("")}>
-          <strong>Todos {candidatos.length}</strong>
+        <button className={"misofertas-tab" + (filtroEstado === "" ? " active" : "")} onClick={() => { setFiltroEstado(""); setPage(1); }}>
+          <strong>Todos</strong>
         </button>
-        <button className={"misofertas-tab" + (filtroEstado === "En revisión" ? " active" : "")} onClick={() => setFiltroEstado("En revisión")}>
+        <button className={"misofertas-tab" + (filtroEstado === "En revisión" ? " active" : "")} onClick={() => { setFiltroEstado("En revisión"); setPage(1); }}>
           <strong>En revisión</strong>
         </button>
-        <button className={"misofertas-tab" + (filtroEstado === "Entrevista" ? " active" : "")} onClick={() => setFiltroEstado("Entrevista")}>
+        <button className={"misofertas-tab" + (filtroEstado === "Entrevista" ? " active" : "")} onClick={() => { setFiltroEstado("Entrevista"); setPage(1); }}>
           <strong>Entrevista</strong>
         </button>
-        <button className={"misofertas-tab" + (filtroEstado === "Preseleccionado" ? " active" : "")} onClick={() => setFiltroEstado("Preseleccionado")}>
+        <button className={"misofertas-tab" + (filtroEstado === "Preseleccionado" ? " active" : "")} onClick={() => { setFiltroEstado("Preseleccionado"); setPage(1); }}>
           <strong>Preseleccionados</strong>
         </button>
-        <button className={"misofertas-tab" + (filtroEstado === "Rechazado" ? " active" : "")} onClick={() => setFiltroEstado("Rechazado")}>
+        <button className={"misofertas-tab" + (filtroEstado === "Rechazado" ? " active" : "")} onClick={() => { setFiltroEstado("Rechazado"); setPage(1); }}>
           <strong>Rechazados</strong>
         </button>
       </div>
@@ -156,12 +161,22 @@ export default function CandidatosEmpresaPage() {
             type="text"
             placeholder="Buscar candidato u oferta..."
             value={filtroBusqueda}
-            onChange={(e) => setFiltroBusqueda(e.target.value)}
+            onChange={(e) => {
+              setFiltroBusqueda(e.target.value);
+              setPage(1); // Vuelve a la página 1 al buscar
+            }}
           />
           <svg viewBox="0 0 20 20"><circle cx="9" cy="9" r="6"/><path d="M17 17l-4-4"/></svg>
         </div>
-        <select className="filter-select" value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)}>
-          <option value="">Estado</option>
+        <select 
+          className="filter-select" 
+          value={filtroEstado} 
+          onChange={(e) => {
+            setFiltroEstado(e.target.value);
+            setPage(1); // Vuelve a la página 1 al filtrar
+          }}
+        >
+          <option value="">Todos los estados</option>
           <option value="En revisión">En revisión</option>
           <option value="Entrevista">Entrevista</option>
           <option value="Preseleccionado">Preseleccionado</option>
@@ -175,10 +190,10 @@ export default function CandidatosEmpresaPage() {
         <div className="candidatos-body">
           {cargando ? (
             <p style={{ fontSize: 14, color: "#667085", padding: 16 }}>Cargando candidatos...</p>
-          ) : filtrarCandidatos().length === 0 ? (
-            <p style={{ fontSize: 14, color: "#667085", padding: 16 }}>No hay candidatos que coincidan.</p>
+          ) : candidatos.length === 0 ? (
+            <p style={{ fontSize: 14, color: "#667085", padding: 16 }}>No hay candidatos que coincidan con la búsqueda.</p>
           ) : (
-            filtrarCandidatos().map((candidato) => (
+            candidatos.map((candidato) => (
               <div className="candidato-row" key={candidato.idPostulacion}>
                 <div
                   className="candidato-avatar avatar-blue"
@@ -236,7 +251,14 @@ export default function CandidatosEmpresaPage() {
         </div>
       </div>
 
-      {/* 👇 MODAL con el perfil del candidato */}
+      {/* Paginación */}
+      <Pagination
+        currentPage={page}
+        totalPages={totalPages}
+        onPageChange={(newPage) => setPage(newPage)}
+      />
+
+      {/* Modal con el perfil del candidato */}
       {perfilAbierto && (
         <ModalPerfilCandidato
           perfil={perfilAbierto}
@@ -274,38 +296,24 @@ function ModalPerfilCandidato({
   return (
     <div style={overlayStyle} onClick={onCerrar}>
       <div style={{ ...modalStyle, maxWidth: 720 }} onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
         <div style={modalHeaderStyle}>
           <h3 style={{ margin: 0, fontSize: 18 }}>Perfil del candidato</h3>
           <button onClick={onCerrar} style={closeButtonStyle}>×</button>
         </div>
 
         <div style={{ maxHeight: "70vh", overflowY: "auto", paddingRight: 8 }}>
-          {/* Foto + info principal */}
           <div style={{ display: "flex", gap: 20, marginBottom: 24, alignItems: "flex-start" }}>
             <div
               style={{
-                width: 100,
-                height: 100,
-                borderRadius: 14,
+                width: 100, height: 100, borderRadius: 14,
                 background: perfil.fotoUrl ? "transparent" : "linear-gradient(160deg, #E4EEFC, #C4D3F6)",
-                overflow: "hidden",
-                flexShrink: 0,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
+                overflow: "hidden", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
               }}
             >
               {perfil.fotoUrl ? (
-                <img
-                  src={perfil.fotoUrl}
-                  alt={nombreCompleto}
-                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                />
+                <img src={perfil.fotoUrl} alt={nombreCompleto} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               ) : (
-                <span style={{ fontSize: 32, fontWeight: 700, color: "#35509E" }}>
-                  {iniciales}
-                </span>
+                <span style={{ fontSize: 32, fontWeight: 700, color: "#35509E" }}>{iniciales}</span>
               )}
             </div>
 
@@ -317,15 +325,14 @@ function ModalPerfilCandidato({
 
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {perfil.correo && (
-                <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, color: "var(--muted)" }}>
-                  <svg viewBox="0 0 20 20" style={{ width: 15, height: 15, stroke: "var(--muted)", fill: "none", strokeWidth: 1.6 }}>
-                    <rect x="2.5" y="4.5" width="15" height="11" rx="1.5" />
-                    <path d="M3 5.5l7 5.5 7-5.5" />
-                  </svg>
-                  {perfil.correo}
-                </span>
-              )}
-            
+                  <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, color: "var(--muted)" }}>
+                    <svg viewBox="0 0 20 20" style={{ width: 15, height: 15, stroke: "var(--muted)", fill: "none", strokeWidth: 1.6 }}>
+                      <rect x="2.5" y="4.5" width="15" height="11" rx="1.5" />
+                      <path d="M3 5.5l7 5.5 7-5.5" />
+                    </svg>
+                    {perfil.correo}
+                  </span>
+                )}
                 {perfil.telefono && (
                   <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, color: "var(--muted)" }}>
                     <svg viewBox="0 0 20 20" style={{ width: 15, height: 15, stroke: "var(--muted)", fill: "none", strokeWidth: 1.6 }}>
@@ -334,7 +341,7 @@ function ModalPerfilCandidato({
                     </svg>
                     {perfil.telefono}
                   </span>
-              )}
+                )}
                 {perfil.ciudad && (
                   <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, color: "var(--muted)" }}>
                     <svg viewBox="0 0 20 20" style={{ width: 15, height: 15, stroke: "var(--muted)", fill: "none", strokeWidth: 1.6 }}>
@@ -343,34 +350,22 @@ function ModalPerfilCandidato({
                     </svg>
                     {perfil.ciudad}
                   </span>
-              )}
+                )}
               </div>
             </div>
           </div>
 
-          {/* Sobre mí */}
           {perfil.about && (
             <Seccion titulo="Sobre mí">
               <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.6, color: "#475467" }}>{perfil.about}</p>
             </Seccion>
           )}
 
-          {/* Habilidades */}
           {perfil.habilidades.length > 0 && (
             <Seccion titulo="Habilidades">
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                 {perfil.habilidades.map((h) => (
-                  <span
-                    key={h.idHabilidad}
-                    style={{
-                      background: "#E4EEFC",
-                      color: "#1B4FBA",
-                      padding: "6px 14px",
-                      borderRadius: 20,
-                      fontSize: 13,
-                      fontWeight: 600,
-                    }}
-                  >
+                  <span key={h.idHabilidad} style={{ background: "#E4EEFC", color: "#1B4FBA", padding: "6px 14px", borderRadius: 20, fontSize: 13, fontWeight: 600 }}>
                     {h.nombre}
                   </span>
                 ))}
@@ -378,7 +373,6 @@ function ModalPerfilCandidato({
             </Seccion>
           )}
 
-          {/* Educación */}
           {perfil.educacion.length > 0 && (
             <Seccion titulo="Educación">
               {perfil.educacion.map((e) => (
@@ -391,7 +385,6 @@ function ModalPerfilCandidato({
             </Seccion>
           )}
 
-          {/* Experiencia */}
           {perfil.experiencia.length > 0 && (
             <Seccion titulo="Experiencia / Proyectos">
               {perfil.experiencia.map((e) => (
@@ -404,18 +397,14 @@ function ModalPerfilCandidato({
             </Seccion>
           )}
 
-          {/* Idiomas */}
           {perfil.idiomas.length > 0 && (
             <Seccion titulo="Idiomas">
               {perfil.idiomas.map((i) => (
-                <p key={i.idIdioma} style={{ margin: "4px 0", fontSize: 13.5 }}>
-                  🌐 {i.descripcion}
-                </p>
+                <p key={i.idIdioma} style={{ margin: "4px 0", fontSize: 13.5 }}>🌐 {i.descripcion}</p>
               ))}
             </Seccion>
           )}
 
-          {/* Referencias */}
           {perfil.referencias && perfil.referencias.length > 0 && (
             <Seccion titulo="Referencias">
               {perfil.referencias.map((r) => (
@@ -428,7 +417,6 @@ function ModalPerfilCandidato({
             </Seccion>
           )}
 
-          {/* Secciones personalizadas */}
           {perfil.secciones && perfil.secciones.length > 0 && (
             <>
               {perfil.secciones.map((s) => (
@@ -442,7 +430,6 @@ function ModalPerfilCandidato({
           )}
         </div>
 
-        {/* Footer */}
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--line)" }}>
           <button type="button" className="btn-empresa-outline" onClick={onCerrar}>
             Cerrar
@@ -453,22 +440,10 @@ function ModalPerfilCandidato({
   );
 }
 
-// ============================================================
-// Subcomponente Sección
-// ============================================================
 function Seccion({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 20 }}>
-      <h4
-        style={{
-          margin: "0 0 10px",
-          fontSize: 12.5,
-          fontWeight: 700,
-          textTransform: "uppercase",
-          letterSpacing: 0.4,
-          color: "#667085",
-        }}
-      >
+      <h4 style={{ margin: "0 0 10px", fontSize: 12.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, color: "#667085" }}>
         {titulo}
       </h4>
       {children}
@@ -476,44 +451,18 @@ function Seccion({ titulo, children }: { titulo: string; children: React.ReactNo
   );
 }
 
-// ============================================================
-// Estilos del modal
-// ============================================================
 const overlayStyle: React.CSSProperties = {
-  position: "fixed",
-  inset: 0,
-  background: "rgba(15, 23, 42, 0.55)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  zIndex: 1000,
-  padding: 20,
+  position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 20,
 };
 
 const modalStyle: React.CSSProperties = {
-  background: "var(--white)", // ⬅️ Cambiado
-  color: "var(--ink)",        // ⬅️ Añadido para que el texto sea visible
-  borderRadius: 16,
-  padding: 24,
-  width: "100%",
-  maxWidth: 520,
-  maxHeight: "90vh",
-  overflowY: "auto",
+  background: "var(--white)", color: "var(--ink)", borderRadius: 16, padding: 24, width: "100%", maxWidth: 520, maxHeight: "90vh", overflowY: "auto",
 };
 
 const modalHeaderStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "flex-start",
-  marginBottom: 20,
+  display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20,
 };
 
 const closeButtonStyle: React.CSSProperties = {
-  background: "none",
-  border: "none",
-  fontSize: 24,
-  cursor: "pointer",
-  color: "var(--muted)",
-  padding: 0,
-  lineHeight: 1,
+  background: "none", border: "none", fontSize: 24, cursor: "pointer", color: "var(--muted)", padding: 0, lineHeight: 1,
 };

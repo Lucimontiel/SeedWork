@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import AdministradorShell from "../AdministradorShell";
 import { apiFetch } from "../../lib/api";
+import { useToast } from "../../lib/ToastProvider"; // ⬅️ Hook importado
 
 type Usuario = {
   idUsuario: number;
@@ -16,19 +17,17 @@ export default function UsuariosAdminPage() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [cargando, setCargando] = useState(true);
   const [tab, setTab] = useState<"candidato" | "empresa">("candidato");
-  const [toast, setToast] = useState<string | null>(null);
-
-  function mostrarToast(msg: string) {
-    setToast(msg);
-    setTimeout(() => setToast(null), 2800);
-  }
+  
+  // ⬇️ Inicializamos el toast global
+  const { showToast } = useToast(); 
 
   async function cargar() {
     try {
       const data = await apiFetch<Usuario[]>("/api/admin/usuarios");
       setUsuarios(data);
     } catch (e: any) {
-      mostrarToast("Error cargando usuarios: " + e.message);
+      // ⬇️ Usamos showToast con tipo "error"
+      showToast("Error cargando usuarios: " + e.message, "error");
     } finally {
       setCargando(false);
     }
@@ -43,10 +42,11 @@ export default function UsuariosAdminPage() {
         method: "PATCH",
         body: { estado: nuevoEstado },
       });
-      mostrarToast(`Usuario ${nuevoEstado === "Activo" ? "reactivado" : "suspendido"}`);
+      // ⬇️ Usamos showToast con tipo "success"
+      showToast(`Usuario ${nuevoEstado === "Activo" ? "reactivado" : "suspendido"} correctamente`, "success");
       await cargar();
     } catch (e: any) {
-      mostrarToast("Error al cambiar estado");
+      showToast(e.message || "Error al cambiar estado", "error");
     }
   }
 
@@ -102,7 +102,7 @@ export default function UsuariosAdminPage() {
           </tbody>
         </table>
       </div>
-      {toast && <div className="toast show">{toast}</div>}
+      {/* ❌ ELIMINADO el {toast && ...} porque ahora el ToastProvider se encarga de todo */}
     </AdministradorShell>
   );
 }

@@ -58,12 +58,12 @@ export default function InicioCandidatoPage() {
         // ⬅️ CORREGIDO: Ahora usa /perfil en lugar de la ruta que no existía
         const [dataCandidato, dataOfertas, dataPostulaciones] = await Promise.all([
           apiFetch<Candidato>(`/api/candidato/${user.idCandidato}/perfil`),
-          apiFetch<Oferta[]>("/api/vacantes"),
+          apiFetch<{ items: Oferta[] }>("/api/vacantes"),
           apiFetch<Postulacion[]>(`/api/candidato/${user.idCandidato}/postulaciones`),
         ]);
 
         setCandidato(dataCandidato);
-        setOfertas(dataOfertas);
+        setOfertas(dataOfertas.items);
         setPostulaciones(dataPostulaciones);
       } catch (error) {
         console.error("Error al cargar datos de inicio:", error);
